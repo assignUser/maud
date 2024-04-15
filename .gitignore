@@ -1,0 +1,6 @@
+.ninja_deps .ninja_log
+.ninja_*
+build
+.cache
+-build
+CMakeLists.txt

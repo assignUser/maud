@@ -1,0 +1,19 @@
+#
+;
+";"
+"";""
+"" foo;""
+"" foo "bar";""
+"foo" bar;"foo"
+"foo" "bar";"foo"
+"foo \"hello world\"" "bar";"foo \"hello world\""
+"foo \"hello world\"\\" "bar";"foo \"hello world\"\\"
+#
+#
+R"()";R"()"
+R"()" foo;R"()"
+R"()" foo "bar";R"()"
+R"("hey ) ")" foo "bar";R"("hey ) ")"
+#
+R"EOF()EOF";R"EOF()EOF"
+R"EOF("hey )EOF ")EOF" foo "bar";R"EOF("hey )EOF ")EOF"
