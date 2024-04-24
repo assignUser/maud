@@ -37,7 +37,6 @@ file(REMOVE "${CMAKE_BINARY_DIR}/CMakeFiles/VerifyGlobs.cmake")
 execute_process(
   COMMAND
   setsid --fork
-  #nohup
   "${FIX}"
   "${CMAKE_BINARY_DIR}/CMakeFiles/VerifyGlobs.cmake"
   "${CMAKE_SOURCE_DIR}/../tools/cmake_modules/Maud.cmake"

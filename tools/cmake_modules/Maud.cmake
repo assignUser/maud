@@ -4,7 +4,15 @@ set(MAUD_DIR "${CMAKE_BINARY_DIR}/_maud")
 set(_MAUD_SELF_DIR "${CMAKE_CURRENT_LIST_DIR}")
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-cmake_language(GET_MESSAGE_LOG_LEVEL CMAKE_MESSAGE_LOG_LEVEL)
+if(NOT CMAKE_MESSAGE_LOG_LEVEL)
+  cmake_language(GET_MESSAGE_LOG_LEVEL CMAKE_MESSAGE_LOG_LEVEL)
+  set(
+    CMAKE_MESSAGE_LOG_LEVEL
+    "${CMAKE_MESSAGE_LOG_LEVEL}"
+    CACHE STRING
+    "log level for cmake message() commands"
+  )
+endif()
 
 if(NOT CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_STANDARD 20)
@@ -568,22 +576,21 @@ function(_maud_finalize_targets)
     endif()
     print_target_sources(${target})
 
-    # Ensure that all targets depend on the _maud_maybe_regenerate target
-    add_dependencies(${target} _maud_maybe_regenerate)
-
+    # TODO these install() calls should be made once with genexprs
+    # instead of with branching
     if(target MATCHES "_$")
       install(
-        TARGETS ${target} 
+        TARGETS ${target}
         EXPORT ${target}
-        DESTINATION "${MAUD_DIR}/fake_install"
+        DESTINATION "${MAUD_DIR}/junk"
         CXX_MODULES_BMI
-        DESTINATION "${MAUD_DIR}/fake_install"
+        DESTINATION "${MAUD_DIR}/junk"
         FILE_SET module_providers
-        DESTINATION "${MAUD_DIR}/fake_install"
+        DESTINATION "${MAUD_DIR}/junk"
       )
       install(
         EXPORT ${target}
-        DESTINATION "${MAUD_DIR}/fake_install"
+        DESTINATION "${MAUD_DIR}/junk"
         FILE ${target}.maud-config.cmake
       )
       continue()
@@ -620,82 +627,7 @@ function(_maud_finalize_targets)
 endfunction()
 
 
-function(_maud_regenerate_during_build)
-  execute_process(
-    COMMAND
-    "${CMAKE_COMMAND}"
-    -S "${CMAKE_SOURCE_DIR}"
-    -B "${CMAKE_BINARY_DIR}"
-    --regenerate-during-build
-  )
-  # --regenerated-during-build only regenerates; it doesn't resume the build.
-  # FIXME what if ninja was only building one target?
-  # Then we just started rebuilding *everything*.
-  execute_process(
-    COMMAND
-    "${CMAKE_COMMAND}"
-    --build "${CMAKE_BINARY_DIR}"
-  )
-endfunction()
-
-
-function(_maud_append_to_verify)
-  set(verify "${CMAKE_BINARY_DIR}/CMakeFiles/VerifyGlobs.cmake")
-  if(NOT EXISTS "${verify}")
-    return()
-  endif()
-
-  execute_process(
-    COMMAND
-    "${CMAKE_COMMAND}"
-    -E touch -t
-  )
-endfunction()
-
-
 function(_maud_maybe_regenerate)
-  message(STATUS "oh yeah:
-    injected verification")
-endfunction()
-
-
-function(_maud_setup_regenerate)
-  # If the results of a scan would change at all, we need to regenerate.
-  # We handle this with two operations in maybe_regenerate.cmake:
-  # - test a glob for a changed file set
-  # - rescan all source files on modification, comparing to the first scan
-  # If either is detected, `cmake --regenerate-during-build`
-
-  add_custom_target(
-    _maud_maybe_regenerate
-    COMMAND
-    "${CMAKE_COMMAND}"
-    -P "${MAUD_DIR}/maybe_regenerate.cmake"
-    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-  )
-
-  set(vars)
-  foreach(
-    var
-    CMAKE_SOURCE_DIR
-    CMAKE_BINARY_DIR
-    CMAKE_MODULE_PATH
-    CMAKE_MESSAGE_LOG_LEVEL
-  )
-    string(APPEND vars "set(${var} \"${${var}}\")\n")
-  endforeach()
-
-  file(
-    WRITE "${MAUD_DIR}/maybe_regenerate.cmake"
-    "${vars}\n"
-    "cmake_policy(SET CMP0007 NEW)\n"
-    "include(\"${_MAUD_SELF_DIR}/Maud.cmake\")\n"
-    "_maud_do_regenerate_in_script()\n"
-  )
-endfunction()
-
-
-function(_maud_do_regenerate_in_script)
   file(STRINGS "${MAUD_DIR}/globs" glob_lines)
 
   foreach(glob_line ${glob_lines})
@@ -709,7 +641,7 @@ function(_maud_do_regenerate_in_script)
       message(STATUS "change in matches to: ${pattern}, regenerating")
       message(VERBOSE "  (was: '${CMAKE_MATCH_2}')")
       message(VERBOSE "  (now: '${files}')")
-      _maud_regenerate_during_build()
+      file(TOUCH_NOCREATE "${CMAKE_BINARY_DIR}/CMakeFiles/cmake.verify_globs")
       return()
     else()
       message(FATAL_ERROR "corrupted '${MAUD_DIR}/globs' file!")
@@ -721,7 +653,7 @@ function(_maud_do_regenerate_in_script)
     _maud_rescan("${source_file}" scan-results-differ)
     if(scan-results-differ)
       message(STATUS "change detected ${scan-results-differ}, regenerating")
-      _maud_regenerate_during_build()
+      file(TOUCH_NOCREATE "${CMAKE_BINARY_DIR}/CMakeFiles/cmake.verify_globs")
       return()
     endif()
   endforeach()
@@ -730,12 +662,53 @@ function(_maud_do_regenerate_in_script)
 endfunction()
 
 
+function(_maud_setup_regenerate)
+  set(vars)
+  foreach(
+    var
+    CMAKE_SOURCE_DIR
+    CMAKE_BINARY_DIR
+    CMAKE_MODULE_PATH
+    CMAKE_MESSAGE_LOG_LEVEL
+  )
+    string(APPEND vars "set(${var} \"${${var}}\")\n")
+  endforeach()
+
+  file(WRITE "${MAUD_DIR}/configure_cache_variables.cmake" "${vars}")
+
+  if("${_MAUD_INJECT_REGENERATE}" STREQUAL "")
+    find_program(_MAUD_INJECT_REGENERATE maud_inject_regenerate REQUIRED)
+  endif()
+
+  # GLOB once to ensure VerifyGlobs will be generated
+  file(GLOB _ CONFIGURE_DEPENDS "${MAUD_DIR}/empty/*")
+
+  # FIXME windows...
+  find_program(_MAUD_SETSID setsid REQUIRED)
+  mark_as_advanced(_MAUD_SETSID)
+
+  execute_process(
+    COMMAND
+    "${_MAUD_SETSID}" --fork
+    "${_MAUD_INJECT_REGENERATE}"
+    "${CMAKE_BINARY_DIR}"
+    "${_MAUD_SELF_DIR}/Maud.cmake"
+    # FIXME check that this file is empty somewhere
+    OUTPUT_FILE "${MAUD_DIR}/maud_inject_regenerate.error"
+    ERROR_FILE "${MAUD_DIR}/maud_inject_regenerate.error"
+    COMMAND_ERROR_IS_FATAL ANY
+  )
+endfunction()
+
+
 function(_maud_setup)
   file(WRITE "${MAUD_DIR}/globs" "")
 
-  if(NOT EXISTS "${MAUD_DIR}/rendered")
-    file(MAKE_DIRECTORY "${MAUD_DIR}/rendered")
-  endif()
+  foreach(dir empty;junk;rendered)
+    if(NOT EXISTS "${MAUD_DIR}/${dir}")
+      file(MAKE_DIRECTORY "${MAUD_DIR}/${dir}")
+    endif()
+  endforeach()
 
   set_source_files_properties(
     "${_MAUD_SELF_DIR}/_executable.cxx"

@@ -81,8 +81,8 @@ argument(
 )
 
 string(APPEND help_str "\n")
-argument(generate_only OFF "Only generate a build directory")
 argument(source_readonly OFF "Use symlinks to avoid writing in $source_dir")
+argument(generate_only OFF "Only generate a build directory")
 argument(CMakeLists_only OFF "Only generate CMakeLists.txt")
 
 if(log_level STREQUAL "VERBOSE")
@@ -121,7 +121,7 @@ file(
     ${project_command}
 
     include(\"${maud_path}\")
-    message(STATUS \"Build type is ${CMAKE_BUILD_TYPE}\")
+    message(STATUS \"Build type is \${CMAKE_BUILD_TYPE}\")
 
     include(CTest)
     find_package(GTest)

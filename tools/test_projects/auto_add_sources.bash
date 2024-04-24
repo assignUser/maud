@@ -6,7 +6,7 @@ source ../../test_project.bash
 EOF
 
 maud --log-level=VERBOSE
-
+sleep 1 # wait for regenerate injection
 
 >bar.cxx cat<<-EOF
 	export module bar;
