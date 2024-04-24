@@ -196,7 +196,7 @@ function(_maud_preprocessing_scan_options source_file out_var)
     "${source_file}"
     MAUD_PREPROCESSING_SCAN_OPTIONS
   )
-  if(flags STREQUAL NOTFOUND)
+  if(NOT flags)
     set(flags "")
   endif()
   # TODO verify maud works while using c++23
@@ -258,7 +258,7 @@ function(_maud_scan source_file)
   # collect all imports
   string(JSON requires ERROR_VARIABLE error GET "${ddi}" rules 0 requires)
   set(imports)
-  if(error STREQUAL "NOTFOUND")
+  if(NOT error)
     string(JSON i LENGTH ${requires})
     while(i GREATER 0)
       math(EXPR i "${i} - 1")
@@ -268,7 +268,7 @@ function(_maud_scan source_file)
   endif()
 
   string(JSON module ERROR_VARIABLE error GET "${ddi}" rules 0 _maud_module-name)
-  if(error STREQUAL "NOTFOUND")
+  if(NOT error)
     message(FATAL_ERROR "FIXME not yet supported")
     list(REMOVE_ITEM imports "${module}")
     set(type IMPLEMENTATION)
@@ -277,7 +277,7 @@ function(_maud_scan source_file)
   endif()
 
   string(JSON provides ERROR_VARIABLE error GET "${ddi}" rules 0 provides 0)
-  if(error STREQUAL "NOTFOUND")
+  if(NOT error)
     string(JSON logical-name GET ${provides} logical-name)
     string(JSON is-interface GET ${provides} is-interface)
     if(logical-name MATCHES "(.+):(.+)")
@@ -520,13 +520,13 @@ function(_maud_finalize_targets)
 
     message(STATUS "${target}: ${target_type}")
     get_target_property(scanned ${target} MAUD_SCANNED)
-    if(scanned STREQUAL scanned-NOTFOUND)
+    if(NOT scanned)
       message(VERBOSE "  NOT A MAUD TARGET")
       continue()
     endif()
 
     get_target_property(imports ${target} MAUD_IMPORTS)
-    if(imports STREQUAL imports-NOTFOUND)
+    if(NOT imports)
       set(imports "")
     endif()
     message(VERBOSE "  IMPORTS: ${imports}")
@@ -544,7 +544,7 @@ function(_maud_finalize_targets)
     endforeach()
 
     get_target_property(interface ${target} MAUD_INTERFACE)
-    if(interface STREQUAL interface-NOTFOUND)
+    if(NOT interface)
       if(target_type STREQUAL "EXECUTABLE")
         set(interface "${_MAUD_SELF_DIR}/_executable.cxx")
         set(source_access PRIVATE)
@@ -731,10 +731,12 @@ endfunction()
 
 
 function(_maud_setup)
+  file(WRITE "${MAUD_DIR}/globs" "")
+
   if(NOT EXISTS "${MAUD_DIR}/rendered")
     file(MAKE_DIRECTORY "${MAUD_DIR}/rendered")
   endif()
-  file(WRITE "${MAUD_DIR}/globs" "")
+
   set_source_files_properties(
     "${_MAUD_SELF_DIR}/_executable.cxx"
     "${_MAUD_SELF_DIR}/_test_.cxx"
@@ -768,17 +770,42 @@ endfunction()
 
 function(shim_script_as destination script)
   cmake_path(ABSOLUTE_PATH script)
-  # TODO use $ENV{SHELL} or find_program(env) rather than hardcoding this
+
+  if("$ENV{PathExt}" MATCHES [[(^|;)\.bat($|;)]])
+    message(
+      VERBOSE
+      "Windows cmd.exe detected, shimming ${script} -> ${destination}.bat"
+    )
+    file(
+      WRITE "${destination}.bat"
+      "@ECHO OFF\r\n"
+      "\"${CMAKE_COMMAND}\" -P \"${script}\" -- %*\r\n"
+    )
+    return()
+  endif()
+
+  if("$ENV{SHELL}" STREQUAL "")
+    find_program(env env NO_CACHE)
+    if(NOT env)
+      message(
+        FATAL_ERROR
+        "Could not infer shim script style, set \$ENV{SHELL}."
+      )
+    else()
+      set(shebang "#!${env} -S sh -e")
+    endif()
+  else()
+    set(shebang "#!$ENV{SHELL} -e")
+  endif()
+
+  message(
+    VERBOSE
+    "Posix-compatible `${shebang}` assumed, shimming ${script} -> ${destination}"
+  )
   file(
     WRITE "${destination}"
-    "#!/usr/bin/env -S sh -e\n"
+    "${shebang}\n"
     "\"${CMAKE_COMMAND}\" -P \"${script}\" -- \"\$@\"\n"
-  )
-  # TODO use find_program(cmd) to decide if we want .bat instead
-  file(
-    WRITE "${destination}.bat"
-    "@ECHO OFF\r\n"
-    "\"${CMAKE_COMMAND}\" -P \"${script}\" -- %*\r\n"
   )
 endfunction()
 

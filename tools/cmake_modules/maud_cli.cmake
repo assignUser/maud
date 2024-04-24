@@ -26,8 +26,6 @@ endforeach()
 function(argument name default help)
   if(NOT "${ARG_${name}}" STREQUAL "")
     set(value "${ARG_${name}}")
-  elseif(NOT "$ENV{${name}}" STREQUAL "")
-    set(value "$ENV{${name}}")
   else()
     set(value "${default}")
   endif()
@@ -48,10 +46,10 @@ endfunction()
 
 set(
   help_str
-  [[
+  "
 Maud CLI - generate with cmake then build
 
-]]
+"
 )
 argument(help OFF "-h\tShow help text")
 if(ARG_h)
@@ -118,13 +116,12 @@ endif()
 
 file(
   WRITE "${source_dir}/CMakeLists.txt"
-  [[
-    ]] "${cmake_minimum}" [[
+  "
+    ${cmake_minimum}
+    ${project_command}
 
-    include("]] "${maud_path}" [[")
-    message(STATUS "Build type is ${CMAKE_BUILD_TYPE}")
-    ]] "${project_command}" [[
-
+    include(\"${maud_path}\")
+    message(STATUS \"Build type is ${CMAKE_BUILD_TYPE}\")
 
     include(CTest)
     find_package(GTest)
@@ -135,7 +132,7 @@ file(
     _maud_cxx_sources()
     _maud_setup_regenerate()
     _maud_finalize_targets()
-  ]]
+  "
 )
 
 if(CMakeLists_only)

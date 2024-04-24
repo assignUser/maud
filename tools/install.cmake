@@ -1,7 +1,7 @@
 include(CMakePackageConfigHelpers)
 include(GNUInstallDirs)
 
-# Install Maud's cmake modules
+# Install Maud's cmake modules and special target sources
 install(
   # TODO Make sure that we can invoke maud_cli from inside cmake
   # modules, to support generation of CMakeLists.txt in
@@ -16,16 +16,15 @@ install(
   "${CMAKE_INSTALL_LIBDIR}/cmake/Maud"
 )
 
-# Install shim scripts for the Maud CLI
+# Install shim script for the Maud CLI
 string(
   CONCAT shim_code
-  [[
-    set(install_dir "]] "$<INSTALL_PREFIX>/${CMAKE_INSTALL_LIBDIR}/cmake/Maud" [[")
-    set(shim "]] "${MAUD_DIR}/cli/maud" [[")
-    include("${install_dir}/Maud.cmake")
-    shim_script_as("${shim}" "${install_dir}/maud_cli.cmake")
-  ]]
+  "
+    set(install_dir \"$<INSTALL_PREFIX>/${CMAKE_INSTALL_LIBDIR}/cmake/Maud\")
+    include(\"\${install_dir}/Maud.cmake\")
+    shim_script_as(\"${MAUD_DIR}/cli/maud\" \"\${install_dir}/maud_cli.cmake\")
+  "
 )
 install(CODE "${shim_code}")
-install(PROGRAMS "${MAUD_DIR}/cli/maud" DESTINATION "${CMAKE_INSTALL_BINDIR}")
-install(FILES "${MAUD_DIR}/cli/maud.bat" DESTINATION "${CMAKE_INSTALL_BINDIR}")
+install(PROGRAMS "${MAUD_DIR}/cli/maud" DESTINATION "${CMAKE_INSTALL_BINDIR}" OPTIONAL)
+install(FILES "${MAUD_DIR}/cli/maud.bat" DESTINATION "${CMAKE_INSTALL_BINDIR}" OPTIONAL)
