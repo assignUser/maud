@@ -31,18 +31,17 @@ int main(int argc, char **argv) {
     stream.seekg(0).read(contents.data(), contents.size());
   }
 
-  std::string patch;
-  patch += "\n";
-  patch += "#### INJECTED BY MAUD\n";
-  patch += "include(\""s + argv[2] + "\")\n"s;
-  patch += "_maud_maybe_regenerate()\n";
-  patch += "#### INJECTED BY MAUD\n";
+  std::string patch = R"(
+    #### INJECTED BY MAUD ####
+    include(")"s + argv[2] + R"(")
+    _maud_maybe_regenerate()
+    #### INJECTED BY MAUD ####
+  )"s;
 
   auto it = std::search(contents.begin(), contents.end(), patch.begin(), patch.end());
   if (it != contents.end()) return 0;
 
   auto mtime = fs::last_write_time(verify_globs);
-  std::ofstream stream{verify_globs, std::ios_base::app};
-  stream << patch;
+  std::ofstream{verify_globs, std::ios_base::app} << patch;
   fs::last_write_time(verify_globs, mtime);
 }

@@ -653,6 +653,12 @@ function(_maud_append_to_verify)
 endfunction()
 
 
+function(_maud_maybe_regenerate)
+  message(STATUS "oh yeah:
+    injected verification")
+endfunction()
+
+
 function(_maud_setup_regenerate)
   # If the results of a scan would change at all, we need to regenerate.
   # We handle this with two operations in maybe_regenerate.cmake:
