@@ -240,6 +240,13 @@ function(_maud_cxx_sources)
 endfunction()
 
 
+function(math_assign var)
+  list(JOIN ARGN " " half_expr)
+  math(EXPR result "${${var}} ${half_expr}")
+  set(${var} ${result} PARENT_SCOPE)
+endfunction()
+
+
 function(_maud_scan source_file)
   # TODO I'd like the scanning to be multithreaded for speed.
   # This is pretty easy since execute_process with multiple
@@ -269,7 +276,7 @@ function(_maud_scan source_file)
   if(NOT error)
     string(JSON i LENGTH ${requires})
     while(i GREATER 0)
-      math(EXPR i "${i} - 1")
+      math_assign(i - 1)
       string(JSON import GET "${requires}" "${i}" logical-name)
       list(APPEND imports "${import}")
     endwhile()
@@ -462,8 +469,7 @@ function(_maud_add_test source_file partition out_target_name)
     target_compile_options(
       ${target_name}
       PRIVATE
-      # FIXME need /Fi on MSVC I think
-      -include "${_MAUD_SELF_DIR}/_test_.hxx"
+      "SHELL: $<IF:$<CXX_COMPILER_ID:MSVC>,/Fi,-include> ${_MAUD_SELF_DIR}/_test_.hxx"
     )
   endif()
 
@@ -781,6 +787,319 @@ function(shim_script_as destination script)
     "\"${CMAKE_COMMAND}\" -P \"${script}\" -- \"\$@\"\n"
   )
 endfunction()
+
+
+function(string_quoted str out_var)
+  string(JSON escaped_key ERROR_VARIABLE error SET "{}" "${str}" null)
+  if(NOT error AND escaped_key MATCHES "(\".*\")")
+    set(${out_var} "${CMAKE_MATCH_1}" PARENT_SCOPE)
+  else()
+    message(FATAL_ERROR "Couldn't escape `${str}`")
+  endif()
+endfunction()
+
+
+function(option type name)
+  # Options are considered to form a directed acyclic graph: each option may
+  # declare a requirement on any other option so long as no cycles are formed.
+  # Options with no requirements placed on them will have their default value.
+  # Otherwise if there are requirements on the option's value then it is
+  # assumed to be fixed (even if it happens to be fixed to the default).
+  # New requirements can be placed on an already fixed option as long as they
+  # are identical to the existing requirement; conflicting requirements will
+  # result in failed configuration.
+  #
+  # Requirements may only be added to options through the REQUIRES argument of
+  # an option(), and are the only guaranteed way to specify option values. This
+  # includes user provided options (On the CLI with -DFOO=a, through ccmake,
+  # etc.) which will be overridden by requirements if they would produce an
+  # invalid configuration. To introduce requirements directly, use
+  # `option(FORCE FOO 0)` to add a dummy option with the listed requirements.
+
+  cmake_parse_arguments(
+    "" # prefix
+    "ADVANCED" # options
+    "DEFAULT;HELP" # single value arguments
+    "ENUM;REQUIRES;FORCE" # multi value arguments
+    ${ARGV}
+  )
+
+  set(types BOOL PATH FILEPATH STRING ENUM FORCE)
+  if(NOT ("${type}" IN_LIST types))
+    # Handle legacy signature
+    set(type BOOL)
+    set(name ${ARGV0})
+    set(_HELP "${ARGV1}")
+    if(ARGC GREATER 2)
+      set(_DEFAULT "${ARGV2}")
+    endif()
+  elseif(type STREQUAL "ENUM")
+    if(NOT ("${_DEFAULT}" STREQUAL ""))
+      message(FATAL_ERROR "ENUM option ${name} may not specify a default")
+    endif()
+    set(type STRING)
+    list(POP_BACK _ENUM name)
+    list(POP_FRONT _ENUM l)
+    list(POP_BACK _ENUM r)
+    if(NOT (l STREQUAL "(" AND r STREQUAL ")" AND _ENUM MATCHES ";"))
+      message(FATAL_ERROR "ENUM option ${name} was improperly formatted")
+    endif()
+    list(GET _ENUM 0 _DEFAULT)
+  elseif(type STREQUAL "FORCE")
+    set(_REQUIRES ${_FORCE})
+    string(MAKE_C_IDENTIFIER "FORCE_${_REQUIRES}" name)
+    set(type BOOL)
+    set(_DEFAULT ON)
+  endif()
+
+  if(name IN_LIST _MAUD_ALL_OPTIONS)
+    return() # silently ignore duplicate declaration of the same option
+  endif()
+  set(_MAUD_ALL_OPTIONS ${_MAUD_ALL_OPTIONS} ${name} CACHE INTERNAL "" FORCE)
+
+  if("${name}" STREQUAL "IF")
+    message(FATAL_ERROR "IF is reserved and cannot be used for an option name")
+  elseif(NOT (name MATCHES "[A-Z][A-Z0-9_]+"))
+    message(
+      FATAL_ERROR
+      "Option cannot be named `${name}`: must be an all-caps identifier"
+    )
+  endif()
+
+  set(_MAUD_OPTION_GROUP_${name} "${OPTION_GROUP}" CACHE INTERNAL "" FORCE)
+
+  # dedent and store lines of HELP (set(CACHE) only allows a one-line docstring)
+  string(REGEX REPLACE "\n *" ";" _HELP "${_HELP}")
+  set(too_long ${_HELP})
+  list(
+    FILTER too_long INCLUDE REGEX
+    "......................................................................"
+  )
+  if(too_long)
+    message(FATAL_ERROR "${name}'s help string exceeded the 70 char line limit")
+  endif()
+
+  # store the default
+  if("${type}" STREQUAL "BOOL") # coerce BOOL to ON/OFF
+    if(_DEFAULT)
+      set(_DEFAULT ON)
+    else()
+      set(_DEFAULT OFF)
+    endif()
+  endif()
+  set(_MAUD_DEFAULT_${name} "${_DEFAULT}" CACHE INTERNAL "" FORCE)
+
+  # store requirements for this option
+  set(condition ON) # as a special case, BOOL options need not specify IF ON
+  while(_REQUIRES)
+    list(POP_FRONT _REQUIRES dependency value)
+    if("${dependency}" STREQUAL "IF")
+      set(condition "${value}")
+      continue()
+    endif()
+    set(
+      _MAUD_${name}_CONSTRAINS
+      ${dependency} ${_MAUD_${name}_CONSTRAINS} CACHE INTERNAL "" FORCE
+    )
+    string(SHA512 req "${dependency}-${name}-${condition}")
+    set(req "_MAUD_REQUIREMENT_${req}")
+    set(${req} "${value}" CACHE INTERNAL "" FORCE)
+  endwhile()
+
+  # declare the option's cache entry
+  set(${name} "${_DEFAULT}" CACHE ${type} "${_HELP}")
+  if(_ADVANCED)
+    mark_as_advanced(${name})
+  endif()
+
+  # set the option's value from the environment if appropriate
+  if(
+    "${${name}}" STREQUAL "${_DEFAULT}" AND DEFINED ENV{${name}}
+    AND NOT "$ENV{MAUD_DISABLE_ENVIRONMENT_OPTIONS}"
+  )
+    set_property(CACHE ${name} PROPERTY VALUE "$ENV{${name}}")
+  endif()
+
+  # store the enumeration of allowed STRING values
+  if(NOT ("${_ENUM}" STREQUAL ""))
+    set_property(CACHE ${name} PROPERTY STRINGS "${_ENUM}")
+  endif()
+endfunction()
+
+
+function(resolve_options)
+  foreach(opt ${_MAUD_ALL_OPTIONS})
+    set(${opt}_constraint_count 0)
+    set(${opt}_actual_constraints)
+  endforeach()
+
+  set(constrained)
+  foreach(opt ${_MAUD_ALL_OPTIONS})
+    set(${opt}_constrains ${_MAUD_${opt}_CONSTRAINS})
+    list(REMOVE_DUPLICATES ${opt}_constrains)
+    foreach(dep ${${opt}_constrains})
+      list(APPEND constrained ${dep})
+      math_assign(${dep}_constraint_count + 1)
+    endforeach()
+  endforeach()
+
+  list(REMOVE_DUPLICATES constrained)
+  set(unconstrained ${_MAUD_ALL_OPTIONS})
+  list(REMOVE_ITEM unconstrained ${constrained})
+
+  set(resolve_ordered)
+  while(unconstrained)
+    list(POP_FRONT unconstrained opt)
+    list(APPEND resolve_ordered ${opt})
+    foreach(dep ${${opt}_constrains})
+      math_assign(${dep}_constraint_count - 1)
+      if("${${dep}_constraint_count}" EQUAL 0)
+        # As long as there are no circular constraints then even in the worst
+        # case of one long graph A -> B -> C -> D we can always pop at least
+        # one unconstrained option off per iteration. (Kahn's algorithm)
+        list(REMOVE_ITEM constrained ${dep})
+        list(APPEND unconstrained ${dep})
+      endif()
+    endforeach()
+  endwhile()
+  
+  if(constrained)
+    message(FATAL_ERROR "Circular constraint between options ${constrained}")
+  endif()
+
+  foreach(opt ${resolve_ordered})
+    foreach(dep ${${opt}_constrains})
+      string(SHA512 req "${dep}-${opt}-${${opt}}")
+      set(req "_MAUD_REQUIREMENT_${req}")
+      if(NOT DEFINED "${req}")
+        continue()
+      endif()
+
+      if("${${dep}_actual_constraints}" STREQUAL "")
+        set_property(CACHE ${dep} PROPERTY VALUE "${${req}}")
+      elseif(NOT ("${${dep}}" STREQUAL "${${req}}"))
+        message(
+          FATAL_ERROR
+          "
+          Option constraint conflict: ${dep} is constrained
+          by ${${dep}_actual_constraints} to be
+            \"${${dep}}\"
+          but ${opt} requires it to be
+            \"${${req}}\"
+          "
+        )
+      endif()
+
+      list(APPEND ${dep}_actual_constraints ${opt})
+    endforeach()
+  endforeach()
+
+  set(cache_json "{}")
+
+  set(defines "${MAUD_DIR}/options.h")
+  file(WRITE "${defines}" "")
+
+  set(group "")
+  message(STATUS)
+  foreach(opt ${_MAUD_ALL_OPTIONS})
+    if(NOT (group STREQUAL "${_MAUD_OPTION_GROUP_${opt}}"))
+      set(group "${_MAUD_OPTION_GROUP_${opt}}")
+      message(STATUS "${group}:")
+      message(STATUS)
+      file(APPEND "${defines}" "\n/* ${group}: */\n\n")
+    endif()
+
+    if(NOT ("${${opt}_actual_constraints}" STREQUAL ""))
+      list(JOIN ${opt}_actual_constraints ", " reason)
+      set(reason "[constrained by ${reason}]")
+    elseif(DEFINED ENV{${opt}} AND NOT "$ENV{MAUD_DISABLE_ENVIRONMENT_OPTIONS}")
+      set(reason "[environment]")
+    elseif("${${opt}}" STREQUAL "${_MAUD_DEFAULT_${opt}}")
+      set(reason "[default]")
+    else()
+      set(reason "[user configured]")
+    endif()
+
+    get_property(type CACHE ${opt} PROPERTY TYPE)
+    if(type STREQUAL "STRING")
+      get_property(enum CACHE ${opt} PROPERTY STRINGS)
+      if(enum)
+        list(JOIN enum " " type)
+        set(type "ENUM(${type})")
+      endif()
+    elseif(type STREQUAL "BOOL")
+      set(enum OFF ON)
+    else()
+      set(enum)
+    endif()
+
+    string_quoted("${${opt}}" quoted)
+    message(STATUS "${opt}: ${type} = ${quoted} ${reason}")
+ 
+    if(enum AND NOT ("${${opt}}" IN_LIST enum))
+      message(FATAL_ERROR "ENUM option ${opt} must be one of ${enum}")
+    endif()
+    string(JSON cache_json SET "${cache_json}" "${opt}" "${quoted}")
+
+    get_property(help CACHE ${opt} PROPERTY HELPSTRING)
+    file(APPEND "${defines}" "\n/*!\n")
+    foreach(line ${help})
+      message(STATUS "     ${line}")
+      file(APPEND "${defines}" " *  ${line}\n")
+    endforeach()
+    file(APPEND "${defines}" " */\n")
+
+    if(type STREQUAL "BOOL")
+      if(${${opt}})
+        file(APPEND "${defines}" "#define ${opt} 1\n")
+      else()
+        file(APPEND "${defines}" "#define ${opt} 0\n")
+      endif()
+    elseif(enum)
+      foreach(e ${enum})
+        if("${${opt}}" STREQUAL "${e}")
+          file(APPEND "${defines}" "#define ${opt}_${e} 1\n")
+        else()
+          file(APPEND "${defines}" "#define ${opt}_${e} 0\n")
+        endif()
+      endforeach()
+    else()
+      file(APPEND "${defines}" "#define ${opt} ${quoted}")
+    endif()
+  endforeach()
+  add_compile_options(
+    "SHELL: $<IF:$<CXX_COMPILER_ID:MSVC>,/Fi,-include> ${defines}"
+  )
+  message(STATUS)
+
+  if(EXISTS "${CMAKE_SOURCE_DIR}/CMakeUserPresets.json")
+    file(READ "${CMAKE_SOURCE_DIR}/CMakeUserPresets.json" presets)
+  else()
+    set(
+      presets
+      [[{
+          "version": 6,
+          "cmakeMinimumRequired": {"major": 3, "minor": 28, "patch": 0},
+          "configurePresets": []
+      }]]
+    )
+  endif()
+
+  string(TIMESTAMP timestamp)
+  string(JSON configure_preset SET "{}" environment "{\"MAUD_DISABLE_ENVIRONMENT_OPTIONS\": \"ON\"}")
+  string(JSON configure_preset SET "${configure_preset}" generator "\"${CMAKE_GENERATOR}\"")
+  string(JSON configure_preset SET "${configure_preset}" cacheVariables "${cache_json}")
+  string(JSON configure_preset SET "${configure_preset}" name "\"${timestamp}\"")
+  string(JSON i LENGTH "${presets}" configurePresets)
+  string(JSON presets SET "${presets}" configurePresets ${i} "${configure_preset}")
+  file(WRITE "${CMAKE_SOURCE_DIR}/CMakeUserPresets.json" "${presets}")
+endfunction()
+
+option(
+  BOOL BUILD_SHARED_LIBS
+  DEFAULT OFF
+  HELP "Build shared libraries by default"
+)
 
 
 ################################################################################

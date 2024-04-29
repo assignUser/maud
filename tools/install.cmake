@@ -16,15 +16,14 @@ install(
   "${CMAKE_INSTALL_LIBDIR}/cmake/Maud"
 )
 
-# Install shim script for the Maud CLI
-string(
-  CONCAT shim_code
+# Shim and install the Maud CLI
+install(
+  CODE
   "
-    set(install_dir \"$<INSTALL_PREFIX>/${CMAKE_INSTALL_LIBDIR}/cmake/Maud\")
-    include(\"\${install_dir}/Maud.cmake\")
-    shim_script_as(\"${MAUD_DIR}/cli/maud\" \"\${install_dir}/maud_cli.cmake\")
+  set(install_dir \"$<INSTALL_PREFIX>/${CMAKE_INSTALL_LIBDIR}/cmake/Maud\")
+  include(\"\${install_dir}/Maud.cmake\")
+  shim_script_as(\"${MAUD_DIR}/cli/maud\" \"\${install_dir}/maud_cli.cmake\")
   "
 )
-install(CODE "${shim_code}")
 install(PROGRAMS "${MAUD_DIR}/cli/maud" DESTINATION "${CMAKE_INSTALL_BINDIR}" OPTIONAL)
 install(FILES "${MAUD_DIR}/cli/maud.bat" DESTINATION "${CMAKE_INSTALL_BINDIR}" OPTIONAL)
