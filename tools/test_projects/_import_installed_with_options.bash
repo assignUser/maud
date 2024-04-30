@@ -23,7 +23,7 @@ EOF
 	)
 EOF
 maud --log-level=VERBOSE
-cmake --install build --prefix $TEST_DIR/usr
+cmake --install build --prefix $TEST_DIR/usr --config Debug
 cd ..
 
 mkdir use

@@ -628,6 +628,7 @@ function(_maud_finalize_targets)
       EXPORT ${target}
       DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake
       FILE ${target}.maud-config.cmake
+      # TODO support injecting more cmake into maud-config.cmake
     )
   endforeach()
 endfunction()
@@ -1040,7 +1041,9 @@ function(resolve_options)
     endif()
 
     string_escape("${${opt}}" quoted)
-    if(enum)
+    if(type STREQUAL "BOOL")
+      message(STATUS "${opt} = ${${opt}} ${reason}")
+    elseif(enum)
       message(STATUS "${opt}: ${type} = ${${opt}} ${reason}")
     else()
       message(STATUS "${opt}: ${type} = ${quoted} ${reason}")
