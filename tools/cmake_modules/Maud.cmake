@@ -582,51 +582,33 @@ function(_maud_finalize_targets)
     endif()
     print_target_sources(${target})
 
-    # TODO these install() calls should be made once with genexprs
-    # instead of with branching
-    if(target MATCHES "_$")
-      install(
-        TARGETS ${target}
-        EXPORT ${target}
-        DESTINATION "${MAUD_DIR}/junk"
-        CXX_MODULES_BMI
-        DESTINATION "${MAUD_DIR}/junk"
-        FILE_SET module_providers
-        DESTINATION "${MAUD_DIR}/junk"
-      )
-      install(
-        EXPORT ${target}
-        DESTINATION "${MAUD_DIR}/junk"
-        FILE ${target}.maud-config.cmake
-      )
+    if(TEST ${target})
       continue()
     endif()
 
-    if(target_type STREQUAL "EXECUTABLE")
-      if(TEST ${target})
-        continue()
-      endif()
-      install(
-        TARGETS ${target}
-        EXPORT ${target}
-        DESTINATION ${CMAKE_INSTALL_BINDIR}
-      )
+    set(is_exe $<STREQUAL:$<TARGET_PROPERTY:${target},TYPE>,EXECUTABLE>)
+    set(
+      install_dir
+      "$<IF:${is_exe},${CMAKE_INSTALL_BINDIR},${CMAKE_INSTALL_LIBDIR}>"
+    )
+    if(target MATCHES _$)
+      set(junk_prefix "${MAUD_DIR}/junk/")
     else()
-      install(
-        TARGETS ${target}
-        EXPORT ${target}
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        CXX_MODULES_BMI
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/bmi/${CMAKE_CXX_COMPILER_ID}
-        # install the module interface sources
-        FILE_SET module_providers
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/module_interface/${target}
-      )
+      set(junk_prefix "")
     endif()
 
     install(
+      TARGETS ${target}
       EXPORT ${target}
-      DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake
+      DESTINATION "${junk_prefix}${install_dir}"
+      CXX_MODULES_BMI
+      DESTINATION "${junk_prefix}${install_dir}/bmi/${CMAKE_CXX_COMPILER_ID}"
+      FILE_SET module_providers
+      DESTINATION "${junk_prefix}${install_dir}/module_interface/${target}"
+    )
+    install(
+      EXPORT ${target}
+      DESTINATION "${junk_prefix}${CMAKE_INSTALL_LIBDIR}/cmake"
       FILE ${target}.maud-config.cmake
       # TODO support injecting more cmake into maud-config.cmake
     )
@@ -1226,10 +1208,11 @@ function(print_variables)
 endfunction()
 
 
-function(add_generator_expression_display_target target_name str)
+function(add_generator_expression_display_target target_name)
   # "$<INTERFACE_INCLUDE_DIRECTORIES:fmt::fmt-header-only>"
+  list(JOIN ARGN "\\' \\'" str)
   add_custom_target(
     ${target_name}
-    COMMAND "${CMAKE_COMMAND}" -E echo "${str}"
+    COMMAND "${CMAKE_COMMAND}" -E echo "\\'${str}\\'"
   )
 endfunction()
