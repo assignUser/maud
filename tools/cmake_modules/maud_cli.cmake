@@ -58,8 +58,7 @@ endif()
 string(APPEND help_str "\n")
 
 argument(log_level STATUS "Log level for cmake")
-argument(generator Ninja "Build tool for generated build")
-argument(build_type Debug "Build type for generated build")
+argument(generator "Ninja Multi-Config" "Build tool for generated build")
 argument(
   source_dir "${CMAKE_SOURCE_DIR}"
   "Directory in which to generate CMakeLists.txt"
@@ -121,7 +120,6 @@ file(
     ${project_command}
 
     include(\"${maud_path}\")
-    message(STATUS \"Build type is \${CMAKE_BUILD_TYPE}\")
 
     include(CTest)
     find_package(GTest)
@@ -130,8 +128,8 @@ file(
     _maud_cmake_modules()
     _maud_include_directories()
     _maud_cxx_sources()
-    _maud_setup_regenerate()
     _maud_finalize_targets()
+    _maud_setup_regenerate()
   "
 )
 
@@ -145,11 +143,9 @@ execute_process(
   -B "${build_dir}"
   -S "${source_dir}"
   -G "${generator}"
-  -DCMAKE_BUILD_TYPE=${build_type}
   ${cmake_args}
   --log-level=${log_level}
   --fresh
-  -GNinja
   RESULT_VARIABLE result
 )
 

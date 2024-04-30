@@ -70,6 +70,7 @@ What things are built into cmake that don't see enough use?
 - glob()
 - list(TRANSFORM)
 - `option(BUILD_TESTING)` is automatic, don't add an option for that!
+- `option(BUILD_SHARED_LIBS)` too
 - use a gui to view options; it's better
 
 
@@ -130,49 +131,15 @@ message(STATUS "DEBUGGING ${IT}")@
 `list(TRANSFORM)` might be useful enough to allow an explicit feature for sub-pipelines:
 
 ```
-@SOME_LIST_OF_BOOL | foreach | if_else(ENABLED DISABLED) | endforeach | join(",")@
+@SOME_LIST_OF_BOOL |foreach| if_else(ENABLED DISABLED) |endforeach| join(",")@
 ```
 
 TODO: options
 -------------
 
-provide cmake functions `bool_option, string_option, enum_option, path_option`
-for doing the above, point to Kconfig for a *real* sol'n. Bonus points:
-allow a multi-line help string which gets rendered into options.rst or dumped
-to stdout in the `option_summary` target.
-```
-bool_option(
-  USE_FOO
-  HELP [[
-    Whether foo capabilities should be used.
+Point to Kconfig for a *real* sol'n.
 
-    Only the first line gets used for CACHE help
-  ]]
-  REQUIRES
-  FOO_ENABLED=ON
-)
-
-string_option(
-  PROJECT_NAME
-  HELP "name of the project"
-  DEFAULT "Project"
-)
-
-path_option(
-  # ...
-)
-
-enum_option(
-  SOME_ENUM
-  HELP "some enum thing"
-  ENUM a b c
-  REQUIRES
-  IF a
-    FOO_ENABLED=OFF
-  IF b
-    FOO_ENABLED=ON
-)
-```
+Render options.rst with all the options summarized.
 
 TODO:
 -----
@@ -199,8 +166,6 @@ https://cmake.org/cmake/help/latest/prop_sf/CXX_SCAN_FOR_MODULES.html
 
 Notes
 -----
-
-https://github.com/timsong-cpp/cppwp
 
 add_custom_target's OUTPUT file carries a dependency automatically
 
@@ -341,63 +306,6 @@ C:\PROGRA~1\MICROS~1\2022\COMMUN~1\VC\Tools\MSVC\1439~1.335\bin\Hostx64\x64\cl.e
 
 # Notes: template file output
 
-```c
-#define FOO_STRING "@FOO_STRING@"
-static const char* FOO_FEATURE_NAMES[] = {@
-  foreach(feature ${FOO_FEATURE_NAMES})
-    render("  \"${feature}\",\n")
-  endforeach()
-@};
-#define FOO_ENABLED @ FOO_ENABLED | if_else(1 0) @
-```
-
-...which gets compiled to a generated cmake file:
-```cmake
-set(_maud_rendered_output "")
-set(RENDER_PATH "foo.h")
-function(render)
-  string(CONCAT out ${ARGN})
-  set(_maud_rendered_output "${out}" PARENT_SCOPE)
-endfunction()
-
-render(
-  # each literal section becomes an rendered string: 
-  # (we need the extra newline after [[ so we can simplify to
-  # always skipping the newline)
-  [[
-#define FOO_STRING "]]
-
-  # each variable reference (recognized by the lack of parens)
-  # becomes an render command too
-  ${FOO_STRING}
-
-  [[
-"
-static const char* FOO_FEATURE_NAMES[] = {]]
-)
-
-# commands are dropped in with a newline after the last )
-foreach(feature FOO_FEATURE_NAMES)
-  render("  \"${feature}\",\n")
-endforeach()
-
-render(
-  [[
-};
-#define FOO_ENABLED ]]
-)
-
-# pipe syntax is detected if we hit a | before a ( or @
-# Filters are functions named `template_filter_.*` which just read then
-# modify the variable IT. At the end of the pipeline, ${IT} is appended.
-set(IT ${FOO_ENABLED})
-template_filter_if_else(1 0)
-render("${IT}")
-unset(IT)
-```
-... which is then `include()`'d immediately after generation, doing
-a nice one-shot write of the resulting file.
-
 If we allow a pipeline to start with a command,
 we can put simple blocks on a single line.
 `@foreach(i RANGE 8) | render("${i}. \n") | endforeach()@`
@@ -421,9 +329,8 @@ $<
   $<$<BOOL:OFF>:JSON_USE_LEGACY_DISCARDED_VALUE_COMPARISON=1
 >
 ```
-
 It really ought to be possible to expand *most* generator
-expressions at build time. Someday it'd be amusing to write
+expressions at configure time. Someday it'd be amusing to write
 a library to just do that.
 
 

@@ -180,17 +180,32 @@ auto pipeline(auto begin, auto end) {
   reference(begin);
   *os << ")\n";
 
+  int depth = 0;
   while (true) {
     ++end;
     begin = find_first(not SPACE, end);
     // Find the end of the pipeline or the next filter
     end = skipping_strings_find_first(OF<'@', '|'>, begin);
 
-    debug("pipeline filter", begin, end);
-    *os << "template_filter_" << begin.view_to(end) << "\n";
+    if (std::string_view v{&*begin, &*end}; v == "foreach") {
+      debug("pipeline foreach", begin, end);
+      *os << "set(foreach_IT_" << depth
+          << ")\nforeach(IT ${IT})\n";
+      ++depth;
+    } else if (v == "endforeach") {
+      debug("pipeline endforeach", begin, end);
+      *os << "list(APPEND foreach_IT_" << depth
+          << " \"${IT}\")\nendforeach()\n"
+          << "set(IT \"${foreach_IT_" << depth << "}\")\n";
+      --depth;
+    } else {
+      debug("pipeline filter", begin, end);
+      *os << "template_filter_" << begin.view_to(end) << "\n";
+    }
 
     if (*end != '|') break;
   }
+  // TODO assert depth == 0
 
   debug("pipeline output", end, end);
   *os << "render(\"${IT}\")\n";

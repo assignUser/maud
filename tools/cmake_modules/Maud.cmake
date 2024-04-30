@@ -565,7 +565,7 @@ function(_maud_finalize_targets)
       else()
         get_target_property(src ${target} MAUD_INTERFACE_PARTITIONS)
         set(interface "${MAUD_DIR}/injected/${target}.cxx")
-        list(TRANSFORM src PREPEND "export import :")
+        list(TRANSFORM src PREPEND "\nexport import :")
         list(PREPEND src "export module ${target}")
         file(WRITE "${MAUD_DIR}/injected/${target}.cxx" "${src};\n")
         set(source_access PUBLIC)
@@ -613,7 +613,7 @@ function(_maud_finalize_targets)
       )
     else()
       install(
-        TARGETS ${target} 
+        TARGETS ${target}
         EXPORT ${target}
         DESTINATION ${CMAKE_INSTALL_LIBDIR}
         CXX_MODULES_BMI
@@ -722,6 +722,12 @@ function(_maud_setup)
     PROPERTIES
     MAUD_TYPE INTERFACE
   )
+
+  option(
+    BOOL BUILD_SHARED_LIBS
+    DEFAULT OFF
+    HELP "Build shared libraries by default"
+  )
 endfunction()
 
 
@@ -789,7 +795,7 @@ function(shim_script_as destination script)
 endfunction()
 
 
-function(string_quoted str out_var)
+function(string_escape str out_var)
   string(JSON escaped_key ERROR_VARIABLE error SET "{}" "${str}" null)
   if(NOT error AND escaped_key MATCHES "(\".*\")")
     set(${out_var} "${CMAKE_MATCH_1}" PARENT_SCOPE)
@@ -824,7 +830,7 @@ function(option type name)
     ${ARGV}
   )
 
-  set(types BOOL PATH FILEPATH STRING ENUM FORCE)
+  set(types "BOOL;PATH;FILEPATH;STRING;ENUM;FORCE")
   if(NOT ("${type}" IN_LIST types))
     # Handle legacy signature
     set(type BOOL)
@@ -834,15 +840,15 @@ function(option type name)
       set(_DEFAULT "${ARGV2}")
     endif()
   elseif(type STREQUAL "ENUM")
-    if(NOT ("${_DEFAULT}" STREQUAL ""))
-      message(FATAL_ERROR "ENUM option ${name} may not specify a default")
-    endif()
     set(type STRING)
     list(POP_BACK _ENUM name)
-    list(POP_FRONT _ENUM l)
     list(POP_BACK _ENUM r)
+    list(POP_FRONT _ENUM l)
     if(NOT (l STREQUAL "(" AND r STREQUAL ")" AND _ENUM MATCHES ";"))
       message(FATAL_ERROR "ENUM option ${name} was improperly formatted")
+    endif()
+    if(NOT ("${_DEFAULT}" STREQUAL ""))
+      message(FATAL_ERROR "ENUM option ${name} may not specify a default")
     endif()
     list(GET _ENUM 0 _DEFAULT)
   elseif(type STREQUAL "FORCE")
@@ -1033,8 +1039,12 @@ function(resolve_options)
       set(enum)
     endif()
 
-    string_quoted("${${opt}}" quoted)
-    message(STATUS "${opt}: ${type} = ${quoted} ${reason}")
+    string_escape("${${opt}}" quoted)
+    if(enum)
+      message(STATUS "${opt}: ${type} = ${${opt}} ${reason}")
+    else()
+      message(STATUS "${opt}: ${type} = ${quoted} ${reason}")
+    endif()
  
     if(enum AND NOT ("${${opt}}" IN_LIST enum))
       message(FATAL_ERROR "ENUM option ${opt} must be one of ${enum}")
@@ -1072,6 +1082,25 @@ function(resolve_options)
   )
   message(STATUS)
 
+  set(configure_preset "{}")
+  string(TIMESTAMP timestamp)
+  string(
+    JSON configure_preset SET "${configure_preset}"
+    name "\"${timestamp}\""
+  )
+  string(
+    JSON configure_preset SET "${configure_preset}"
+    environment "{\"MAUD_DISABLE_ENVIRONMENT_OPTIONS\": \"ON\"}"
+  )
+  string(
+    JSON configure_preset SET "${configure_preset}"
+    generator "\"${CMAKE_GENERATOR}\""
+  )
+  string(
+    JSON configure_preset SET "${configure_preset}"
+    cacheVariables "${cache_json}"
+  )
+
   if(EXISTS "${CMAKE_SOURCE_DIR}/CMakeUserPresets.json")
     file(READ "${CMAKE_SOURCE_DIR}/CMakeUserPresets.json" presets)
   else()
@@ -1084,22 +1113,13 @@ function(resolve_options)
       }]]
     )
   endif()
-
-  string(TIMESTAMP timestamp)
-  string(JSON configure_preset SET "{}" environment "{\"MAUD_DISABLE_ENVIRONMENT_OPTIONS\": \"ON\"}")
-  string(JSON configure_preset SET "${configure_preset}" generator "\"${CMAKE_GENERATOR}\"")
-  string(JSON configure_preset SET "${configure_preset}" cacheVariables "${cache_json}")
-  string(JSON configure_preset SET "${configure_preset}" name "\"${timestamp}\"")
   string(JSON i LENGTH "${presets}" configurePresets)
-  string(JSON presets SET "${presets}" configurePresets ${i} "${configure_preset}")
+  string(
+    JSON presets SET "${presets}"
+    configurePresets ${i} "${configure_preset}"
+  )
   file(WRITE "${CMAKE_SOURCE_DIR}/CMakeUserPresets.json" "${presets}")
 endfunction()
-
-option(
-  BOOL BUILD_SHARED_LIBS
-  DEFAULT OFF
-  HELP "Build shared libraries by default"
-)
 
 
 ################################################################################
