@@ -68,10 +68,12 @@ A summary of user-facing cmake variables, commands, and modules provided to
 auto-included modules:
 - `${MAUD_DIR}` (aka `${CMAKE_BINARY_DIR}/_maud`) a directory into which
   maud-specific build files will be written.
-- `glob(out-var patterns...)` which produces a list of matching files
-- `MaudTemplateFilters.cmake` a module of filters for use in template files
+- `glob(out-var patterns...)` which produces a list of matching files.
+- `MaudTemplateFilters.cmake` a module of filters for use in template files.
 - `${dir}` the directory containing the current auto-included cmake module
   (see also `${CMAKE_CURRENT_LIST_DIR}`)
+- `option()` which extends cmake's built-in build option declarations.
+- `string_escape()` which escapes a string for inclusion in C or json.
 
 Targets
 -------
@@ -143,15 +145,81 @@ which just does those `export import`s.
 
 #### Questionable support:
 
-Translation units other than module interface units are not necessarily reachable:
-[`CXX(20:module.reach#1)`](https://timsong-cpp.github.io/cppwp/n4861/module.reach#1)
-Importing translation units other than necessarily reachable ones is implementation
-defined. For example this includes importing a partition which is not an interface
-unit.
+- Translation units other than module interface units are not necessarily reachable:
+  [`CXX(20:module.reach#1)`](https://timsong-cpp.github.io/cppwp/n4861/module.reach#1)
+  Importing translation units other than necessarily reachable ones is implementation
+  defined. For example this includes importing a partition which is not an interface
+  unit.
+- As of this writing GCC 14 does not support `module:private;`.
+- Header units are not currently supported.
+- `import std;` might be supported by your compiler, but maud does not guarantee it.
 
-As of this writing GCC 14 does not support `module:private;`.
+Options
+-------
 
-Header units are not currently supported, nor is `import std;`.
+Maud overloads the built-in `option()` function (backwards-compatibly) to provide
+support for more sophisticated configuration options. For example:
+
+```cmake
+set(OPTION_GROUP "Foo-related options")
+option(
+  BOOL FOO_EMULATED
+  HELP "Emulate FOO functionality rather than requesting a real FOO endpoint."
+  REQUIRES
+    BUILD_SHARED_LIBS ON # If FOO_EMULATED=ON, BUILD_SHARED_LIBS will be set to ON
+)
+option(
+  ENUM(LOW MED HI) FOO_LEVEL
+  HELP "What level of FOO API should be requested."
+  REQUIRES
+  IF HI
+    FOO_EMULATED OFF
+)
+resolve_options()
+```
+
+This declares two options which can be specified during configuration (via `-D`
+command line arguments, etc). `BOOL` options as well as `PATH`, `STRING`, and
+`ENUM` arguments may be provided. Values provided for `BOOL` and `ENUM` options
+are validated automatically. Groups can also be associated with options by
+assigning to the `OPTION_GROUP` variable.
+
+Option values are frequently interdependent; for example enabling one feature
+might be impossible without enabling its dependencies. `option()` supports this
+through the `REQUIRES` block. In this block the requirements of each option can
+be specified in terms of assignments to other options on which it depends. After
+all options are declared, `resolve_options()` assigns values to each option
+ensuring all requirements are met (or reporting an error if cyclic dependencies
+have been declared).
+
+`resolve_options()` also prints a grouped report of the final value of each
+option, along with the reason for its value and the `HELP` string.
+Multiline `HELP` strings are supported for this report. Note that
+`CMakeCache.txt` only supports single line helpstrings so in `ccmake` and other
+applications which view the cache directly only the first line will appear.
+
+```
+-- FOO-related options:
+-- 
+-- FOO_ENABLED = OFF [constrained by FOO]
+--     Emulate FOO functionality rather than requesting a real FOO endpoint.
+-- FOO: ENUM(LOW MED HI) = HI [user configured]
+--     What level of FOO API should be requested.
+```
+
+Each call to `resolve_option()` also saves a cmake configure preset to
+`CMakeUserPresets.json` for easy copy-pasting, reproduction, etc. (These are
+initially named with the timestamp of their creation.) Finally, each option
+is surfaced in every C++ source file as predefined macros:
+
+```c++
+/*! Emulate FOO functionality rather than requesting a real FOO endpoint. */
+#define FOO_ENABLED 0
+/*! What level of FOO API should be requested. */
+#define FOO_LOW 0
+#define FOO_MED 0
+#define FOO_HI 1
+```
 
 Preprocessing
 -------------
@@ -280,9 +348,9 @@ rendered. For example, the filter `if_else` is implemented with:
 ```cmake
 macro(template_filter_if_else then otherwise)
   if(${IT})
-    set(IT ${then})
+    set(IT "${then}")
   else()
-    set(IT ${otherwise})
+    set(IT "${otherwise}")
   endif()
 endmacro()
 ```

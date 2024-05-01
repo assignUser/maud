@@ -137,8 +137,6 @@ message(STATUS "DEBUGGING ${IT}")@
 TODO: options
 -------------
 
-Point to Kconfig for a *real* sol'n.
-
 Render options.rst with all the options summarized.
 
 TODO:
@@ -336,6 +334,8 @@ a library to just do that.
 
 AAARGH: globs
 -------------
+
+TODO: document the new solution somewhere, probably in maud_inject.cxx
 
 Currently the hack is to have a single target named _maud_maybe_regenerate
 on which all other targets depend. If globs/scan results differ, we

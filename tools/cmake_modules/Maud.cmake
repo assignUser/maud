@@ -237,6 +237,29 @@ function(_maud_cxx_sources)
     _maud_scan("${source_file}")
   endforeach()
   file(WRITE "${MAUD_DIR}/source_files.list" "${source_files}")
+
+  find_program(CLANG_FORMAT_COMMAND clang-format)
+  if(CLANG_FORMAT_COMMAND)
+    # foreach source file (but not rendered)
+    #   create a target which produces ${source}.replacements.xml
+    # create one target which depends on all of those, producing failed_list
+    set(replacements)
+    foreach(source_file ${source_files})
+      add_custom_command(
+        OUTPUT "${source_file}.replacements-xml"
+        COMMAND "${CLANG_FORMAT_COMMAND}"
+        ARGS
+          --output-replacements-xml
+          "${source_file}"
+          > "${source_file}.replacements-xml"
+      )
+      list(APPEND replacements "${source_file}.replacements-xml")
+    endforeach()
+    # add_custom_target(
+    #   check-clang-format
+    #   DEPENDS ${replacements}
+    # )
+  endif()
 endfunction()
 
 
@@ -829,11 +852,11 @@ function(option type name)
     list(POP_FRONT _ENUM l)
     if(NOT (l STREQUAL "(" AND r STREQUAL ")" AND _ENUM MATCHES ";"))
       message(FATAL_ERROR "ENUM option ${name} was improperly formatted")
+    elseif("" IN_LIST _ENUM)
+      message(FATAL_ERROR "ENUM option ${name} may not contain an empty string")
+    elseif("${_DEFAULT}" STREQUAL "")
+      list(GET _ENUM 0 _DEFAULT)
     endif()
-    if(NOT ("${_DEFAULT}" STREQUAL ""))
-      message(FATAL_ERROR "ENUM option ${name} may not specify a default")
-    endif()
-    list(GET _ENUM 0 _DEFAULT)
   elseif(type STREQUAL "FORCE")
     set(_REQUIRES ${_FORCE})
     string(MAKE_C_IDENTIFIER "FORCE_${_REQUIRES}" name)
@@ -849,10 +872,7 @@ function(option type name)
   if("${name}" STREQUAL "IF")
     message(FATAL_ERROR "IF is reserved and cannot be used for an option name")
   elseif(NOT (name MATCHES "[A-Z][A-Z0-9_]+"))
-    message(
-      FATAL_ERROR
-      "Option cannot be named `${name}`: must be an all-caps identifier"
-    )
+    message(FATAL_ERROR "Option name must be an all-caps identifier, got ${name}")
   endif()
 
   set(_MAUD_OPTION_GROUP_${name} "${OPTION_GROUP}" CACHE INTERNAL "" FORCE)
@@ -896,7 +916,8 @@ function(option type name)
   endwhile()
 
   # declare the option's cache entry
-  set(${name} "${_DEFAULT}" CACHE ${type} "${_HELP}")
+  list(GET _HELP 0 help_first_line)
+  set(${name} "${_DEFAULT}" CACHE ${type} "${help_first_line}")
   if(_ADVANCED)
     mark_as_advanced(${name})
   endif()
