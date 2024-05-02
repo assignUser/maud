@@ -9,6 +9,7 @@ NEXT
     - various validation
     - presets get written
   - assert unit tests are not installed
+  - use a maud based project with fetchcontent
 - harden and test the scanner
 - include the template compiler
 - include the cmake generator

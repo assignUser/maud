@@ -6,7 +6,6 @@ cat >foo.cxx <<-EOF
 EOF
 
 maud --log-level=VERBOSE
-sleep 1 # wait for regenerate injection
 
 cat >bar.cxx <<-EOF
 	export module bar;

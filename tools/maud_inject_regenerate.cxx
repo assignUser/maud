@@ -42,9 +42,8 @@ int main(int argc, char **argv) try {
 
   fs::path verify_globs = build / "CMakeFiles" / "VerifyGlobs.cmake";
   while (not fs::exists(verify_globs)) {
-    std::this_thread::sleep_for(100ms);
+    std::this_thread::sleep_for(50ms);
   }
-  std::this_thread::sleep_for(500ms);
 
   std::string contents;
   {
@@ -61,8 +60,20 @@ int main(int argc, char **argv) try {
   if (find_substr(contents, patch)) return 0;
 
   auto mtime = fs::last_write_time(verify_globs);
-  std::ofstream{verify_globs, std::ios_base::app} << patch;
-  fs::last_write_time(verify_globs, mtime);
+
+  for (auto delay = 50ms; delay < 1000ms; delay *= 2) {
+    if (std::ofstream stream{verify_globs, std::ios_base::app}) {
+      stream << patch;
+      fs::last_write_time(verify_globs, mtime);
+      return 0;
+    }
+    // retry writing to VerifyGlobs.cmake with exponential back off
+    std::cerr << "maud_inject_regenerate retrying in " << (delay / 1ms) << "ms"
+              << std::endl;
+    std::this_thread::sleep_for(delay);
+  }
+  std::cerr << "maud_inject_regenerate error: timed out retrying to patch" << std::endl;
+  return 1;
 } catch (std::exception const &e) {
   std::cerr << "maud_inject_regenerate error: " << e.what() << std::endl;
   return 1;
