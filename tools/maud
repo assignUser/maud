@@ -1,0 +1,3 @@
+#!/usr/bin/env -S sh -e
+# Shim script provided for bootstrapping Maud
+cmake -P cmake_modules/maud_cli.cmake -- "$@"

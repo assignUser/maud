@@ -23,18 +23,10 @@ endif()
 
 
 if(NOT MAUD_CXX_SOURCE_EXTENSIONS)
-  set(MAUD_CXX_SOURCE_EXTENSIONS "$ENV{MAUD_CXX_SOURCE_EXTENSIONS}")
-endif()
-if(NOT MAUD_CXX_SOURCE_EXTENSIONS)
   set(
     MAUD_CXX_SOURCE_EXTENSIONS
     .cxx .cxxm .ixx .mxx .cpp .cppm .cc .ccm .c++ .c++m
   )
-endif()
-
-
-if(NOT MAUD_IGNORED_SOURCE_REGEX)
-  set(MAUD_IGNORED_SOURCE_REGEX "$ENV{MAUD_IGNORED_SOURCE_REGEX}")
 endif()
 if(NOT MAUD_IGNORED_SOURCE_REGEX)
   set(MAUD_IGNORED_SOURCE_REGEX [[(/|^)(.*-|)build|(/|^)[._].*]])
@@ -237,29 +229,6 @@ function(_maud_cxx_sources)
     _maud_scan("${source_file}")
   endforeach()
   file(WRITE "${MAUD_DIR}/source_files.list" "${source_files}")
-
-  find_program(CLANG_FORMAT_COMMAND clang-format)
-  if(CLANG_FORMAT_COMMAND)
-    # foreach source file (but not rendered)
-    #   create a target which produces ${source}.replacements.xml
-    # create one target which depends on all of those, producing failed_list
-    set(replacements)
-    foreach(source_file ${source_files})
-      add_custom_command(
-        OUTPUT "${source_file}.replacements-xml"
-        COMMAND "${CLANG_FORMAT_COMMAND}"
-        ARGS
-          --output-replacements-xml
-          "${source_file}"
-          > "${source_file}.replacements-xml"
-      )
-      list(APPEND replacements "${source_file}.replacements-xml")
-    endforeach()
-    # add_custom_target(
-    #   check-clang-format
-    #   DEPENDS ${replacements}
-    # )
-  endif()
 endfunction()
 
 
@@ -831,7 +800,7 @@ function(option type name)
   cmake_parse_arguments(
     "" # prefix
     "ADVANCED" # options
-    "DEFAULT;HELP" # single value arguments
+    "DEFAULT;HELP;VALIDATE" # single value arguments
     "ENUM;REQUIRES;FORCE" # multi value arguments
     ${ARGV}
   )
@@ -862,12 +831,13 @@ function(option type name)
     string(MAKE_C_IDENTIFIER "FORCE_${_REQUIRES}" name)
     set(type BOOL)
     set(_DEFAULT ON)
+    set(_HELP "FORCE placeholder option")
   endif()
 
   if(name IN_LIST _MAUD_ALL_OPTIONS)
     return() # silently ignore duplicate declaration of the same option
   endif()
-  set(_MAUD_ALL_OPTIONS ${_MAUD_ALL_OPTIONS} ${name} CACHE INTERNAL "" FORCE)
+  set(_MAUD_ALL_OPTIONS ${_MAUD_ALL_OPTIONS} ${name} PARENT_SCOPE)
 
   if("${name}" STREQUAL "IF")
     message(FATAL_ERROR "IF is reserved and cannot be used for an option name")
@@ -875,7 +845,7 @@ function(option type name)
     message(FATAL_ERROR "Option name must be an all-caps identifier, got ${name}")
   endif()
 
-  set(_MAUD_OPTION_GROUP_${name} "${OPTION_GROUP}" CACHE INTERNAL "" FORCE)
+  set(_MAUD_OPTION_GROUP_${name} "${OPTION_GROUP}" PARENT_SCOPE)
 
   # dedent and store lines of HELP (set(CACHE) only allows a one-line docstring)
   string(REGEX REPLACE "\n *" ";" _HELP "${_HELP}")
@@ -896,10 +866,10 @@ function(option type name)
       set(_DEFAULT OFF)
     endif()
   endif()
-  set(_MAUD_DEFAULT_${name} "${_DEFAULT}" CACHE INTERNAL "" FORCE)
+  set(_MAUD_DEFAULT_${name} "${_DEFAULT}" PARENT_SCOPE)
 
   # store requirements for this option
-  set(condition ON) # as a special case, BOOL options need not specify IF ON
+  set(condition ON) # as a special case, `IF ON` is implicit for BOOL options
   while(_REQUIRES)
     list(POP_FRONT _REQUIRES dependency value)
     if("${dependency}" STREQUAL "IF")
@@ -908,12 +878,17 @@ function(option type name)
     endif()
     set(
       _MAUD_${name}_CONSTRAINS
-      ${dependency} ${_MAUD_${name}_CONSTRAINS} CACHE INTERNAL "" FORCE
+      ${dependency} ${_MAUD_${name}_CONSTRAINS} PARENT_SCOPE
     )
     string(SHA512 req "${dependency}-${name}-${condition}")
     set(req "_MAUD_REQUIREMENT_${req}")
-    set(${req} "${value}" CACHE INTERNAL "" FORCE)
+    set(${req} "${value}" PARENT_SCOPE)
   endwhile()
+
+  if(NOT EXISTS "${CMAKE_BINARY_DIR}/CMakeCache.txt" AND DEFINED CACHE{${name}})
+    # this is a fresh build and the user has definitely configured this option
+    set(_MAUD_DEFINITELY_USER_${name} "${${name}}" PARENT_SCOPE)
+  endif()
 
   # declare the option's cache entry
   list(GET _HELP 0 help_first_line)
@@ -933,6 +908,15 @@ function(option type name)
   # store the enumeration of allowed STRING values
   if(NOT ("${_ENUM}" STREQUAL ""))
     set_property(CACHE ${name} PROPERTY STRINGS "${_ENUM}")
+  endif()
+  if(NOT ("${_VALIDATE}" STREQUAL ""))
+    if(type STREQUAL "BOOL" OR NOT ("${_ENUM}" STREQUAL ""))
+      message(
+        FATAL_ERROR
+        "${name} provided VALIDATE but this may not be used with BOOL or ENUM"
+      )
+    endif()
+    set(_MAUD_VALIDATE_${name} ${_VALIDATE} PARENT_SCOPE)
   endif()
 endfunction()
 
@@ -1054,8 +1038,11 @@ function(resolve_options)
  
     if(enum AND NOT ("${${opt}}" IN_LIST enum))
       message(FATAL_ERROR "ENUM option ${opt} must be one of ${enum}")
+    elseif(DEFINED "_MAUD_VALIDATE_${opt}")
+      cmake_language(EVAL CODE "${_MAUD_VALIDATE_${opt}}")
     endif()
-    string(JSON cache_json SET "${cache_json}" "${opt}" "${quoted}")
+
+    string(JSON cache_json SET "${cache_json}" ${opt} "${quoted}")
 
     get_property(help CACHE ${opt} PROPERTY HELPSTRING)
     file(APPEND "${defines}" "\n/*!\n")
@@ -1081,6 +1068,13 @@ function(resolve_options)
       endforeach()
     else()
       file(APPEND "${defines}" "#define ${opt} ${quoted}")
+    endif()
+
+    if(
+      DEFINED "_MAUD_DEFINITELY_USER_${opt}"
+      AND NOT "${_MAUD_DEFINITELY_USER_${opt}}" STREQUAL "${${opt}}"
+    )
+      message(WARNING "Detected override of user-provided value for ${opt}")
     endif()
   endforeach()
   add_compile_options(

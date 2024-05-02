@@ -1,18 +1,17 @@
 NEXT
 ----
 
-- make some test projects
-  - how do we import the modules which we found in this way?
+- more test projects
+  - remove the dependency on bash
+  - options:
+    - old call signature still works
+    - detect cycles
+    - various validation
+    - presets get written
+  - assert unit tests are not installed
 - harden and test the scanner
 - include the template compiler
 - include the cmake generator
-
-TODO: document bootstrapping maud
----------------------------------
-
-```
-cmake -P cmake_modules/maud_cli.cmake --
-```
 
 TODO: stages
 ------------
@@ -51,13 +50,30 @@ target_link_libraries(
 )
 ```
 
-TODO: clang-format
-------------------
+TODO: test suites
+-----------------
 
-If clang format is installed and a .clang-format is discovered,
-add a target which asserts consistent formatting. It should be
-configurable with an option which defaults to warning but can
-be a hard error for ci.
+Allow users to provide a struct named `Suite` before any `TEST_`.
+If defined, it will be constructed in SetUp and destroyed in
+TearDown and a reference to the object will be available through
+`test->suite()`.
+
+```c++
+// Trait for detecting user provided suite setup/teardown
+template <typename T>
+constexpr decltype(sizeof(T) == 0) is_complete_impl(void*) {
+  return true;
+}
+template <typename T>
+constexpr bool is_complete_impl(...) {
+  return false;
+}
+template <typename T>
+constexpr bool is_complete_v = is_complete_impl<T>(nullptr);
+static_assert(not is_complete_v<struct Suite>);
+struct Suite {};
+static_assert(is_complete_v<struct Suite>);
+```
 
 TODO: cmake compendium
 ----------------------

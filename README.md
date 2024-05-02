@@ -166,7 +166,8 @@ option(
   BOOL FOO_EMULATED
   HELP "Emulate FOO functionality rather than requesting a real FOO endpoint."
   REQUIRES
-    BUILD_SHARED_LIBS ON # If FOO_EMULATED=ON, BUILD_SHARED_LIBS will be set to ON
+    BUILD_SHARED_LIBS ON
+    # If FOO_EMULATED=ON, BUILD_SHARED_LIBS will be set to ON
 )
 option(
   ENUM(LOW MED HI) FOO_LEVEL
@@ -179,10 +180,13 @@ resolve_options()
 ```
 
 This declares two options which can be specified during configuration (via `-D`
-command line arguments, etc). `BOOL` options as well as `PATH`, `STRING`, and
-`ENUM` arguments may be provided. Values provided for `BOOL` and `ENUM` options
-are validated automatically. Groups can also be associated with options by
-assigning to the `OPTION_GROUP` variable.
+command line arguments, environment variables, guis, etc). `BOOL` options as
+well as `PATH`, `STRING`, and `ENUM` arguments may be provided. Values provided
+for `BOOL` and `ENUM` options are validated automatically to be in `OFF;ON` or
+from their explicit set, respectively. Other options may specify a block of code
+in the `VALIDATE` argument which will be evaluated when the option's value is
+resolved. Groups of associated options can be specified by assigning to the
+`OPTION_GROUP` variable.
 
 Option values are frequently interdependent; for example enabling one feature
 might be impossible without enabling its dependencies. `option()` supports this
@@ -190,7 +194,10 @@ through the `REQUIRES` block. In this block the requirements of each option can
 be specified in terms of assignments to other options on which it depends. After
 all options are declared, `resolve_options()` assigns values to each option
 ensuring all requirements are met (or reporting an error if cyclic dependencies
-have been declared).
+have been declared). Note that user provided values will always be overridden
+if necessary to satisfy option requirements. On a fresh configuration it is
+possible to detect this and a warning will be issued to facilitate avoidance of
+inconsistent user provided values.
 
 `resolve_options()` also prints a grouped report of the final value of each
 option, along with the reason for its value and the `HELP` string.
@@ -210,7 +217,7 @@ applications which view the cache directly only the first line will appear.
 Each call to `resolve_option()` also saves a cmake configure preset to
 `CMakeUserPresets.json` for easy copy-pasting, reproduction, etc. (These are
 initially named with the timestamp of their creation.) Finally, each option
-is surfaced in every C++ source file as predefined macros:
+is surfaced in every C++ source file as a predefined macro:
 
 ```c++
 /*! Emulate FOO functionality rather than requesting a real FOO endpoint. */
