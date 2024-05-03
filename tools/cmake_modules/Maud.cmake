@@ -3,6 +3,7 @@ include_guard()
 set(MAUD_DIR "${CMAKE_BINARY_DIR}/_maud")
 set(_MAUD_SELF_DIR "${CMAKE_CURRENT_LIST_DIR}")
 
+
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 if(NOT CMAKE_MESSAGE_LOG_LEVEL)
   cmake_language(GET_MESSAGE_LOG_LEVEL CMAKE_MESSAGE_LOG_LEVEL)
@@ -199,7 +200,6 @@ function(_maud_preprocessing_scan_options source_file out_var)
   if(NOT flags)
     set(flags "")
   endif()
-  # TODO verify maud works while using c++23
   string(APPEND flags " ${CMAKE_CXX${CMAKE_CXX_STANDARD}_STANDARD_COMPILE_OPTION}")
   get_directory_property(dirs INCLUDE_DIRECTORIES)
   foreach(dir ${dirs})
@@ -224,6 +224,9 @@ function(_maud_cxx_sources)
   list(TRANSFORM source_regex REPLACE [[\.(.+)]] [[\\.\1$]])
   string(JOIN "|" source_regex ${source_regex})
 
+  if(NOT CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS)
+    message(FATAL_ERROR "scan deps not found")
+  endif()
   glob(source_files CONFIGURE_DEPENDS ${source_regex})
   foreach(source_file ${source_files})
     _maud_scan("${source_file}")
@@ -434,10 +437,6 @@ function(_maud_add_test source_file partition out_target_name)
       NAME ${target_name}
       COMMAND $<TARGET_FILE:${target_name}>
     )
-    if(EXISTS "${parent_dir}/labels")
-      file(STRINGS "${parent_dir}/labels" labels)
-      set_property(TEST ${target_name} APPEND PROPERTY LABELS ${labels})
-    endif()
 
     target_link_libraries(${target_name} PRIVATE GTest::gtest GTest::gtest_main)
     target_sources(
@@ -644,19 +643,6 @@ endfunction()
 
 
 function(_maud_setup_regenerate)
-  set(vars)
-  foreach(
-    var
-    CMAKE_SOURCE_DIR
-    CMAKE_BINARY_DIR
-    CMAKE_MODULE_PATH
-    CMAKE_MESSAGE_LOG_LEVEL
-  )
-    string(APPEND vars "set(${var} \"${${var}}\")\n")
-  endforeach()
-
-  file(WRITE "${MAUD_DIR}/configure_cache_variables.cmake" "${vars}")
-
   if("${_MAUD_INJECT_REGENERATE}" STREQUAL "")
     find_program(_MAUD_INJECT_REGENERATE maud_inject_regenerate REQUIRED)
   endif()
@@ -683,6 +669,19 @@ endfunction()
 
 
 function(_maud_setup)
+  set(vars)
+  foreach(
+    var
+    CMAKE_SOURCE_DIR
+    CMAKE_BINARY_DIR
+    CMAKE_MODULE_PATH
+    CMAKE_MESSAGE_LOG_LEVEL
+  )
+    string(APPEND vars "set(${var} \"${${var}}\")\n")
+  endforeach()
+
+  file(WRITE "${MAUD_DIR}/configure_cache_variables.cmake" "${vars}")
+
   file(WRITE "${MAUD_DIR}/globs" "")
 
   foreach(dir empty;junk;rendered)
@@ -698,11 +697,74 @@ function(_maud_setup)
     MAUD_TYPE INTERFACE
   )
 
-  option(
-    BOOL BUILD_SHARED_LIBS
-    DEFAULT OFF
-    HELP "Build shared libraries by default"
+  file(
+    WRITE
+    "${MAUD_DIR}/clang-format.cmake"
+    "
+      include(\"${MAUD_DIR}/configure_cache_variables.cmake\")
+      include(\"${_MAUD_SELF_DIR}/Maud.cmake\")
+      _maud_clang_format(\${CMAKE_ARGV4})
+    "
   )
+  add_test(
+    NAME check.clang-formatted
+    COMMAND "${CMAKE_COMMAND}" -P "${MAUD_DIR}/clang-format.cmake" -- CHECK
+  )
+endfunction()
+
+
+function(_maud_clang_format mode)
+  if(NOT EXISTS "${CMAKE_SOURCE_DIR}/.clang-format")
+    return()
+  endif()
+
+  file(STRINGS "${CMAKE_SOURCE_DIR}/.clang-format" config)
+  if(config MATCHES [[(^|;)# clang-format --version == ([^;]+)]])
+    set(version_required ${CMAKE_MATCH_2})
+  else()
+    message(
+      STATUS
+      "To specify the required clang-format version, "
+      "add a comment to .clang-format like\n"
+      "# clang-format --version == 18"
+    )
+    return()
+  endif()
+
+  function(_maud_clang_format_validator out_var candidate)
+    execute_process(COMMAND "${candidate}" --version OUTPUT_VARIABLE version)
+    if(version MATCHES [[^clang-format version ([0-9]+)]])
+      if(${CMAKE_MATCH_1} EQUAL ${version_required})
+        return()
+      endif()
+    endif()
+    set(out_var FALSE PARENT_SCOPE)
+  endfunction()
+
+  find_program(
+    CLANG_FORMAT
+    NAMES clang-format clang-format-${version_required}
+    HINTS ENV CLANG_FORMAT_DIR
+    VALIDATOR _maud_clang_format_validator
+  )
+
+  file(READ "${MAUD_DIR}/source_files.list" source_files)
+  if(mode STREQUAL "CHECK")
+    execute_process(
+      COMMAND "${CLANG_FORMAT}" --dry-run -Werror ${source_files}
+      RESULT_VARIABLE result
+    )
+    if(result)
+      message(
+        "To fix formatting, run 'cmake -P ${MAUD_DIR}/clang-format.cmake -- FIX'"
+      )
+      cmake_language(EXIT ${result})
+    endif()
+  elseif(mode STREQUAL "FIX")
+    execute_process(COMMAND "${CLANG_FORMAT}" -i ${source_files})
+  else()
+    message(STATUS "unrecognized mode, use FIX or CHECK")
+  endif()
 endfunction()
 
 
@@ -1120,6 +1182,14 @@ function(resolve_options)
   )
   file(WRITE "${CMAKE_SOURCE_DIR}/CMakeUserPresets.json" "${presets}")
 endfunction()
+
+if(_MAUD_CMAKELISTS)
+  option(
+    BOOL BUILD_SHARED_LIBS
+    DEFAULT OFF
+    HELP "Build shared libraries by default"
+  )
+endif()
 
 
 ################################################################################

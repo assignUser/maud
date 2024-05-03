@@ -189,13 +189,11 @@ auto pipeline(auto begin, auto end) {
 
     if (std::string_view v{&*begin, &*end}; v == "foreach") {
       debug("pipeline foreach", begin, end);
-      *os << "set(foreach_IT_" << depth
-          << ")\nforeach(IT ${IT})\n";
+      *os << "set(foreach_IT_" << depth << ")\nforeach(IT ${IT})\n";
       ++depth;
     } else if (v == "endforeach") {
       debug("pipeline endforeach", begin, end);
-      *os << "list(APPEND foreach_IT_" << depth
-          << " \"${IT}\")\nendforeach()\n"
+      *os << "list(APPEND foreach_IT_" << depth << " \"${IT}\")\nendforeach()\n"
           << "set(IT \"${foreach_IT_" << depth << "}\")\n";
       --depth;
     } else {

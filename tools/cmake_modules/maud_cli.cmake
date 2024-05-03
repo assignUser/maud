@@ -119,6 +119,7 @@ file(
     ${cmake_minimum}
     ${project_command}
 
+    set(_MAUD_CMAKELISTS ON)
     include(\"${maud_path}\")
 
     include(CTest)

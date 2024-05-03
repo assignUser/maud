@@ -10,6 +10,7 @@ NEXT
     - presets get written
   - assert unit tests are not installed
   - use a maud based project with fetchcontent
+  - verify maud works while using c++23
 - harden and test the scanner
 - include the template compiler
 - include the cmake generator
@@ -62,19 +63,25 @@ TearDown and a reference to the object will be available through
 ```c++
 // Trait for detecting user provided suite setup/teardown
 template <typename T>
-constexpr decltype(sizeof(T) == 0) is_complete_impl(void*) {
-  return true;
-}
+constexpr decltype(sizeof(T) == 0) is_complete_impl(void*) { return true; }
 template <typename T>
-constexpr bool is_complete_impl(...) {
-  return false;
-}
+constexpr bool is_complete_impl(...) { return false; }
 template <typename T>
 constexpr bool is_complete_v = is_complete_impl<T>(nullptr);
 static_assert(not is_complete_v<struct Suite>);
-struct Suite {};
+struct Suite {
+  fs::path tmpdir = ...;
+  //Suite() {}
+  //~Suite() noexcept(false) {}
+};
 static_assert(is_complete_v<struct Suite>);
 ```
+
+I don't like directory-per-test; too prescriptive. Instead, although
+we link all files in a dir to a single executable we should ensure
+there's one *test* per suite==implementation unit of test_. (We
+use `--gtest_filter` to select suites within that executable.)
+What's the test executable named, though? `dir-dir-stem`.
 
 TODO: cmake compendium
 ----------------------
