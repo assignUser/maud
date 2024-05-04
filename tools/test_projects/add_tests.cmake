@@ -32,7 +32,6 @@ file(
   ]]
 )
 
-# FIXME ensure maud is shimmed for use here
 foreach(test_project ${test_projects})
   cmake_path(GET test_project STEM name)
   file(WRITE "${MAUD_DIR}/test_projects/${name}/source/.mkdir-p" "")

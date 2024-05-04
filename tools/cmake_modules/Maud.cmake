@@ -435,7 +435,7 @@ function(_maud_add_test source_file partition out_target_name)
     add_executable(${target_name})
     add_test(
       NAME ${target_name}
-      COMMAND $<TARGET_FILE:${target_name}>
+      COMMAND $<TARGET_FILE:${target_name}> --gtest_brief=1
     )
 
     target_link_libraries(${target_name} PRIVATE GTest::gtest GTest::gtest_main)
