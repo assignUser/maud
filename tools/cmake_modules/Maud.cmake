@@ -231,7 +231,60 @@ function(_maud_cxx_sources)
   foreach(source_file ${source_files})
     _maud_scan("${source_file}")
   endforeach()
-  file(WRITE "${MAUD_DIR}/source_files.list" "${source_files}")
+  list(JOIN source_files "\n" source_files)
+  file(WRITE "${MAUD_DIR}/source_files.list" "${source_files}\n")
+
+  _maud_setup_clang_format()
+endfunction()
+
+
+function(_maud_setup_clang_format)
+  if(EXISTS "${CMAKE_SOURCE_DIR}/.clang-format")
+    file(STRINGS "${CMAKE_SOURCE_DIR}/.clang-format" config)
+  else()
+    set(config "")
+  endif()
+
+  if(config MATCHES [[(^|;)# clang-format --version == ([^;]+)]])
+    set(version_required ${CMAKE_MATCH_2})
+  else()
+    message(
+      STATUS
+      "Could not detect the required clang-format version, "
+      "add a comment to ${CMAKE_SOURCE_DIR}/.clang-format like\n"
+      "        # clang-format --version == 18"
+    )
+    return()
+  endif()
+
+  function(_maud_clang_format_validator out_var candidate)
+    execute_process(COMMAND "${candidate}" --version OUTPUT_VARIABLE version)
+    if(version MATCHES [[^clang-format version ([0-9]+)]])
+      if(${CMAKE_MATCH_1} EQUAL ${version_required})
+        return()
+      endif()
+    endif()
+    set(out_var FALSE PARENT_SCOPE)
+  endfunction()
+
+  find_program(
+    CLANG_FORMAT_COMMAND
+    NAMES clang-format clang-format-${version_required}
+    VALIDATOR _maud_clang_format_validator
+  )
+  if(CLANG_FORMAT_COMMAND)
+    add_test(
+      NAME check.clang-formatted
+      COMMAND "${CLANG_FORMAT_COMMAND}"
+        --dry-run -Werror "--files=${MAUD_DIR}/source_files.list"
+    )
+    add_custom_target(
+      fix.clang-format
+      COMMAND "${CLANG_FORMAT_COMMAND}" -i "--files=${MAUD_DIR}/source_files.list"
+    )
+  else()
+    message(STATUS "Could not find clang-format program")
+  endif()
 endfunction()
 
 
@@ -628,7 +681,7 @@ function(_maud_maybe_regenerate)
     endif()
   endforeach()
 
-  file(READ "${MAUD_DIR}/source_files.list" source_files)
+  file(STRINGS "${MAUD_DIR}/source_files.list" source_files)
   foreach(source_file ${source_files})
     _maud_rescan("${source_file}" scan-results-differ)
     if(scan-results-differ)
@@ -696,75 +749,6 @@ function(_maud_setup)
     PROPERTIES
     MAUD_TYPE INTERFACE
   )
-
-  file(
-    WRITE
-    "${MAUD_DIR}/clang-format.cmake"
-    "
-      include(\"${MAUD_DIR}/configure_cache_variables.cmake\")
-      include(\"${_MAUD_SELF_DIR}/Maud.cmake\")
-      _maud_clang_format(\${CMAKE_ARGV4})
-    "
-  )
-  add_test(
-    NAME check.clang-formatted
-    COMMAND "${CMAKE_COMMAND}" -P "${MAUD_DIR}/clang-format.cmake" -- CHECK
-  )
-endfunction()
-
-
-function(_maud_clang_format mode)
-  if(NOT EXISTS "${CMAKE_SOURCE_DIR}/.clang-format")
-    return()
-  endif()
-
-  file(STRINGS "${CMAKE_SOURCE_DIR}/.clang-format" config)
-  if(config MATCHES [[(^|;)# clang-format --version == ([^;]+)]])
-    set(version_required ${CMAKE_MATCH_2})
-  else()
-    message(
-      STATUS
-      "To specify the required clang-format version, "
-      "add a comment to .clang-format like\n"
-      "# clang-format --version == 18"
-    )
-    return()
-  endif()
-
-  function(_maud_clang_format_validator out_var candidate)
-    execute_process(COMMAND "${candidate}" --version OUTPUT_VARIABLE version)
-    if(version MATCHES [[^clang-format version ([0-9]+)]])
-      if(${CMAKE_MATCH_1} EQUAL ${version_required})
-        return()
-      endif()
-    endif()
-    set(out_var FALSE PARENT_SCOPE)
-  endfunction()
-
-  find_program(
-    CLANG_FORMAT
-    NAMES clang-format clang-format-${version_required}
-    HINTS ENV CLANG_FORMAT_DIR
-    VALIDATOR _maud_clang_format_validator
-  )
-
-  file(READ "${MAUD_DIR}/source_files.list" source_files)
-  if(mode STREQUAL "CHECK")
-    execute_process(
-      COMMAND "${CLANG_FORMAT}" --dry-run -Werror ${source_files}
-      RESULT_VARIABLE result
-    )
-    if(result)
-      message(
-        "To fix formatting, run 'cmake -P ${MAUD_DIR}/clang-format.cmake -- FIX'"
-      )
-      cmake_language(EXIT ${result})
-    endif()
-  elseif(mode STREQUAL "FIX")
-    execute_process(COMMAND "${CLANG_FORMAT}" -i ${source_files})
-  else()
-    message(STATUS "unrecognized mode, use FIX or CHECK")
-  endif()
 endfunction()
 
 
