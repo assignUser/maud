@@ -7,7 +7,6 @@ module;
 #include <coroutine>
 #include <cstdint>
 #include <exception>
-#include <span>
 export module test_;
 
 using namespace testing;
@@ -26,14 +25,6 @@ export struct Main {
   int run() { return RUN_ALL_TESTS(); }
 };
 
-template <typename Body>
-class Fixture : public testing::Test, Body {
- public:
-  explicit Fixture(Body body) : Body{std::move(body)} {}
-  void TestBody() override { Body::operator()(); }
-  // TODO provide a way to inject SetUpTestSuite. SetUp is unnecessary
-};
-
 export template <typename Test>
 struct Registrar {
   char const *suite_name;
@@ -41,11 +32,14 @@ struct Registrar {
   char const *file;
   int line;
 
-  void register_one(char const *name, auto body) {
-    testing::RegisterTest(suite_name, name, nullptr, nullptr, file, line,
-                          [body = std::move(body)]() -> testing::Test * {
-                            return new Fixture{std::move(body)};
-                          });
+  template <typename Parameter>
+  class Fixture : public testing::Test, Test {
+   public:
+    explicit Fixture(Parameter p) : _parameter{std::move(p)} {}
+    void TestBody() override { this->body(_parameter); }
+    // TODO provide a way to inject SetUpTestSuite
+   private:
+    Parameter const _parameter;
   };
 
   void register_one(auto parameter, int i, std::string type_name = "") {
@@ -55,13 +49,15 @@ struct Registrar {
       name += "/" + type_name;
     }
     name += "/" + PrintToString(parameter);
-    register_one(name.c_str(), [this, parameter = std::move(parameter)] {
-                              static_cast<Test*>(this)->body(parameter);
-                            });
-  };
+    testing::RegisterTest(suite_name, name.c_str(), nullptr, nullptr, file, line,
+                          [parameter = std::move(parameter)]() -> testing::Test * {
+                            return new Fixture{std::move(parameter)};
+                          });
+  }
 
   void with_parameters() {
-    register_one(test_name, [this] { static_cast<Test*>(this)->body(nullptr); });
+    testing::RegisterTest(suite_name, test_name, nullptr, nullptr, file, line,
+                          []() -> testing::Test * { return new Fixture{nullptr}; });
   }
 
   void with_parameter_range(auto &&range) {
@@ -88,8 +84,7 @@ struct Registrar {
         std::move(parameters));
   }
 
-  template <typename... T>
-  requires(sizeof...(T) >= 2) void with_parameters(auto... e) {
+  void with_parameters(auto... e) requires(sizeof...(e) >= 2) {
     with_parameters(std::tuple{std::move(e)...});
   }
 
@@ -210,25 +205,25 @@ std::string operator<<=(Comparison<L, OP, R> c, End e) {
   auto lhs = testing::PrintToString(c.lhs);
   auto i = e.condition_string.find(c.name);
   //__________
-  //www == www
-  //w == w 
+  // www == www
+  // w == w
   //
-  //www == www
-  //..w == w 
+  // www == www
+  //..w == w
   //__________
-  //w == w 
-  //www == www
+  // w == w
+  // www == www
   //
-  //..w == w 
-  //www == www
+  //..w == w
+  // www == www
   //__________
-  //wwwwwwwwww
-  //w == w 
-  //wwwww == w
+  // wwwwwwwwww
+  // w == w
+  // wwwww == w
   //
-  //wwwwwwwwww
-  //w ....== w 
-  //wwwww == w
+  // wwwwwwwwww
+  // w ....== w
+  // wwwww == w
   int offset = 0;
   if (i != std::string_view::npos) {
     offset = int(i) - lhs.size() - 1;
