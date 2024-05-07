@@ -7,6 +7,8 @@ module;
 #include <coroutine>
 #include <cstdint>
 #include <exception>
+#include <filesystem>
+#include <optional>
 export module test_;
 
 using namespace testing;
@@ -25,74 +27,100 @@ export struct Main {
   int run() { return RUN_ALL_TESTS(); }
 };
 
-export template <typename Test>
+template <typename T>
+concept Complete = requires {
+  { sizeof(T) } -> std::same_as<std::size_t>;
+};
+
+export template <typename S>
 struct Registrar {
-  char const *suite_name;
   char const *test_name;
   char const *file;
   int line;
 
-  template <typename Parameter>
-  class Fixture : public testing::Test, Test {
-   public:
-    explicit Fixture(Parameter p) : _parameter{std::move(p)} {}
-    void TestBody() override { this->body(_parameter); }
-    // TODO provide a way to inject SetUpTestSuite
-   private:
-    Parameter const _parameter;
+  static std::optional<std::conditional_t<Complete<S>, S, int>> suite_state;
+
+  char const *suite_name() {
+    static auto stem = std::filesystem::path{file}.stem().string();
+    return stem.c_str();
+  }
+
+  struct Fixture : testing::Test {
+    static void SetUpTestSuite() { suite_state.emplace(); }
+    static void TearDownTestSuite() { suite_state.reset(); }
   };
 
-  void register_one(auto parameter, int i, std::string type_name = "") {
+  template <typename Test, typename Parameter>
+  struct ParameterizedFixture : Fixture {
+    explicit ParameterizedFixture(Parameter p) : _parameter{std::move(p)} {}
+    Parameter const _parameter;
+    static Fixture *make(Parameter p) {
+      return new ParameterizedFixture{std::move(p)};
+    }
+    void TestBody() override { Test::body(_parameter); }
+  };
+
+  template <typename Test, typename Parameter>
+  void register_one(Parameter parameter, int i, std::string type_name = "") {
     std::string name = test_name;
     name += "/" + PrintToString(i);
     if (not type_name.empty()) {
       name += "/" + type_name;
     }
     name += "/" + PrintToString(parameter);
-    testing::RegisterTest(suite_name, name.c_str(), nullptr, nullptr, file, line,
-                          [parameter = std::move(parameter)]() -> testing::Test * {
-                            return new Fixture{std::move(parameter)};
-                          });
+    testing::RegisterTest(
+        suite_name(), name.c_str(), nullptr, nullptr, file, line,
+        [parameter = std::move(parameter)]() mutable {
+          return ParameterizedFixture<Test, Parameter>::make(std::move(parameter));
+        });
   }
 
+  template <typename Test>
   void with_parameters() {
-    testing::RegisterTest(suite_name, test_name, nullptr, nullptr, file, line,
-                          []() -> testing::Test * { return new Fixture{nullptr}; });
+    testing::RegisterTest(suite_name(), test_name, nullptr, nullptr, file, line, [] {
+      return ParameterizedFixture<Test, decltype(nullptr)>::make(nullptr);
+    });
   }
 
+  template <typename Test>
   void with_parameter_range(auto &&range) {
     for (int i = 0; auto &&parameter : range) {
-      register_one(std::move(parameter), i++);
+      register_one<Test>(std::move(parameter), i++);
     }
   }
 
+  template <typename Test>
   void with_parameters(auto &&parameters) {
     if constexpr (std::is_invocable_v<decltype(parameters)>) {
-      with_parameter_range(std::move(parameters)());
+      with_parameter_range<Test>(std::move(parameters)());
     } else {
-      with_parameter_range(std::move(parameters));
+      with_parameter_range<Test>(std::move(parameters));
     }
   }
 
-  template <typename... T>
+  template <typename Test, typename... T>
   void with_parameters(std::tuple<T...> parameters) {
     int i = 0;
     std::apply(
         [&](auto &&...parameters) {
-          (register_one(std::move(parameters), i++, type_name<T>), ...);
+          (register_one<Test>(std::move(parameters), i++, type_name<T>), ...);
         },
         std::move(parameters));
   }
 
+  template <typename Test>
   void with_parameters(auto... e) requires(sizeof...(e) >= 2) {
-    with_parameters(std::tuple{std::move(e)...});
+    with_parameters<Test>(std::tuple{std::move(e)...});
   }
 
-  template <typename T>
+  template <typename Test, typename T>
   void with_parameters(std::initializer_list<T> parameters) {
-    with_parameter_range(parameters);
+    with_parameter_range<Test>(parameters);
   }
 };
+
+template <typename S>
+std::optional<std::conditional_t<Complete<S>, S, int>> Registrar<S>::suite_state;
 
 namespace expect_helper {
 
@@ -391,3 +419,4 @@ struct Generator {
   std::coroutine_handle<promise_type> handle;
   ~Generator() { handle.destroy(); }
 };
+

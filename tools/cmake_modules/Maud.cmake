@@ -267,6 +267,9 @@ function(_maud_setup_clang_format)
     set(out_var FALSE PARENT_SCOPE)
   endfunction()
 
+  # FIXME this doesn't get headers and will require formatting in rendered files
+  # also we might want _test.cxx or .thing.hxx to get formatted but they're
+  # excluded by globs
   find_program(
     CLANG_FORMAT_COMMAND
     NAMES clang-format clang-format-${version_required}
@@ -499,11 +502,6 @@ function(_maud_add_test source_file partition out_target_name)
       TYPE CXX_MODULES
       ${_MAUD_BASE_DIRS}
       FILES "${_MAUD_SELF_DIR}/_test_.cxx"
-    )
-    target_compile_definitions(
-      ${target_name}
-      PRIVATE
-      "-DSUITE_NAME=\"${target_name}\""
     )
     set_target_properties(
       ${target_name}

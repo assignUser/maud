@@ -1,14 +1,13 @@
 /// FIXME add nice docstrings here
-#define TEST_(name, ...)                                                             \
-  struct name {                                                                      \
-    name() {                                                                         \
-      Registrar<struct name>{SUITE_NAME, #name, __FILE__, __LINE__}.with_parameters( \
-          __VA_ARGS__);                                                              \
-    }                                                                                \
-    template <typename Parameter>                                                    \
-    void body(Parameter const &);                                                    \
-  } name;                                                                            \
-  template <typename Parameter>                                                      \
+#define TEST_(name, ...)                                  \
+  struct name : Registrar<struct Suite> {                 \
+    name() : name::Registrar{#name, __FILE__, __LINE__} { \
+      with_parameters<struct name>(__VA_ARGS__);          \
+    }                                                     \
+    template <typename Parameter>                         \
+    static void body(Parameter const &);                  \
+  } name;                                                 \
+  template <typename Parameter>                           \
   void name::body(Parameter const &parameter)
 
 #define EXPECT_(...)                                                       \
