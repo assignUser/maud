@@ -22,12 +22,12 @@ file(
   [[
     set -e # bail on any error
     set -x # echo all commands
-    export CXX=]] "${CMAKE_CXX_COMPILER}\n" [[
-    export TEST_DIR=]] "${MAUD_DIR}/test_projects\n" [[
-    rm -rf $TEST_DIR/usr
-    mkdir $TEST_DIR/usr
-    cmake --install ]] "${CMAKE_BINARY_DIR}" [[ --prefix $TEST_DIR/usr --config Debug
-    export PATH=$TEST_DIR/usr/bin:$PATH
+    export CXX="]] "${CMAKE_CXX_COMPILER}" [["
+    export TEST_DIR="]] "${MAUD_DIR}/test_projects" [["
+    rm -rf "$TEST_DIR/usr"
+    mkdir "$TEST_DIR/usr"
+    cmake --install "]] "${CMAKE_BINARY_DIR}" [[" --prefix "$TEST_DIR/usr" --config Debug
+    export PATH="$TEST_DIR/usr/bin:$PATH"
     rm -rf ./*
   ]]
 )

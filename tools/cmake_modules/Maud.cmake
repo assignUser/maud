@@ -224,9 +224,6 @@ function(_maud_cxx_sources)
   list(TRANSFORM source_regex REPLACE [[\.(.+)]] [[\\.\1$]])
   string(JOIN "|" source_regex ${source_regex})
 
-  if(NOT CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS)
-    message(FATAL_ERROR "scan deps not found")
-  endif()
   glob(source_files CONFIGURE_DEPENDS ${source_regex})
   foreach(source_file ${source_files})
     _maud_scan("${source_file}")
@@ -702,15 +699,28 @@ function(_maud_setup_regenerate)
   file(GLOB _ CONFIGURE_DEPENDS "${MAUD_DIR}/empty/*")
 
   # FIXME windows...
-  find_program(_MAUD_SETSID setsid REQUIRED)
-  mark_as_advanced(_MAUD_SETSID)
+  if(WIN32)
+    file(
+      WRITE "${MAUD_DIR}/inject.bat"
+      "@ECHO OFF\r\nstart /b \"${_MAUD_INJECT_REGENERATE}\" "
+      "\"${CMAKE_BINARY_DIR}\" \"${_MAUD_SELF_DIR}/Maud.cmake\"\r\n"
+    )
+    set(command "${MAUD_DIR}/inject.bat")
+  else()
+    find_program(_MAUD_SETSID setsid REQUIRED)
+    mark_as_advanced(_MAUD_SETSID)
+    set(
+      command 
+      "${_MAUD_SETSID}"
+      --fork
+      "${_MAUD_INJECT_REGENERATE}"
+      "${CMAKE_BINARY_DIR}"
+      "${_MAUD_SELF_DIR}/Maud.cmake"
+    )
+  endif()
 
   execute_process(
-    COMMAND
-    "${_MAUD_SETSID}" --fork
-    "${_MAUD_INJECT_REGENERATE}"
-    "${CMAKE_BINARY_DIR}"
-    "${_MAUD_SELF_DIR}/Maud.cmake"
+    COMMAND ${command}
     # FIXME check that this file is empty somewhere
     OUTPUT_FILE "${MAUD_DIR}/maud_inject_regenerate.error"
     ERROR_FILE "${MAUD_DIR}/maud_inject_regenerate.error"
@@ -775,7 +785,8 @@ endfunction()
 function(shim_script_as destination script)
   cmake_path(ABSOLUTE_PATH script)
 
-  if("$ENV{PathExt}" MATCHES [[(^|;)\.bat($|;)]])
+  string(TOLOWER "$ENV{PathExt}" path_ext)
+  if(path_ext MATCHES [[(^|;)\.bat($|;)]])
     message(
       VERBOSE
       "Windows cmd.exe detected, shimming ${script} -> ${destination}.bat"
@@ -849,9 +860,11 @@ function(option type name)
     ${ARGV}
   )
 
+  set(legacy OFF)
   set(types "BOOL;PATH;FILEPATH;STRING;ENUM;FORCE")
   if(NOT ("${type}" IN_LIST types))
     # Handle legacy signature
+    set(legacy ON)
     set(type BOOL)
     set(name ${ARGV0})
     set(_HELP "${ARGV1}")
@@ -885,7 +898,7 @@ function(option type name)
 
   if("${name}" STREQUAL "IF")
     message(FATAL_ERROR "IF is reserved and cannot be used for an option name")
-  elseif(NOT (name MATCHES "[A-Z][A-Z0-9_]+"))
+  elseif(NOT (name MATCHES "[A-Z][A-Z0-9_]+") AND NOT legacy)
     message(FATAL_ERROR "Option name must be an all-caps identifier, got ${name}")
   endif()
 
@@ -898,7 +911,7 @@ function(option type name)
     FILTER too_long INCLUDE REGEX
     "......................................................................"
   )
-  if(too_long)
+  if(too_long AND NOT legacy)
     message(FATAL_ERROR "${name}'s help string exceeded the 70 char line limit")
   endif()
 

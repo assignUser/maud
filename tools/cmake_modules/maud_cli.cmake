@@ -123,6 +123,7 @@ file(
     include(\"${maud_path}\")
 
     include(CTest)
+    # TODO fallback to FetchContent
     find_package(GTest)
 
     _maud_setup()
