@@ -695,10 +695,6 @@ function(_maud_setup_regenerate)
     find_program(_MAUD_INJECT_REGENERATE maud_inject_regenerate REQUIRED)
   endif()
 
-  # GLOB once to ensure VerifyGlobs will be generated
-  file(GLOB _ CONFIGURE_DEPENDS "${MAUD_DIR}/empty/*")
-
-  # FIXME windows...
   if(WIN32)
     file(
       WRITE "${MAUD_DIR}/inject.bat"
@@ -721,11 +717,21 @@ function(_maud_setup_regenerate)
 
   execute_process(
     COMMAND ${command}
-    # FIXME check that this file is empty somewhere
-    OUTPUT_FILE "${MAUD_DIR}/maud_inject_regenerate.error"
-    ERROR_FILE "${MAUD_DIR}/maud_inject_regenerate.error"
+    OUTPUT_FILE "${MAUD_DIR}/maud_inject_regenerate.log"
+    ERROR_FILE "${MAUD_DIR}/maud_inject_regenerate.log"
     COMMAND_ERROR_IS_FATAL ANY
   )
+
+  if(EXISTS "${MAUD_DIR}/maud_inject_regenerate.error")
+    file(READ "${MAUD_DIR}/maud_inject_regenerate.error" err)
+    file(REMOVE "${MAUD_DIR}/maud_inject_regenerate.error")
+    message(WARNING "Maud failed to inject regeneration patch: '${err}'")
+  endif()
+  # GLOB once to ensure VerifyGlobs will be generated.
+  # This also ensures that if injection fails we will
+  # regenerate anyway (because a new .error file will be
+  # detected), report the error in the block above, and try again.
+  file(GLOB _ CONFIGURE_DEPENDS "${MAUD_DIR}/maud_inject_regenerate.error")
 endfunction()
 
 

@@ -1,5 +1,6 @@
 module;
 #include <algorithm>
+#include <cerrno>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -32,13 +33,16 @@ constexpr auto PATCH_TEMPLATE = R"(
   #### INJECTED BY MAUD ####
 )";
 
+fs::path build, maud_cmake;
+
 int main(int argc, char **argv) try {
   if (argc != 3) {
-    throw std::runtime_error("maud_inject_regenerate <build> <Maud.cmake>");
+    std::cerr << "maud_inject_regenerate <build> <Maud.cmake>" << std::endl;
+    return EINVAL;
   }
 
-  fs::path build{argv[1]};
-  fs::path maud_cmake{argv[2]};
+  build = argv[1];
+  maud_cmake = argv[2];
 
   fs::path verify_globs = build / "CMakeFiles" / "VerifyGlobs.cmake";
   while (not fs::exists(verify_globs)) {
@@ -65,16 +69,16 @@ int main(int argc, char **argv) try {
     if (std::ofstream stream{verify_globs, std::ios_base::app}) {
       stream << patch;
       fs::last_write_time(verify_globs, mtime);
+      std::cout << "success" << std::endl;
       return 0;
     }
     // retry writing to VerifyGlobs.cmake with exponential back off
-    std::cerr << "maud_inject_regenerate retrying in " << (delay / 1ms) << "ms"
-              << std::endl;
+    std::cout << "retrying in " << (delay / 1ms) << "ms" << std::endl;
     std::this_thread::sleep_for(delay);
   }
-  std::cerr << "maud_inject_regenerate error: timed out retrying to patch" << std::endl;
-  return 1;
+  throw std::runtime_error("timed out retrying to patch");
 } catch (std::exception const &e) {
-  std::cerr << "maud_inject_regenerate error: " << e.what() << std::endl;
+  std::ofstream stream{build / "_maud" / "maud_inject_regenerate.error"};
+  (stream ? stream : std::cerr) << "error: " << e.what() << std::endl;
   return 1;
 }

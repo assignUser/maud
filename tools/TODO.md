@@ -55,28 +55,6 @@ target_link_libraries(
 TODO: test suites
 -----------------
 
-Allow users to provide a struct named `Suite` before any `TEST_`.
-If defined, it will be constructed in SetUp and destroyed in
-TearDown and a reference to the object will be available through
-`test->suite()`.
-
-```c++
-// Trait for detecting user provided suite setup/teardown
-template <typename T>
-constexpr decltype(sizeof(T) == 0) is_complete_impl(void*) { return true; }
-template <typename T>
-constexpr bool is_complete_impl(...) { return false; }
-template <typename T>
-constexpr bool is_complete_v = is_complete_impl<T>(nullptr);
-static_assert(not is_complete_v<struct Suite>);
-struct Suite {
-  fs::path tmpdir = ...;
-  //Suite() {}
-  //~Suite() noexcept(false) {}
-};
-static_assert(is_complete_v<struct Suite>);
-```
-
 I don't like directory-per-test; too prescriptive. Instead, although
 we link all files in a dir to a single executable we should ensure
 there's one *test* per suite==implementation unit of test_. (We

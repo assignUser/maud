@@ -9,7 +9,7 @@ cat >basics_test/basics.cxx <<-EOF
 
 	using std::operator""s;
 
-  struct Suite { std::string yo = "yo"; };
+	  struct SuiteState { std::string yo = "yo"; };
 
 	TEST_(DISABLED_empty) {}
 
@@ -49,12 +49,6 @@ cat >basics_test/basics.cxx <<-EOF
 	TEST_(lifted_typed, std::tuple{0, ""s}) {
 	  EXPECT_(parameter + parameter == parameter);
 	}
-EOF
-
-cat >basics_test/labels <<-EOF
-	basic
-	simple
-	okay
 EOF
 
 maud

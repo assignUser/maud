@@ -1,6 +1,6 @@
 /// FIXME add nice docstrings here
 #define TEST_(name, ...)                                  \
-  struct name : Registrar<struct Suite> {                 \
+  struct name : Registrar<struct SuiteState> {            \
     name() : name::Registrar{#name, __FILE__, __LINE__} { \
       with_parameters<struct name>(__VA_ARGS__);          \
     }                                                     \
