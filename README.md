@@ -206,10 +206,10 @@ applications which view the cache directly only the first line will appear.
 ```
 -- FOO-related options:
 -- 
--- FOO_ENABLED = OFF [constrained by FOO]
---     Emulate FOO functionality rather than requesting a real FOO endpoint.
--- FOO: ENUM(LOW MED HI) = HI [user configured]
---     What level of FOO API should be requested.
+-- FOO_EMULATED = OFF [constrained by FOO_LEVEL]
+--      Emulate FOO functionality rather than requesting a real FOO endpoint.
+-- FOO_LEVEL: ENUM(LOW MED HI) = HI [user configured]
+--      What level of FOO API should be requested.
 ```
 
 Each call to `resolve_option()` also saves a cmake configure preset to

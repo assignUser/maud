@@ -25,5 +25,15 @@ install(
   shim_script_as(\"${MAUD_DIR}/cli/maud\" \"\${install_dir}/maud_cli.cmake\")
   "
 )
-install(PROGRAMS "${MAUD_DIR}/cli/maud" DESTINATION "${CMAKE_INSTALL_BINDIR}" OPTIONAL)
-install(FILES "${MAUD_DIR}/cli/maud.bat" DESTINATION "${CMAKE_INSTALL_BINDIR}" OPTIONAL)
+
+install(
+  PROGRAMS "${MAUD_DIR}/cli/maud"
+  DESTINATION "${CMAKE_INSTALL_BINDIR}"
+  OPTIONAL
+)
+
+install(
+  FILES "${MAUD_DIR}/cli/maud.bat"
+  DESTINATION "${CMAKE_INSTALL_BINDIR}"
+  OPTIONAL
+)
