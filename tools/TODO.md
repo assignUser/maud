@@ -55,11 +55,21 @@ target_link_libraries(
 TODO: test suites
 -----------------
 
-I don't like directory-per-test; too prescriptive. Instead, although
-we link all files in a dir to a single executable we should ensure
-there's one *test* per suite==implementation unit of test_. (We
-use `--gtest_filter` to select suites within that executable.)
-What's the test executable named, though? `dir-dir-stem`.
+In a project of any scale, it is useful to have one test Suite per
+executable while debugging a test. In a larger project with many tests,
+consolidating suites into fewer executables can save link time when the
+goal is simply to build and run all of them. Therefore we should have an
+option which defaults to suite-per-executable and can be enabled to
+redistribute test sources into larger (randomly named) test executables.
+
+This in turn requires that test suites be unity-build compatible
+WRT odr. Should we classically concatenate suite and case name?
+Let the suite name be a namespace?
+
+Additionally it should be fine if we only allow a single `test_:main`
+per project; that one can trivially dispatch to anything else a user
+requires.
+
 
 TODO: cmake compendium
 ----------------------

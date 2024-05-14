@@ -4,14 +4,22 @@ module;
 #include <gmock/gmock-matchers.h>
 #include <gtest/gtest.h>
 
+#include <array>
 #include <coroutine>
 #include <cstdint>
 #include <exception>
 #include <filesystem>
-#include <optional>
 export module test_;
 
 using namespace testing;
+
+/// Subclass of std::array constructible from array ref
+export template <typename T, std::size_t N>
+struct Array : std::array<T, N> {
+  constexpr Array(T const (&arr)[N]) {
+    for (T const *ptr = arr; T & c : *this) c = *ptr++;
+  }
+};
 
 export template <typename T>
 std::string const type_name = testing::internal::GetTypeName<T>();
@@ -34,29 +42,29 @@ concept Complete = requires {
 
 export template <typename S>
 struct Registrar {
-  char const *test_name;
   char const *file;
   int line;
+  char const *test_name;
 
-  static std::optional<std::conditional_t<Complete<S>, S, int>> suite_state;
+  static char const *suite_name() { return type_name<S>.c_str(); }
 
-  char const *suite_name() {
-    static auto stem = std::filesystem::path{file}.stem().string();
-    return stem.c_str();
+  using SuiteState = std::conditional_t<Complete<S>, S, int>;
+
+  static SuiteState *suite_state() {
+    alignas(SuiteState) static char storage[sizeof(SuiteState)];
+    return std::launder(reinterpret_cast<SuiteState *>(&storage));
   }
 
   struct Fixture : testing::Test {
-    static void SetUpTestSuite() { suite_state.emplace(); }
-    static void TearDownTestSuite() { suite_state.reset(); }
+    static void SetUpTestSuite() { new (suite_state()) SuiteState{}; }
+    static void TearDownTestSuite() { suite_state()->~SuiteState(); }
   };
 
   template <typename Test, typename Parameter>
   struct ParameterizedFixture : Fixture {
     explicit ParameterizedFixture(Parameter p) : _parameter{std::move(p)} {}
     Parameter const _parameter;
-    static Fixture *make(Parameter p) {
-      return new ParameterizedFixture{std::move(p)};
-    }
+    static Fixture *make(Parameter p) { return new ParameterizedFixture{std::move(p)}; }
     void TestBody() override { Test::body(_parameter); }
   };
 
@@ -118,9 +126,6 @@ struct Registrar {
     with_parameter_range<Test>(parameters);
   }
 };
-
-template <typename S>
-std::optional<std::conditional_t<Complete<S>, S, int>> Registrar<S>::suite_state;
 
 namespace expect_helper {
 
@@ -419,4 +424,3 @@ struct Generator {
   std::coroutine_handle<promise_type> handle;
   ~Generator() { handle.destroy(); }
 };
-

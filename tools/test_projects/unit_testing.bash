@@ -9,7 +9,7 @@ cat >basics_test/basics.cxx <<-EOF
 
 	using std::operator""s;
 
-	  struct SuiteState { std::string yo = "yo"; };
+	  SUITE_STATE { std::string yo = "yo"; };
 
 	TEST_(DISABLED_empty) {}
 
@@ -31,7 +31,7 @@ cat >basics_test/basics.cxx <<-EOF
 	      return;
 	    }
 	    EXPECT_(*ptr == three);
-	    EXPECT_(suite_state->yo == "yo");
+	      EXPECT_(suite_state()->yo == "yo");
 	}
 
 	TEST_(parameterized, {111, 234}) {

@@ -1,14 +1,14 @@
 /// FIXME add nice docstrings here
-#define TEST_(name, ...)                                  \
-  struct name : Registrar<struct SuiteState> {            \
-    name() : name::Registrar{#name, __FILE__, __LINE__} { \
-      with_parameters<struct name>(__VA_ARGS__);          \
-    }                                                     \
-    template <typename Parameter>                         \
-    static void body(Parameter const &);                  \
-  } name;                                                 \
-  template <typename Parameter>                           \
-  void name::body(Parameter const &parameter)
+#define TEST_(name, ...)                                                                \
+  struct SUITE_NAME##_##name : Registrar<struct SUITE_NAME> {                           \
+    SUITE_NAME##_##name() : SUITE_NAME##_##name::Registrar{__FILE__, __LINE__, #name} { \
+      with_parameters<struct SUITE_NAME##_##name>(__VA_ARGS__);                         \
+    }                                                                                   \
+    template <typename Parameter>                                                       \
+    static void body(Parameter const &);                                                \
+  } SUITE_NAME##_##name;                                                                \
+  template <typename Parameter>                                                         \
+  void SUITE_NAME##_##name::body(Parameter const &parameter)
 
 #define EXPECT_(...)                                                       \
   ::expect_helper::Expectation {                                           \
@@ -17,3 +17,5 @@
       #__VA_ARGS__                                                         \
     }                                                                      \
   }
+
+#define SUITE_STATE struct SUITE_NAME

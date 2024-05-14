@@ -3,6 +3,7 @@ include_guard()
 set(MAUD_DIR "${CMAKE_BINARY_DIR}/_maud")
 set(_MAUD_SELF_DIR "${CMAKE_CURRENT_LIST_DIR}")
 
+set(_MAUD_INCLUDE "SHELL: $<IF:$<CXX_COMPILER_ID:MSVC>,/Fi,-include>")
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 if(NOT CMAKE_MESSAGE_LOG_LEVEL)
@@ -481,42 +482,37 @@ endfunction()
 
 
 function(_maud_add_test source_file partition out_target_name)
-  cmake_path(GET source_file PARENT_PATH parent_dir)
-  cmake_path(GET parent_dir FILENAME target_name)
-
-  if(NOT TARGET "${target_name}")
-    add_executable(${target_name})
-    add_test(
-      NAME ${target_name}
-      COMMAND $<TARGET_FILE:${target_name}> --gtest_brief=1
-    )
-
-    target_link_libraries(${target_name} PRIVATE GTest::gtest GTest::gtest_main)
-    target_sources(
-      ${target_name}
-      PRIVATE
-      FILE_SET module_providers
-      TYPE CXX_MODULES
-      ${_MAUD_BASE_DIRS}
-      FILES "${_MAUD_SELF_DIR}/_test_.cxx"
-    )
-    set_target_properties(
-      ${target_name}
-      PROPERTIES
-      MAUD_INTERFACE "${_MAUD_SELF_DIR}/_test_.cxx"
-    )
-    target_compile_options(
-      ${target_name}
-      PRIVATE
-      "SHELL: $<IF:$<CXX_COMPILER_ID:MSVC>,/Fi,-include> ${_MAUD_SELF_DIR}/_test_.hxx"
-    )
-  endif()
-
-  set(${out_target_name} "${target_name}" PARENT_SCOPE)
-
   if(partition STREQUAL "main")
     message(FATAL_ERROR "FIXME not yet supported")
   endif()
+
+  cmake_path(GET source_file STEM name)
+  set_source_files_properties(
+    "${source_file}"
+    PROPERTIES
+    COMPILE_DEFINITIONS SUITE_NAME=${name}
+  )
+  set(${out_target_name} "${name}" PARENT_SCOPE)
+
+  if(NOT TARGET "${name}")
+    add_executable(${name})
+  endif()
+  add_test(NAME ${name} COMMAND $<TARGET_FILE:${name}> --gtest_brief=1)
+  target_link_libraries(${name} PRIVATE GTest::gtest GTest::gtest_main)
+  target_sources(
+    ${name}
+    PRIVATE
+    FILE_SET module_providers
+    TYPE CXX_MODULES
+    ${_MAUD_BASE_DIRS}
+    FILES "${_MAUD_SELF_DIR}/_test_.cxx"
+  )
+  set_target_properties(
+    ${name}
+    PROPERTIES
+    MAUD_INTERFACE "${_MAUD_SELF_DIR}/_test_.cxx"
+    COMPILE_OPTIONS "${_MAUD_INCLUDE} ${_MAUD_SELF_DIR}/_test_.hxx"
+  )
 endfunction()
 
 
@@ -1140,9 +1136,7 @@ function(resolve_options)
       message(WARNING "Detected override of user-provided value for ${opt}")
     endif()
   endforeach()
-  add_compile_options(
-    "SHELL: $<IF:$<CXX_COMPILER_ID:MSVC>,/Fi,-include> ${defines}"
-  )
+  add_compile_options("${_MAUD_INCLUDE} ${defines}")
   message(STATUS)
 
   set(configure_preset "{}")
