@@ -1,14 +1,20 @@
+#define GTEST_STRINGIFY_HELPER_(name, ...) #name
+#define GTEST_STRINGIFY_(...) GTEST_STRINGIFY_HELPER_(__VA_ARGS__, )
+
 /// FIXME add nice docstrings here
 #define TEST_(name, ...)                                                                \
-  struct SUITE_NAME##_##name : Registrar<struct SUITE_NAME> {                           \
-    SUITE_NAME##_##name() : SUITE_NAME##_##name::Registrar{__FILE__, __LINE__, #name} { \
-      with_parameters<struct SUITE_NAME##_##name>(__VA_ARGS__);                         \
+  namespace SUITE_NAME {                                                                \
+  struct name : Registrar<struct SuiteState> {                                          \
+    name() {                                                                            \
+      register_with_parameters(this, {__FILE__, __LINE__, GTEST_STRINGIFY_(SUITE_NAME), \
+                                      #name} __VA_OPT__(, ) __VA_ARGS__);               \
     }                                                                                   \
     template <typename Parameter>                                                       \
-    static void body(Parameter const &);                                                \
-  } SUITE_NAME##_##name;                                                                \
+    static void body(Parameter const &parameter);                                       \
+  } name;                                                                               \
+  }                                                                                     \
   template <typename Parameter>                                                         \
-  void SUITE_NAME##_##name::body(Parameter const &parameter)
+  void SUITE_NAME::name::body(Parameter const &parameter)
 
 #define EXPECT_(...)                                                       \
   ::expect_helper::Expectation {                                           \
@@ -18,4 +24,8 @@
     }                                                                      \
   }
 
-#define SUITE_STATE struct SUITE_NAME
+#define SUITE_STATE      \
+  namespace SUITE_NAME { \
+  struct SuiteState;     \
+  }                      \
+  struct SUITE_NAME::SuiteState

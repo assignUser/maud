@@ -4,30 +4,20 @@ module;
 #include <gmock/gmock-matchers.h>
 #include <gtest/gtest.h>
 
-#include <array>
 #include <coroutine>
 #include <cstdint>
 #include <exception>
-#include <filesystem>
 export module test_;
 
 using namespace testing;
 
-/// Subclass of std::array constructible from array ref
-export template <typename T, std::size_t N>
-struct Array : std::array<T, N> {
-  constexpr Array(T const (&arr)[N]) {
-    for (T const *ptr = arr; T & c : *this) c = *ptr++;
-  }
-};
-
 export template <typename T>
 std::string const type_name = testing::internal::GetTypeName<T>();
 
-template <>
+export template <>
 auto const type_name<std::string> = "std::string";
 
-template <>
+export template <>
 auto const type_name<std::string_view> = "std::string_view";
 
 export struct Main {
@@ -40,92 +30,98 @@ concept Complete = requires {
   { sizeof(T) } -> std::same_as<std::size_t>;
 };
 
-export template <typename S>
-struct Registrar {
+struct Info {
   char const *file;
   int line;
+  char const *suite_name;
   char const *test_name;
+};
 
-  static char const *suite_name() { return type_name<S>.c_str(); }
-
+export template <typename S>
+struct Registrar {
   using SuiteState = std::conditional_t<Complete<S>, S, int>;
 
-  static SuiteState *suite_state() {
-    alignas(SuiteState) static char storage[sizeof(SuiteState)];
-    return std::launder(reinterpret_cast<SuiteState *>(&storage));
+  static SuiteState *const suite_state;
+
+  struct FixtureWithSuiteState : testing::Test {
+    static void SetUpTestSuite() { new (suite_state) SuiteState{}; }
+    static void TearDownTestSuite() { suite_state->~SuiteState(); }
+  };
+
+  template <typename Test, typename Parameter>
+  struct Fixture : FixtureWithSuiteState {
+    void TestBody() override { Test::body(_parameter); }
+    explicit Fixture(Parameter p) : _parameter{std::move(p)} {}
+    Parameter const _parameter;
+  };
+
+  template <typename Test, typename Parameter>
+  static FixtureWithSuiteState *fixture(Test *, Parameter p) {
+    return new Fixture<Test, Parameter>(std::move(p));
   }
 
-  struct Fixture : testing::Test {
-    static void SetUpTestSuite() { new (suite_state()) SuiteState{}; }
-    static void TearDownTestSuite() { suite_state()->~SuiteState(); }
-  };
+  void register_with_parameters(auto *test, Info info) {
+    auto [file, line, suite_name, test_name] = info;
+    testing::RegisterTest(suite_name, test_name, nullptr, nullptr, file, line,
+                          [test] { return fixture(test, nullptr); });
+  }
 
-  template <typename Test, typename Parameter>
-  struct ParameterizedFixture : Fixture {
-    explicit ParameterizedFixture(Parameter p) : _parameter{std::move(p)} {}
-    Parameter const _parameter;
-    static Fixture *make(Parameter p) { return new ParameterizedFixture{std::move(p)}; }
-    void TestBody() override { Test::body(_parameter); }
-  };
-
-  template <typename Test, typename Parameter>
-  void register_one(Parameter parameter, int i, std::string type_name = "") {
+  void register_one(auto *test, Info info, auto parameter, int i,
+                    std::string type_name = "") {
+    auto [file, line, suite_name, test_name] = info;
     std::string name = test_name;
     name += "/" + PrintToString(i);
     if (not type_name.empty()) {
       name += "/" + type_name;
     }
     name += "/" + PrintToString(parameter);
-    testing::RegisterTest(
-        suite_name(), name.c_str(), nullptr, nullptr, file, line,
-        [parameter = std::move(parameter)]() mutable {
-          return ParameterizedFixture<Test, Parameter>::make(std::move(parameter));
-        });
+    testing::RegisterTest(suite_name, name.c_str(), nullptr, nullptr, file, line,
+                          [test, parameter = std::move(parameter)]() mutable {
+                            return fixture(test, std::move(parameter));
+                          });
   }
 
-  template <typename Test>
-  void with_parameters() {
-    testing::RegisterTest(suite_name(), test_name, nullptr, nullptr, file, line, [] {
-      return ParameterizedFixture<Test, decltype(nullptr)>::make(nullptr);
-    });
-  }
-
-  template <typename Test>
-  void with_parameter_range(auto &&range) {
+  void register_with_parameter_range(auto *test, Info info, auto &&range) {
     for (int i = 0; auto &&parameter : range) {
-      register_one<Test>(std::move(parameter), i++);
+      register_one(test, info, std::move(parameter), i++);
     }
   }
 
-  template <typename Test>
-  void with_parameters(auto &&parameters) {
+  void register_with_parameters(auto *test, Info info, auto &&parameters) {
     if constexpr (std::is_invocable_v<decltype(parameters)>) {
-      with_parameter_range<Test>(std::move(parameters)());
+      register_with_parameter_range(test, info, std::move(parameters)());
     } else {
-      with_parameter_range<Test>(std::move(parameters));
+      register_with_parameter_range(test, info, std::move(parameters));
     }
   }
 
-  template <typename Test, typename... T>
-  void with_parameters(std::tuple<T...> parameters) {
+  void register_with_parameters(auto *test, Info info, auto &&...e)
+      requires(sizeof...(e) >= 2) {
+    register_with_parameters(test, info, std::tuple{std::move(e)...});
+  }
+
+  template <typename T>
+  void register_with_parameters(auto *test, Info info,
+                                std::initializer_list<T> parameters) {
+    register_with_parameter_range(test, info, parameters);
+  }
+
+  template <typename... T>
+  void register_with_parameters(auto *test, Info info, std::tuple<T...> parameters) {
     int i = 0;
     std::apply(
         [&](auto &&...parameters) {
-          (register_one<Test>(std::move(parameters), i++, type_name<T>), ...);
+          (register_one(test, info, std::move(parameters), i++, type_name<T>), ...);
         },
         std::move(parameters));
   }
-
-  template <typename Test>
-  void with_parameters(auto... e) requires(sizeof...(e) >= 2) {
-    with_parameters<Test>(std::tuple{std::move(e)...});
-  }
-
-  template <typename Test, typename T>
-  void with_parameters(std::initializer_list<T> parameters) {
-    with_parameter_range<Test>(parameters);
-  }
 };
+
+template <typename S>
+typename Registrar<S>::SuiteState *const Registrar<S>::suite_state = [] {
+  alignas(SuiteState) static char storage[sizeof(SuiteState)];
+  return std::launder(reinterpret_cast<SuiteState *>(&storage));
+}();
 
 namespace expect_helper {
 

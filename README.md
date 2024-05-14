@@ -95,13 +95,11 @@ and imported.
   special module.)
 - Implementation units of the special `module test_;` produce
   a test. (Do not import this special module.) By default, this will:
-  - Create an executable target for each directory of test sources, adding each
-    source to that executable. The target's name will be the directory's name
-    (*please* just name it `foo_test/`).
+  - Create an executable target for each source.
   - Pass the test executable to `add_test()`.
-  - Link the test executable to `gtest` and `gtest_main`.
-    - If the executable includes an implementation unit of `module test_:main`
-      (*please* just name it `main.cxx`) then `gtest_main` will not be linked.
+  - Link the test executable to `gtest`.
+    - If an interface unit of `module test_:main` is found then it will be linked
+      with each test executable, otherwise `gtest_main` will be linked.
   - If the command `maud_add_test(source_file_path partition out_target_name)`
     is defined it will be invoked on each test source as it is scanned, allowing
     you to override what a unit test is for your project.

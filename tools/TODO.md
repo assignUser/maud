@@ -52,24 +52,25 @@ target_link_libraries(
 )
 ```
 
-TODO: test suites
------------------
+TODO: benchmark globbing
+------------------------
 
-In a project of any scale, it is useful to have one test Suite per
-executable while debugging a test. In a larger project with many tests,
-consolidating suites into fewer executables can save link time when the
+A primary concern is that we glob efficiently. If we can't prove
+that the cost is negligible (comparable to checking every file's
+timestamp, say), then some users will not want to use Maud because
+some projects can get big and maybe globs will be too slow.
+
+TODO: consolidate tests
+-----------------------
+
+By default we produce 1:1:1 test source:executable:test suite.
+In a larger project with many tests, it can be useful to consolidate
+suites into fewer executables in order to save link time when the
 goal is simply to build and run all of them. Therefore we should have an
 option which defaults to suite-per-executable and can be enabled to
-redistribute test sources into larger (randomly named) test executables.
-
-This in turn requires that test suites be unity-build compatible
-WRT odr. Should we classically concatenate suite and case name?
-Let the suite name be a namespace?
-
-Additionally it should be fine if we only allow a single `test_:main`
-per project; that one can trivially dispatch to anything else a user
-requires.
-
+redistribute test sources into larger test executables (which are named
+`test-executable-1` etc but ctest uses `--gtest_filter` so that we can still
+see individual suite names).
 
 TODO: cmake compendium
 ----------------------

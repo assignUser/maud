@@ -31,7 +31,7 @@ cat >basics_test/basics.cxx <<-EOF
 	      return;
 	    }
 	    EXPECT_(*ptr == three);
-	      EXPECT_(suite_state()->yo == "yo");
+	      EXPECT_(suite_state->yo == "yo");
 	}
 
 	TEST_(parameterized, {111, 234}) {
