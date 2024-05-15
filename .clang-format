@@ -1,5 +1,5 @@
 ---
-# clang-format --version == 18
+# Maud: {"version": 18, "patterns": "\\.cxx$;\\.hxx$;!(/|^)(.*-|)build(/|$)"}
 BasedOnStyle: Google
 ColumnLimit: 90
 AlignArrayOfStructures: Left

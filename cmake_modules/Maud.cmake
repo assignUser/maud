@@ -64,7 +64,7 @@ endfunction()
 function(glob out_var)
   cmake_parse_arguments(
     "" # prefix
-    "CONFIGURE_DEPENDS" # options
+    "CONFIGURE_DEPENDS;EXCLUDE_RENDERED" # options
     "" # single value arguments
     "" # multi value arguments
     ${ARGN}
@@ -76,12 +76,16 @@ function(glob out_var)
     "${CMAKE_SOURCE_DIR}"
     ${patterns}
   )
-  _maud_glob(
-    gen_matches
-    "${MAUD_DIR}/rendered"
-    ${patterns}
-  )
-  list(APPEND matches ${gen_matches})
+  if(NOT _EXCLUDE_RENDERED)
+    _maud_glob(
+      gen_matches
+      "${MAUD_DIR}/rendered"
+      ${patterns}
+    )
+    list(APPEND matches ${gen_matches})
+  else()
+    list(PREPEND patterns EXCLUDE_RENDERED)
+  endif()
   set(${out_var} "${matches}" PARENT_SCOPE)
   if(_CONFIGURE_DEPENDS)
     file(APPEND "${MAUD_DIR}/globs" "${patterns} :MATCHED: ${matches}\n")
@@ -246,56 +250,55 @@ endfunction()
 
 
 function(_maud_setup_clang_format)
+  set(config "")
   if(EXISTS "${CMAKE_SOURCE_DIR}/.clang-format")
-    file(STRINGS "${CMAKE_SOURCE_DIR}/.clang-format" config)
-  else()
-    set(config "")
+    file(READ "${CMAKE_SOURCE_DIR}/.clang-format" config)
   endif()
 
-  if(config MATCHES [[(^|;)# clang-format --version == ([^;]+)]])
-    set(version_required ${CMAKE_MATCH_2})
+  if(config MATCHES [[# Maud: ([{].*[}])]])
+    string(JSON version GET "${CMAKE_MATCH_1}" version)
+    string(JSON patterns GET "${CMAKE_MATCH_1}" patterns)
   else()
     message(
-      STATUS
+      VERBOSE
       "Could not detect the required clang-format version, "
       "add a comment to ${CMAKE_SOURCE_DIR}/.clang-format like\n"
-      "        # clang-format --version == 18"
+      [[        # Maud: ]]
+      [[{"version": 18, "patterns": "\\.cxx$;\\.hxx$;!(/|^)(.*-|)build(/|$)"}]]
     )
     return()
   endif()
 
   function(_maud_clang_format_validator out_var candidate)
-    execute_process(COMMAND "${candidate}" --version OUTPUT_VARIABLE version)
-    if(version MATCHES [[^clang-format version ([0-9]+)]])
-      if(${CMAKE_MATCH_1} EQUAL ${version_required})
+    execute_process(COMMAND "${candidate}" --version OUTPUT_VARIABLE candidate)
+    if(candidate MATCHES [[^clang-format version ([0-9]+)]])
+      if(${CMAKE_MATCH_1} EQUAL ${version})
         return()
       endif()
     endif()
     set(out_var FALSE PARENT_SCOPE)
   endfunction()
 
-  # FIXME this doesn't get headers and will require formatting in rendered files
-  # also we might want _test.cxx or .thing.cxx to get formatted but they're
-  # excluded by MAUD_IGNORED_SOURCE_REGEX (and .hxx isn't a source file at all
-  # but we still want it to be clang-formatted). Instead, let the comment contain
-  # both the version and the patterns to apply
   find_program(
     CLANG_FORMAT_COMMAND
-    NAMES clang-format clang-format-${version_required}
+    NAMES clang-format clang-format-${version}
     VALIDATOR _maud_clang_format_validator
   )
   if(CLANG_FORMAT_COMMAND)
+    glob(formatted_files CONFIGURE_DEPENDS EXCLUDE_RENDERED ${patterns})
+    list(JOIN formatted_files "\n" formatted_files)
+    file(WRITE "${MAUD_DIR}/formatted_files.list" "${formatted_files}\n")
     add_test(
       NAME check.clang-formatted
       COMMAND "${CLANG_FORMAT_COMMAND}"
-        --dry-run -Werror "--files=${MAUD_DIR}/source_files.list"
+        --dry-run -Werror "--files=${MAUD_DIR}/formatted_files.list"
     )
     add_custom_target(
       fix.clang-format
-      COMMAND "${CLANG_FORMAT_COMMAND}" -i "--files=${MAUD_DIR}/source_files.list"
+      COMMAND "${CLANG_FORMAT_COMMAND}" -i "--files=${MAUD_DIR}/formatted_files.list"
     )
   else()
-    message(STATUS "Could not find clang-format program")
+    message(VERBOSE "Could not find clang-format program with version ${version}")
   endif()
 endfunction()
 

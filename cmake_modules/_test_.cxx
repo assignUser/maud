@@ -96,7 +96,8 @@ struct Registrar {
   }
 
   void register_with_parameters(auto *test, Info info, auto &&...e)
-      requires(sizeof...(e) >= 2) {
+    requires(sizeof...(e) >= 2)
+  {
     register_with_parameters(test, info, std::tuple{std::move(e)...});
   }
 
@@ -315,16 +316,16 @@ struct Ordering {
   bool ordered;
 };
 export template <typename L, auto OP, typename R, typename T>
-requires(OP == LE or OP == LT) Ordering<L, R, T> operator<(Comparison<L, OP, R> c,
-                                                           T const &rhs) {
+  requires(OP == LE or OP == LT)
+Ordering<L, R, T> operator<(Comparison<L, OP, R> c, T const &rhs) {
   return {
       {c.lhs, c.rhs, rhs},
       c.check() and c.rhs < rhs
   };
 }
 export template <typename L, auto OP, typename R, typename T>
-requires(OP == LE or OP == LT) Ordering<L, R, T> operator<=(Comparison<L, OP, R> c,
-                                                            T const &rhs) {
+  requires(OP == LE or OP == LT)
+Ordering<L, R, T> operator<=(Comparison<L, OP, R> c, T const &rhs) {
   return {
       {c.lhs, c.rhs, rhs},
       c.check() and c.rhs <= rhs
