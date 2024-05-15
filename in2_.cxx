@@ -246,9 +246,6 @@ void compile(auto begin) {
       message(FATAL_ERROR "RENDER_FILE was not provided")
     endif()
     file(WRITE "${RENDER_FILE}" "")
-    function(render content)
-      file(APPEND "${RENDER_FILE}" "${content}")
-    endfunction()
   )";
   if (*begin == 0) return;
 

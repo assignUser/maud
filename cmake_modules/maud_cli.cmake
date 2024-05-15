@@ -128,6 +128,7 @@ file(
 
     _maud_setup()
     _maud_cmake_modules()
+    _maud_in2()
     _maud_include_directories()
     _maud_cxx_sources()
     _maud_finalize_targets()

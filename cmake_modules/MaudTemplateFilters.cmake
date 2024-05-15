@@ -6,7 +6,7 @@ function(template_filter_set)
 endfunction()
 
 function(template_filter_if_else then otherwise)
-  if(${IT})
+  if(IT)
     set(IT "${then}" PARENT_SCOPE)
   else()
     set(IT "${otherwise}" PARENT_SCOPE)

@@ -761,7 +761,7 @@ function(_maud_setup)
 
   file(WRITE "${MAUD_DIR}/globs" "")
 
-  foreach(dir empty;junk;rendered)
+  foreach(dir junk;rendered)
     if(NOT EXISTS "${MAUD_DIR}/${dir}")
       file(MAKE_DIRECTORY "${MAUD_DIR}/${dir}")
     endif()
@@ -777,9 +777,12 @@ endfunction()
 
 
 function(_maud_cmake_modules)
+  list(APPEND CMAKE_MODULE_PATH "${_MAUD_SELF_DIR}")
+
   glob(
     module_dirs
     CONFIGURE_DEPENDS
+    EXCLUDE_RENDERED
     "(/|^)cmake_modules$"
     "!${MAUD_IGNORED_SOURCE_REGEX}"
   )
@@ -793,6 +796,7 @@ function(_maud_cmake_modules)
   glob(
     auto_included
     CONFIGURE_DEPENDS
+    EXCLUDE_RENDERED
     "\\.cmake$"
     "!(/|^)cmake_modules/"
     "!${MAUD_IGNORED_SOURCE_REGEX}"
@@ -801,6 +805,39 @@ function(_maud_cmake_modules)
     cmake_path(GET cmake_file PARENT_PATH dir)
     include("${cmake_file}")
   endforeach()
+endfunction()
+
+
+function(_maud_in2)
+  glob(
+    templates
+    CONFIGURE_DEPENDS
+    EXCLUDE_RENDERED
+    "\\.in2$"
+    "!${MAUD_IGNORED_SOURCE_REGEX}"
+  )
+  foreach(template ${templates})
+    cmake_path(GET template PARENT_PATH dir)
+    cmake_path(GET template STEM LAST_ONLY RENDER_FILE)
+
+    set(compiled "${MAUD_DIR}/compiled_templates/${RENDER_FILE}.in2.cmake")
+    file(WRITE "${compiled}" "")
+
+    execute_process(
+      COMMAND maud_in2
+      INPUT_FILE "${template}"
+      OUTPUT_FILE "${compiled}"
+      COMMAND_ERROR_IS_FATAL ANY
+    )
+
+    set(RENDER_FILE "${MAUD_DIR}/rendered/${RENDER_FILE}")
+    include("${compiled}")
+  endforeach()
+endfunction()
+
+
+function(render content)
+  file(APPEND "${RENDER_FILE}" "${content}")
 endfunction()
 
 
