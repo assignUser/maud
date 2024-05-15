@@ -14,5 +14,5 @@ PointerAlignment: Right
 ReferenceAlignment: Right
 QualifierAlignment: Right
 
-Standard: c++17
+Standard: c++20
 UseTab: Never

@@ -297,9 +297,7 @@ files are also globbed up and their templates rendered. The template file
 `${MAUD_DIR}/rendered/some/dir/f.txt`. Subsequent globs (include directories,
 C++ source files, any globs executed in an auto-included cmake module) are
 additionally applied rooted at `${MAUD_DIR}/rendered`, so rendered source files and
-headers will be included in the build automatically. (Note that glob *exclusions*
-are not applied to rendered files; apply exclusions to templates so that there aren't
-any rendered files which must be ignored.)
+headers will be included in the build automatically.
 
 Template files are compiled to cmake modules which render the template on inclusion.
 As such they have access to all the capabilities of a cmake module, including

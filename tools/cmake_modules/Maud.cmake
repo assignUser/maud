@@ -75,7 +75,6 @@ function(glob out_var)
     matches
     "${CMAKE_SOURCE_DIR}"
     ${patterns}
-    "!${MAUD_IGNORED_SOURCE_REGEX}"
   )
   _maud_glob(
     gen_matches
@@ -211,7 +210,12 @@ endfunction()
 
 
 function(_maud_include_directories)
-  glob(include_dirs CONFIGURE_DEPENDS "(/|^)include$")
+  glob(
+    include_dirs
+    CONFIGURE_DEPENDS
+    "(/|^)include$"
+    "!${MAUD_IGNORED_SOURCE_REGEX}"
+  )
   foreach(include_dir ${include_dirs})
     message(VERBOSE "Detected include directory: ${include_dir}")
     include_directories("${include_dir}")
@@ -225,7 +229,12 @@ function(_maud_cxx_sources)
   list(TRANSFORM source_regex REPLACE [[\.(.+)]] [[\\.\1$]])
   string(JOIN "|" source_regex ${source_regex})
 
-  glob(source_files CONFIGURE_DEPENDS ${source_regex})
+  glob(
+    source_files
+    CONFIGURE_DEPENDS
+    ${source_regex}
+    "!${MAUD_IGNORED_SOURCE_REGEX}"
+  )
   foreach(source_file ${source_files})
     _maud_scan("${source_file}")
   endforeach()
@@ -266,8 +275,10 @@ function(_maud_setup_clang_format)
   endfunction()
 
   # FIXME this doesn't get headers and will require formatting in rendered files
-  # also we might want _test.cxx or .thing.hxx to get formatted but they're
-  # excluded by globs
+  # also we might want _test.cxx or .thing.cxx to get formatted but they're
+  # excluded by MAUD_IGNORED_SOURCE_REGEX (and .hxx isn't a source file at all
+  # but we still want it to be clang-formatted). Instead, let the comment contain
+  # both the version and the patterns to apply
   find_program(
     CLANG_FORMAT_COMMAND
     NAMES clang-format clang-format-${version_required}
@@ -763,7 +774,12 @@ endfunction()
 
 
 function(_maud_cmake_modules)
-  glob(module_dirs CONFIGURE_DEPENDS "(/|^)cmake_modules$")
+  glob(
+    module_dirs
+    CONFIGURE_DEPENDS
+    "(/|^)cmake_modules$"
+    "!${MAUD_IGNORED_SOURCE_REGEX}"
+  )
   foreach(module_dir ${module_dirs})
     list(APPEND CMAKE_MODULE_PATH "${module_dir}")
     message(STATUS "Detected CMake module directory: ${module_dir}")
@@ -776,6 +792,7 @@ function(_maud_cmake_modules)
     CONFIGURE_DEPENDS
     "\\.cmake$"
     "!(/|^)cmake_modules/"
+    "!${MAUD_IGNORED_SOURCE_REGEX}"
   )
   foreach(cmake_file ${auto_included})
     cmake_path(GET cmake_file PARENT_PATH dir)

@@ -12,7 +12,7 @@ glob(
   test_projects
   CONFIGURE_DEPENDS
   test_projects/.+\.bash$
-  # (leading _ is automatically ignored)
+  "!${MAUD_IGNORED_SOURCE_REGEX}"
 )
 
 message(STATUS "<test_projects> Setting up test projects")
