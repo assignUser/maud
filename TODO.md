@@ -60,6 +60,9 @@ that the cost is negligible (comparable to checking every file's
 timestamp, say), then some users will not want to use Maud because
 some projects can get big and maybe globs will be too slow.
 
+Even if globbing is found to be slow, that's not necessarily the end
+of it: we can cache and partition results so that it's faster to check.
+
 TODO: consolidate tests
 -----------------------
 
@@ -69,8 +72,8 @@ suites into fewer executables in order to save link time when the
 goal is simply to build and run all of them. Therefore we should have an
 option which defaults to suite-per-executable and can be enabled to
 redistribute test sources into larger test executables (which are named
-`test-executable-1` etc but ctest uses `--gtest_filter` so that we can still
-see individual suite names).
+`test-executable-1` etc but ctest uses `--gtest_filter` so that we can
+still see individual suite names).
 
 TODO: cmake compendium
 ----------------------
