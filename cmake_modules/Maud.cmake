@@ -831,6 +831,7 @@ function(_maud_in2)
     )
 
     set(RENDER_FILE "${MAUD_DIR}/rendered/${RENDER_FILE}")
+    file(WRITE "${RENDER_FILE}" "")
     include("${compiled}")
   endforeach()
 endfunction()

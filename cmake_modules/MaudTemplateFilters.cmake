@@ -26,3 +26,9 @@ function(template_filter_string)
   string_escape("${IT}" str)
   set(IT "${str}" PARENT_SCOPE)
 endfunction()
+
+function(template_filter_join glue)
+  list(JOIN IT "${glue}" joined)
+  set(IT "${joined}" PARENT_SCOPE)
+endfunction()
+

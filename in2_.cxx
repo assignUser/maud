@@ -241,7 +241,6 @@ void debug(auto type, Location begin, Location end) {
 
 // str is assumed to be null terminated
 void compile(auto begin) {
-  *os << R"(file(WRITE "${RENDER_FILE}" ""))" "\n";
   if (*begin == 0) return;
 
   // we always start with a literal chunk

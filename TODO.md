@@ -52,6 +52,22 @@ target_link_libraries(
 )
 ```
 
+TODO: support C++17/non-module projects
+---------------------------------------
+
+There's plenty of maud features which could be useful even without
+full module support. All the source files would be orphaned, but
+with the `glob()` function provided it'd be pretty trivial to define
+targets manually. This would just require *not* setting
+`CMAKE_CXX_STANDARD` and gracefully skipping scanning if the compiler
+doesn't do modules anyway.
+
+Taking things further, C++ sources could be associated with targets
+even without using modules. The module block could be written using
+a custom attribute for example, or a directory naming convention
+could be adoted, or you could write the module block verbatim inside
+an `#if false`- maud_scan would read it even if nothing else did.
+
 TODO: benchmark globbing
 ------------------------
 
