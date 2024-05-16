@@ -241,12 +241,7 @@ void debug(auto type, Location begin, Location end) {
 
 // str is assumed to be null terminated
 void compile(auto begin) {
-  *os << R"(
-    if("${RENDER_FILE}" STREQUAL "")
-      message(FATAL_ERROR "RENDER_FILE was not provided")
-    endif()
-    file(WRITE "${RENDER_FILE}" "")
-  )";
+  *os << R"(file(WRITE "${RENDER_FILE}" ""))" "\n";
   if (*begin == 0) return;
 
   // we always start with a literal chunk
