@@ -359,6 +359,22 @@ std::string operator<<=(Ordering<C...> c, End e) {
   return s;
 }
 
+// template <typename C, typename M>
+// struct MatchCondition {
+//   C const &condition;
+//   M matcher;
+// };
+// export template <typename C, typename M>
+// MatchCondition<C, M> operator<(Condition<C> c, M matcher) {
+//   return {c, std::move(matcher)};
+// }
+// export template <typename C, typename M>
+// std::string operator<<=(MatchCondition<C, M> c, End e) {
+//   auto &[condition, matcher] = c;
+//   std::stringstream stream;
+//   if (matcher.MatchAndExplain(condition, &stream)) return {};
+//   return std::move(stream).str();
+// }
 // TODO: Matchers. Add in an expectation with <<=
 //   EXPECT_(a <<= InRange(0, 10) and not Eq(9));
 // Declare with a lambda
@@ -421,3 +437,5 @@ struct Generator {
   std::coroutine_handle<promise_type> handle;
   ~Generator() { handle.destroy(); }
 };
+
+export using testing::HasSubstr;

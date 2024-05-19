@@ -26,12 +26,14 @@ cat >basics_test/basics.cxx <<-EOF
 	  int a = 999, b = 88888;
 	  EXPECT_(a != b);
 
-	    int *ptr = &three;
-	    if (not EXPECT_(ptr != nullptr)) {
-	      return;
-	    }
-	    EXPECT_(*ptr == three);
-	      EXPECT_(suite_state->yo == "yo");
+	  int *ptr = &three;
+	  if (not EXPECT_(ptr != nullptr)) {
+	    return;
+	  }
+	  EXPECT_(*ptr == three);
+	  EXPECT_(suite_state->yo == "yo");
+
+	  // EXPECT_(""s < HasSubstr("hey"));
 	}
 
 	TEST_(parameterized, {111, 234}) {

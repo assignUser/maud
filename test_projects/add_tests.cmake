@@ -23,7 +23,7 @@ file(
     set -e # bail on any error
     set -x # echo all commands
     export CXX="]] "${CMAKE_CXX_COMPILER}" [["
-    export TEST_DIR="]] "${MAUD_DIR}/test_projects" [["
+    export TEST_DIR=`realpath ..`
     rm -rf "$TEST_DIR/usr"
     mkdir "$TEST_DIR/usr"
     cmake --install "]] "${CMAKE_BINARY_DIR}" [[" --prefix "$TEST_DIR/usr" --config Debug

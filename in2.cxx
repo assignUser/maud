@@ -4,12 +4,19 @@ module;
 #include <cassert>
 #include <cstdint>
 #include <iostream>
+#include <sstream>
 #include <string>
 export module maud_:in2;
 
 using std::operator""s;
 
 export void compile_in2(std::istream &is, std::ostream &os);
+
+export std::string compile_in2(std::string in) {
+  std::stringstream is{std::move(in)}, os;
+  compile_in2(is, os);
+  return std::move(os).str();
+}
 
 std::ostream *os = &std::cout;
 

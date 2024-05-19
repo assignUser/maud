@@ -1,5 +1,5 @@
 ---
-# Maud: {"version": 18, "patterns": "\\.cxx$;\\.hxx$;!(/|^)(.*-|)build(/|$)"}
+# Maud: {"version": 18, "patterns": "\\.cxx$;\\.hxx$;!(/|^)(.*-|)build(/|$);!ryml"}
 BasedOnStyle: Google
 ColumnLimit: 90
 AlignArrayOfStructures: Left

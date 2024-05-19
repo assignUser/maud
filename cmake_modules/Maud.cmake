@@ -253,6 +253,8 @@ function(_maud_setup_clang_format)
   set(config "")
   if(EXISTS "${CMAKE_SOURCE_DIR}/.clang-format")
     file(READ "${CMAKE_SOURCE_DIR}/.clang-format" config)
+    list(APPEND CMAKE_CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/.clang-format")
+    set(CMAKE_CONFIGURE_DEPENDS "${CMAKE_CONFIGURE_DEPENDS}" PARENT_SCOPE)
   endif()
 
   if(config MATCHES [[# Maud: ([{].*[}])]])
@@ -511,7 +513,7 @@ function(_maud_add_test source_file partition out_target_name)
   if(NOT TARGET "${name}")
     add_executable(${name})
   endif()
-  add_test(NAME ${name} COMMAND $<TARGET_FILE:${name}> --gtest_brief=1)
+  add_test(NAME test_.${name} COMMAND $<TARGET_FILE:${name}> --gtest_brief=1)
   target_link_libraries(${name} PRIVATE GTest::gtest GTest::gtest_main)
   target_sources(
     ${name}
