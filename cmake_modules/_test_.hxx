@@ -16,12 +16,10 @@
   template <typename Parameter>                                                         \
   void SUITE_NAME::name::body(Parameter const &parameter)
 
-#define EXPECT_(...)                                                       \
-  ::expect_helper::Expectation {                                           \
-    __FILE__, __LINE__,                                                    \
-        ::expect_helper::Begin{} <= __VA_ARGS__ <<= ::expect_helper::End { \
-      #__VA_ARGS__                                                         \
-    }                                                                      \
+#define EXPECT_(...)                                                                  \
+  ::expect_helper::Expectation {                                                      \
+    __FILE__, __LINE__,                                                               \
+        (::expect_helper::Begin{} <= __VA_ARGS__, ::expect_helper::End{#__VA_ARGS__}) \
   }
 
 #define SUITE_STATE      \

@@ -162,7 +162,7 @@ Condition<C> operator<=(Begin, C const &condition) {
   return {condition};
 }
 export template <typename C>
-std::string operator<<=(Condition<C> c, End e) {
+std::string operator,(Condition<C> c, End e) {
   if (c.condition) return {};
 
   std::string s;
@@ -229,7 +229,7 @@ Comparison<L, LE, R> operator<=(Condition<L> lhs, R const &rhs) {
   return {lhs.condition, rhs};
 }
 export template <typename L, auto OP, typename R>
-std::string operator<<=(Comparison<L, OP, R> c, End e) {
+std::string operator,(Comparison<L, OP, R> c, End e) {
   if (c.check()) return {};
 
   auto lhs = testing::PrintToString(c.lhs);
@@ -293,7 +293,7 @@ MultiEquality<C..., R> operator==(MultiEquality<C...> c, R const &rhs) {
   return {std::tuple_cat(c.tuple, std::tie(rhs)), equal};
 }
 export template <typename... C>
-std::string operator<<=(MultiEquality<C...> c, End e) {
+std::string operator,(MultiEquality<C...> c, End e) {
   if (c.equal) return {};
 
   std::string s;
@@ -342,7 +342,7 @@ Ordering<C..., R> operator<=(Ordering<C...> c, R const &rhs) {
   return {std::tuple_cat(c.tuple, std::tie(rhs)), ordered};
 }
 export template <typename... C>
-std::string operator<<=(Ordering<C...> c, End e) {
+std::string operator,(Ordering<C...> c, End e) {
   if (c.ordered) return {};
 
   std::string s;
@@ -359,28 +359,30 @@ std::string operator<<=(Ordering<C...> c, End e) {
   return s;
 }
 
-// template <typename C, typename M>
-// struct MatchCondition {
-//   C const &condition;
-//   M matcher;
-// };
-// export template <typename C, typename M>
-// MatchCondition<C, M> operator<(Condition<C> c, M matcher) {
-//   return {c, std::move(matcher)};
-// }
-// export template <typename C, typename M>
-// std::string operator<<=(MatchCondition<C, M> c, End e) {
-//   auto &[condition, matcher] = c;
-//   std::stringstream stream;
-//   if (matcher.MatchAndExplain(condition, &stream)) return {};
-//   return std::move(stream).str();
-// }
-// TODO: Matchers. Add in an expectation with <<=
-//   EXPECT_(a <<= InRange(0, 10) and not Eq(9));
-// Declare with a lambda
-//   auto IsEven = matcher([](auto i) { return i % 2 == 0; })
-//     .describe("is even")
-//     .describe_negation("is not even");
+template <typename C>
+struct MatchCondition {
+  C const &condition;
+  testing::Matcher<C const &> matcher;
+};
+export template <typename C, typename M>
+MatchCondition<C> operator>>=(Condition<C> c, M matcher) {
+  return {c.condition, SafeMatcherCast<C const &>(std::move(matcher))};
+}
+export template <typename C>
+std::string operator,(MatchCondition<C> c, End e) {
+  auto &[condition, matcher] = c;
+  auto cs = e.condition_string;
+  cs = cs.substr(cs.find_first_not_of(" \n\t\r"));
+  cs = cs.substr(0, cs.find(">>="));
+  cs = cs.substr(0, cs.find_last_not_of(" \n\t\r"));
+  std::stringstream stream;
+  stream << "  Expected: " << cs;
+  ::testing::internal::StreamMatchResultListener listener{&stream};
+  if (matcher.MatchAndExplain(condition, &listener)) return {};
+  stream << " ";
+  matcher.DescribeTo(&stream);
+  return std::move(stream).str();
+}
 
 }  // namespace expect_helper
 

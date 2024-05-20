@@ -1,5 +1,5 @@
 module;
-#include <algorithm>
+#include <array>
 #include <coroutine>
 #include <filesystem>
 #include <fstream>
@@ -8,8 +8,9 @@ module;
 #include <sstream>
 #include <string_view>
 
+// TODO extract an internal module for ryml
 #define RYML_SINGLE_HDR_DEFINE_NOW
-#include "ryml.hxx"
+#include "c4/yml.hxx"
 module test_;
 
 import maud_;
@@ -28,12 +29,23 @@ auto const DIR = std::filesystem::path{__FILE__}.parent_path();
 auto const TEMP = std::filesystem::temp_directory_path();
 auto const CASES = [] {
   static auto cases = read(DIR / "in2.test.yaml");
-  static auto tree = ryml::parse_in_place(cases.data());
+  static auto tree = c4::yml::parse_in_place(cases.data());
   return tree.rootref();
 }();
 
+namespace c4::yml {
+void PrintTo(ConstNodeRef n, std::ostream *os) { *os << n["name"].val(); }
+
+std::string_view strv(ConstNodeRef n) { return {n.val().data(), n.val().size()}; }
+}  // namespace c4::yml
+
 std::string str(auto v) {
-  return v.get() ? std::string{v.val().data(), v.val().size()} : "__"s;
+  return v.readable() ? std::string{v.val().data(), v.val().size()} : "__"s;
+}
+
+TEST_(bonus, CASES) {
+  // TODO simplify the below
+  // EXPECT_(""s >>= HasSubstr("hey"));
 }
 
 struct In2Case {
@@ -43,7 +55,7 @@ struct In2Case {
 
 TEST_(compilation, []() -> Generator<In2Case> {
   for (auto c : CASES) {
-    if (not c["compiled"].get()) continue;
+    if (not c["compiled"].readable()) continue;
     co_yield In2Case{
         str(c["name"]),
         str(c["template"]),

@@ -1,5 +1,4 @@
 module;
-#include <algorithm>
 #include <cerrno>
 #include <filesystem>
 #include <fstream>
@@ -14,15 +13,12 @@ namespace fs = std::filesystem;
 using std::operator""s;
 using std::operator""ms;
 
-char const *find_substr(std::string_view haystack, std::string_view needle) {
-  auto it = std::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
-  return it == haystack.end() ? nullptr : &*it;
-}
-
 void replace(std::string &haystack, std::string_view needle, fs::path replacement) {
-  char const *n = find_substr(haystack, needle);
-  if (not n) throw std::runtime_error("replace couldn't find the needle");
-  haystack.replace(n - haystack.data(), needle.size(), replacement.string());
+  auto i = std::string_view{haystack}.find(needle);
+  if (i == std::string_view::npos) {
+    throw std::runtime_error("replace couldn't find the needle");
+  }
+  haystack.replace(i, needle.size(), replacement.string());
 }
 
 constexpr auto PATCH_TEMPLATE = R"(
@@ -61,7 +57,7 @@ int main(int argc, char **argv) try {
   replace(patch, "<CacheVars.cmake>",
           build / "_maud" / "configure_cache_variables.cmake");
 
-  if (find_substr(contents, patch)) return 0;
+  if (contents.find(patch) != std::string_view::npos) return 0;
 
   auto mtime = fs::last_write_time(verify_globs);
 
