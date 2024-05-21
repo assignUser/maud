@@ -8,7 +8,6 @@ NEXT
     - detect cycles
     - various validation
     - presets get written
-  - unit test with !gtest project
   - use a maud based project with fetchcontent
   - verify maud works while using c++23
 - harden and test the scanner

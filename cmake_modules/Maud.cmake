@@ -411,7 +411,8 @@ function(_maud_scan source_file)
     endif()
 
     if(NOT TARGET "${target_name}")
-      message(FATAL_ERROR "A test target named '${target_name}' should have been created")
+      message(VERBOSE "  No target named, ORPHANED")
+      return()
     endif()
     set(source_access PRIVATE)
   else()
@@ -451,7 +452,7 @@ function(_maud_scan source_file)
       ${source_access}
       FILE_SET module_providers
       TYPE CXX_MODULES
-      ${_MAUD_BASE_DIRS}
+      BASE_DIRS ${_MAUD_BASE_DIRS}
       FILES "${source_file}"
     )
   endif()
@@ -499,7 +500,15 @@ endfunction()
 
 function(_maud_add_test source_file partition out_target_name)
   if(partition STREQUAL "main")
-    message(FATAL_ERROR "FIXME not yet supported")
+    if(_MAUD_TEST_MAIN)
+      message(
+        FATAL_ERROR
+        "Only one definition of test_:main is supported, but got\n"
+        "        ${source_file}\n        ${_MAUD_TEST_MAIN}\n"
+      )
+    endif()
+    set(_MAUD_TEST_MAIN "${source_file}" CACHE INTERNAL "" FORCE)
+    return()
   endif()
 
   cmake_path(GET source_file STEM name)
@@ -514,7 +523,7 @@ function(_maud_add_test source_file partition out_target_name)
     add_executable(test_.${name})
   endif()
   add_test(NAME test_.${name} COMMAND $<TARGET_FILE:test_.${name}> --gtest_brief=1)
-  target_link_libraries(test_.${name} PRIVATE GTest::gtest GTest::gtest_main)
+  target_link_libraries(test_.${name} PRIVATE GTest::gtest)
   target_sources(
     test_.${name}
     PRIVATE
@@ -634,6 +643,22 @@ function(_maud_finalize_targets)
     print_target_sources(${target})
 
     if(TEST ${target})
+      if(NOT COMMAND "maud_add_test")
+        target_link_libraries(${target} PRIVATE GTest::gtest_main)
+      endif()
+      if(_MAUD_TEST_MAIN)
+        set(test_main "${_MAUD_TEST_MAIN}")
+      else()
+        set(test_main "${_MAUD_SELF_DIR}/_test_main_.cxx")
+      endif()
+      target_sources(
+        ${target}
+        PRIVATE
+        FILE_SET module_providers
+        TYPE CXX_MODULES
+        BASE_DIRS ${_MAUD_BASE_DIRS}
+        FILES "${test_main}"
+      )
       continue()
     endif()
 
@@ -772,6 +797,7 @@ function(_maud_setup)
   set_source_files_properties(
     "${_MAUD_SELF_DIR}/_executable.cxx"
     "${_MAUD_SELF_DIR}/_test_.cxx"
+    "${_MAUD_SELF_DIR}/_test_main_.cxx"
     PROPERTIES
     MAUD_TYPE INTERFACE
   )

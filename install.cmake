@@ -13,6 +13,7 @@ install(
   "${dir}/cmake_modules/_executable.cxx"
   "${dir}/cmake_modules/_test_.cxx"
   "${dir}/cmake_modules/_test_.hxx"
+  "${dir}/cmake_modules/_test_main_.cxx"
   DESTINATION
   "${CMAKE_INSTALL_LIBDIR}/cmake/Maud"
 )

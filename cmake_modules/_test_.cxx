@@ -10,6 +10,7 @@ module;
 #include <exception>
 #include <vector>
 export module test_;
+export import :main;
 
 using namespace testing;
 

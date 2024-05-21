@@ -45,7 +45,7 @@ cat >basics.cxx <<-EOF
 	  EXPECT_(parameter < 10);
 	}
 
-	TEST_(lifted_typed, std::tuple{0, ""s}) {
+	TEST_(typed, std::tuple{0, ""s}) {
 	  EXPECT_(parameter + parameter == parameter);
 	}
 EOF
