@@ -8,12 +8,11 @@ NEXT
     - detect cycles
     - various validation
     - presets get written
-  - assert unit tests are not installed
+  - unit test with !gtest project
   - use a maud based project with fetchcontent
   - verify maud works while using c++23
 - harden and test the scanner
-- include the template compiler
-- include the cmake generator
+  - support this when preprocessing isn't required
 
 TODO: stages
 ------------
@@ -140,32 +139,6 @@ TODO: doc
 - glob up .rst files and assemble a docset
 - auto generate tables of contents for each directory
 
-TODO: in2 addenda
------------------
-
-No literal at the end of a template file is fine, we use that for
-templates which are using something else to write RENDER_FILE, like cpuinfo.hxx.in2:
-
-    @# Write cpuinfo to a header
-    execute_process(
-      COMMAND cpuinfo
-      OUTPUT_VARIABLE cpuinfo
-    )
-    render("auto constexpr CPUINFO = R\"(${cpuinfo})\";")
-
-Also, you can run arbitrary commands in a pipeline filter:
-
-```
-@STUFF | if_else(0 1) | ()
-message(STATUS "DEBUGGING ${IT}")@
-```
-
-`list(TRANSFORM)` might be useful enough to allow an explicit feature for sub-pipelines:
-
-```
-@SOME_LIST_OF_BOOL |foreach| if_else(ENABLED DISABLED) |endforeach| join(",")@
-```
-
 TODO: options
 -------------
 
@@ -173,10 +146,6 @@ Render options.rst with all the options summarized.
 
 TODO:
 -----
-
-Optional features are modules (and maybe partitions) which can be disabled.
-We want to enable some features then get a hard verbose error if their
-dependencies aren't available.
 
 Since we generate installed cmake, warn if `CMAKE_CXX_FLAGS` and other
 ambiguous options are set.

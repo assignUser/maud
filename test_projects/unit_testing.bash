@@ -52,3 +52,8 @@ EOF
 
 maud
 ctest --test-dir build --output-on-failure -C Debug
+
+# Assert that the test executable exists but isn't installed
+cmake --install build --prefix $TEST_DIR/usr --config Debug
+[   -e $TEST_DIR/source/build/Debug/test_.basics ]
+[ ! -e $TEST_DIR/usr/bin/test_.basics ]

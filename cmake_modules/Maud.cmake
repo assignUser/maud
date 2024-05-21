@@ -508,15 +508,15 @@ function(_maud_add_test source_file partition out_target_name)
     PROPERTIES
     COMPILE_DEFINITIONS SUITE_NAME=${name}
   )
-  set(${out_target_name} "${name}" PARENT_SCOPE)
+  set(${out_target_name} "test_.${name}" PARENT_SCOPE)
 
-  if(NOT TARGET "${name}")
-    add_executable(${name})
+  if(NOT TARGET "test_.${name}")
+    add_executable(test_.${name})
   endif()
-  add_test(NAME test_.${name} COMMAND $<TARGET_FILE:${name}> --gtest_brief=1)
-  target_link_libraries(${name} PRIVATE GTest::gtest GTest::gtest_main)
+  add_test(NAME test_.${name} COMMAND $<TARGET_FILE:test_.${name}> --gtest_brief=1)
+  target_link_libraries(test_.${name} PRIVATE GTest::gtest GTest::gtest_main)
   target_sources(
-    ${name}
+    test_.${name}
     PRIVATE
     FILE_SET module_providers
     TYPE CXX_MODULES
@@ -524,7 +524,7 @@ function(_maud_add_test source_file partition out_target_name)
     FILES "${_MAUD_SELF_DIR}/_test_.cxx"
   )
   set_target_properties(
-    ${name}
+    test_.${name}
     PROPERTIES
     MAUD_INTERFACE "${_MAUD_SELF_DIR}/_test_.cxx"
     COMPILE_OPTIONS "${_MAUD_INCLUDE} ${_MAUD_SELF_DIR}/_test_.hxx"
