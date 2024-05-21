@@ -4,9 +4,11 @@ module;
 #include <gmock/gmock-matchers.h>
 #include <gtest/gtest.h>
 
+#include <any>
 #include <coroutine>
 #include <cstdint>
 #include <exception>
+#include <vector>
 export module test_;
 
 using namespace testing;
@@ -30,6 +32,13 @@ concept Complete = requires {
   { sizeof(T) } -> std::same_as<std::size_t>;
 };
 
+template <typename R>
+concept SizedRange = requires(R range) {
+  { range.size() } -> std::same_as<std::size_t>;
+};
+
+std::vector<std::any> parameters;
+
 struct Info {
   char const *file;
   int line;
@@ -37,84 +46,104 @@ struct Info {
   char const *test_name;
 };
 
+using Body = void(void const *);
+
+template <typename Test, typename Parameter>
+static void body(void const *p) {
+  Test::body(*static_cast<Parameter const *>(p));
+}
+
 export template <typename S>
 struct Registrar {
   using SuiteState = std::conditional_t<Complete<S>, S, int>;
 
   static SuiteState *const suite_state;
 
-  struct FixtureWithSuiteState : testing::Test {
+  struct Fixture : testing::Test {
     static void SetUpTestSuite() { new (suite_state) SuiteState{}; }
     static void TearDownTestSuite() { suite_state->~SuiteState(); }
+
+    Body *_body;
+    void const *_parameter;
+    void TestBody() override { _body(_parameter); }
+
+    template <typename Test, typename Parameter>
+    Fixture(Test *, Parameter const *p) : _body{&body<Test, Parameter>}, _parameter{p} {}
   };
 
-  template <typename Test, typename Parameter>
-  struct Fixture : FixtureWithSuiteState {
-    void TestBody() override { Test::body(_parameter); }
-    explicit Fixture(Parameter p) : _parameter{std::move(p)} {}
-    Parameter const _parameter;
-  };
-
-  template <typename Test, typename Parameter>
-  static FixtureWithSuiteState *fixture(Test *, Parameter p) {
-    return new Fixture<Test, Parameter>(std::move(p));
-  }
-
-  void register_with_parameters(auto *test, Info info) {
-    auto [file, line, suite_name, test_name] = info;
-    testing::RegisterTest(suite_name, test_name, nullptr, nullptr, file, line,
-                          [test] { return fixture(test, nullptr); });
-  }
-
-  void register_one(auto *test, Info info, auto parameter, int i,
+  void register_one(auto *test, Info info, auto parameter, int i = -1,
                     std::string type_name = "") {
+    constexpr bool HAS_PARAMETER =
+        not std::is_same_v<decltype(parameter), std::nullptr_t>;
+
     auto [file, line, suite_name, test_name] = info;
+
     std::string name = test_name;
-    name += "/" + PrintToString(i);
+    if (i == -1) {
+      name += "/" + PrintToString(i);
+    }
     if (not type_name.empty()) {
       name += "/" + type_name;
     }
-    name += "/" + PrintToString(parameter);
+    if constexpr (HAS_PARAMETER) {
+      name += "/" + PrintToString(*parameter);
+    }
     testing::RegisterTest(suite_name, name.c_str(), nullptr, nullptr, file, line,
-                          [test, parameter = std::move(parameter)]() mutable {
-                            return fixture(test, std::move(parameter));
+                          [test, parameter] {
+                            if constexpr (HAS_PARAMETER) {
+                              return new Fixture{test, parameter};
+                            } else {
+                              constexpr auto NULLPTR = nullptr;
+                              return new Fixture{test, &NULLPTR};
+                            }
                           });
   }
 
-  void register_with_parameter_range(auto *test, Info info, auto &&range) {
-    for (int i = 0; auto &&parameter : range) {
-      register_one(test, info, std::move(parameter), i++);
+  void register_range(auto *test, Info info, auto &&range) {
+    std::vector<std::decay_t<decltype(*range.begin())>> vector;
+    if constexpr (SizedRange<decltype(range)>) {
+      vector.reserve(range.size());
     }
+    for (auto &&parameter : range) {
+      vector.push_back(std::move(parameter));
+    }
+    for (int i = 0; auto const &parameter : vector) {
+      register_one(test, info, &parameter, i++);
+    }
+    parameters.emplace_back(std::move(vector));
   }
 
-  void register_with_parameters(auto *test, Info info, auto &&parameters) {
+  void register_(auto *test, Info info, auto &&parameters) {
     if constexpr (std::is_invocable_v<decltype(parameters)>) {
-      register_with_parameter_range(test, info, std::move(parameters)());
+      register_range(test, info, std::move(parameters)());
     } else {
-      register_with_parameter_range(test, info, std::move(parameters));
+      register_range(test, info, std::move(parameters));
     }
-  }
-
-  void register_with_parameters(auto *test, Info info, auto &&...e)
-    requires(sizeof...(e) >= 2)
-  {
-    register_with_parameters(test, info, std::tuple{std::move(e)...});
   }
 
   template <typename T>
-  void register_with_parameters(auto *test, Info info,
-                                std::initializer_list<T> parameters) {
-    register_with_parameter_range(test, info, parameters);
+  void register_(auto *test, Info info, std::initializer_list<T> parameters) {
+    register_range(test, info, parameters);
+  }
+
+  void register_(auto *test, Info info, auto &&...parameters)
+    requires(sizeof...(parameters) != 1)
+  {
+    if constexpr (sizeof...(parameters) == 0) {
+      register_one(test, info, nullptr);
+    } else {
+      register_(test, info, std::tuple{std::move(parameters)...});
+    }
   }
 
   template <typename... T>
-  void register_with_parameters(auto *test, Info info, std::tuple<T...> parameters) {
-    int i = 0;
+  void register_(auto *test, Info info, std::tuple<T...> tuple) {
+    parameters.emplace_back(std::move(tuple));
     std::apply(
-        [&](auto &&...parameters) {
-          (register_one(test, info, std::move(parameters), i++, type_name<T>), ...);
+        [&, i = 0](auto const &...parameters) mutable {
+          (register_one(test, info, &parameters, i++, type_name<T>), ...);
         },
-        std::move(parameters));
+        std::any_cast<decltype(tuple) const &>(parameters.back()));
   }
 };
 
