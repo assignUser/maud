@@ -4,16 +4,12 @@ module;
 #include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <regex>
 #include <sstream>
 #include <string_view>
-
-// TODO extract an internal module for ryml
-#define RYML_SINGLE_HDR_DEFINE_NOW
-#include "c4/yml.hxx"
 module test_;
 
 import maud_;
+import yml_;
 
 using std::operator""s;
 
@@ -29,68 +25,29 @@ auto const DIR = std::filesystem::path{__FILE__}.parent_path();
 auto const TEMP = std::filesystem::temp_directory_path();
 auto const CASES = [] {
   static auto cases = read(DIR / "in2.test.yaml");
-  static auto tree = c4::yml::parse_in_place(cases.data());
+  static auto tree = parse_in_place(cases.data());
   return tree.rootref();
 }();
 
-namespace c4::yml {
-void PrintTo(ConstNodeRef n, std::ostream *os) { *os << n["name"].val(); }
+TEST_(compilation, CASES) {
+  std::string name{strv(parameter["name"])};
+  if (not parameter.has_child("compiled")) return;
 
-std::string_view strv(ConstNodeRef n) { return {n.val().data(), n.val().size()}; }
-}  // namespace c4::yml
+  auto in2 = strv(parameter["template"]);
+  auto expected_compiled = strv(parameter["compiled"]);
 
-std::string str(auto v) {
-  return v.readable() ? std::string{v.val().data(), v.val().size()} : "__"s;
+  EXPECT_(compile_in2(std::string(in2)) >>= HasSubstr(expected_compiled));
+  std::ofstream{TEMP / (name + ".e.in2.cmake"s)} << "include(Maud)\n"
+                                                 << expected_compiled;
 }
 
-TEST_(bonus, CASES) {
-  // TODO simplify the below
-  // EXPECT_(""s >>= HasSubstr("hey"));
-}
+TEST_(rendering, CASES) {
+  std::string name{strv(parameter["name"])};
 
-struct In2Case {
-  std::string name, in2, expected_rendered, expected_compiled;
-  friend void PrintTo(In2Case c, std::ostream *os) { *os << c.name; }
-};
+  auto in2 = strv(parameter["template"]);
 
-TEST_(compilation, []() -> Generator<In2Case> {
-  for (auto c : CASES) {
-    if (not c["compiled"].readable()) continue;
-    co_yield In2Case{
-        str(c["name"]),
-        str(c["template"]),
-        {},
-        str(c["compiled"]),
-    };
-  }
-}) {
-  auto [name, in2, _, expected_compiled] = parameter;
-
-  auto compiled = compile_in2(std::move(in2));
-  for (auto *p : {&compiled, &expected_compiled}) {
-    while (p->back() == '\n') {
-      p->pop_back();
-    }
-    *p += "\n";
-  }
-  EXPECT_(compiled == expected_compiled);
-  std::ofstream{TEMP / (name + ".e.in2.cmake")} << "include(Maud)\n" << expected_compiled;
-}
-
-TEST_(rendering, []() -> Generator<In2Case> {
-  for (auto c : CASES) {
-    co_yield In2Case{
-        str(c["name"]),
-        str(c["template"]),
-        str(c["rendered"]),
-        {},
-    };
-  }
-}) {
-  auto [name, in2, expected_rendered, _] = parameter;
-
-  auto compiled_path = TEMP / (name + ".in2.cmake");
-  std::ofstream{compiled_path} << "include(Maud)\n" << compile_in2(std::move(in2));
+  auto compiled_path = TEMP / (name + ".in2.cmake"s);
+  std::ofstream{compiled_path} << "include(Maud)\n" << compile_in2(std::string(in2));
 
   auto rendered_path = TEMP / name;
   std::ofstream{rendered_path} << "";
@@ -100,6 +57,14 @@ TEST_(rendering, []() -> Generator<In2Case> {
   cmd += " -DCMAKE_MODULE_PATH=\"" + (DIR / "cmake_modules").string() + "\"";
   cmd += " -P \"" + compiled_path.string() + "\"";
 
-  if (not EXPECT_(std::system(cmd.c_str()) == 0)) return;
-  EXPECT_(read(rendered_path) == expected_rendered);
+  if (parameter.has_child("rendered")) {
+    if (not EXPECT_(std::system(cmd.c_str()) == 0)) return;
+    EXPECT_(read(rendered_path) == strv(parameter["rendered"]));
+  }
+
+  if (parameter.has_child("render error")) {
+    cmd += " 2> \"" + rendered_path.string() + "\"";
+    EXPECT_(std::system(cmd.c_str()) != 0);
+    EXPECT_(read(rendered_path) >>= ContainsRegex(strv(parameter["render error"])));
+  }
 }

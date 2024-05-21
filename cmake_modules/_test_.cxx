@@ -440,4 +440,83 @@ struct Generator {
   ~Generator() { handle.destroy(); }
 };
 
+export using testing::internal::AnythingMatcher;
+
+export using testing::A;
+export using testing::An;
+
+export using testing::Eq;
+export using testing::Ge;
+export using testing::Gt;
+export using testing::Le;
+export using testing::Lt;
+export using testing::Ne;
+//export using testing::IsFalse;
+//export using testing::IsTrue;
+export using testing::IsNull;
+export using testing::NotNull;
+export using testing::Optional;
+export using testing::VariantWith;
+export using testing::Ref;
+export using testing::TypedEq;
+
+export using testing::DoubleEq;
+export using testing::FloatEq;
+export using testing::NanSensitiveDoubleEq;
+export using testing::NanSensitiveFloatEq;
+export using testing::IsNan;
+export using testing::DoubleNear;
+export using testing::FloatNear;
+export using testing::NanSensitiveDoubleNear;
+export using testing::NanSensitiveFloatNear;
+
+export using testing::ContainsRegex;
+export using testing::EndsWith;
 export using testing::HasSubstr;
+//export using testing::IsEmpty;
+export using testing::MatchesRegex;
+export using testing::StartsWith;
+export using testing::StrCaseEq;
+export using testing::StrCaseNe;
+export using testing::StrEq;
+export using testing::StrNe;
+export using testing::WhenBase64Unescaped;
+
+export using testing::BeginEndDistanceIs;
+export using testing::ContainerEq;
+export using testing::Contains;
+export using testing::Each;
+export using testing::ElementsAre;
+export using testing::ElementsAreArray;
+//export using testing::IsEmpty;
+export using testing::IsSubsetOf;
+export using testing::IsSupersetOf;
+export using testing::Pointwise;
+export using testing::SizeIs;
+export using testing::UnorderedElementsAre;
+export using testing::UnorderedElementsAreArray;
+export using testing::UnorderedPointwise;
+export using testing::WhenSorted;
+export using testing::WhenSortedBy;
+
+export using testing::Field;
+export using testing::Key;
+export using testing::Pair;
+export using testing::FieldsAre;
+export using testing::Property;
+
+export using testing::ResultOf;
+export using testing::AllArgs;
+export using testing::Args;
+
+export using testing::Address;
+export using testing::Pointee;
+export using testing::Pointer;
+export using testing::WhenDynamicCastTo;
+
+export using testing::AllOf;
+export using testing::AllOfArray;
+export using testing::AnyOf;
+export using testing::AnyOfArray;
+export using testing::Not;
+export using testing::Conditional;

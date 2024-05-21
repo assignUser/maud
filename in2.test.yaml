@@ -9,7 +9,6 @@
   rendered: |
     Hello world
   compiled: |
-
     # literal 1:1-2:1
     ##################################################################################
     # Hello world
@@ -26,7 +25,6 @@
   rendered: |
     Hello @ world
   compiled: |
-
     # literal 1:1-1:7
     ##################################################################################
     # Hello @@ world
@@ -54,30 +52,27 @@
 - name: explicit render
   template: '@render("foo\n")'
   compiled: |
-
     # commands 1:2-1:17
     ##################################################################################
     # @render("foo\n")
     #  ^~~~~~~~~~~~~~^
     ##################################################################################
     render("foo\n")
-
   rendered: |
     foo
 
-- name: DISABLED_explicit render err
+
+- name: explicit render err
   template: '@render("foo\n"'
   compiled: |
-
     # commands 1:2-1:16
     ##################################################################################
     # @render("foo\n"
     #  ^~~~~~~~~~~~~^
     ##################################################################################
     render("foo\n"
-
-  rendered: |
-    foo
+  render error: |
+    Parse error.  Function missing ending ")".  End of file reached.
 
 
 - name: explicit render with variable
@@ -85,7 +80,6 @@
     @ set(FOO 1 2 3)
       render("${FOO}\n")
   compiled: |
-
     # commands 1:2-3:1
     ##################################################################################
     # @ set(FOO 1 2 3)
@@ -95,15 +89,14 @@
     ##################################################################################
      set(FOO 1 2 3)
       render("${FOO}\n")
-
   rendered: |
     1;2;3
+
 
 - name: variable substitution
   template: |
     @set(FOO 1 2 3)@@FOO@
   compiled: |
-
     # commands 1:2-1:16
     ##################################################################################
     # @set(FOO 1 2 3)@@FOO@
@@ -130,6 +123,8 @@
     ]])
   rendered: |
     1;2;3
+
+
 - name: if_else filter
   template: |
     @include(MaudTemplateFilters)
@@ -137,7 +132,6 @@
     set(FALSY OFF)
     @@TRUTHY | if_else(1 0)@@FALSY | if_else(1 0)@
   compiled: |
-
     # commands 1:2-4:1
     ##################################################################################
     # @include(MaudTemplateFilters)
@@ -210,7 +204,6 @@
     @include(MaudTemplateFilters)
      set(BOOLY ON OFF OFF ON)@@BOOLY |foreach| if_else(1 0) |endforeach| join("-")@
   compiled: |
-
     # commands 1:2-2:26
     ##################################################################################
     # @include(MaudTemplateFilters)
