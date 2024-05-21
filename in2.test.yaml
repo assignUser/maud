@@ -4,26 +4,50 @@
   compiled: ''
 
 - name: literal
-  template: |
-    Hello world
-  rendered: |
-    Hello world
+  template: 'Hello world'
+  rendered: 'Hello world'
   compiled: |
-    # literal 1:1-2:1
+    # literal 1:1-1:12
     ##################################################################################
     # Hello world
-    # ^~~~~~~~~~~~
-    #v
-    # 
+    # ^~~~~~~~~~^
     ##################################################################################
-    render([[Hello world
-    ]])
+    render([[Hello world]])
+
+
+- name: variable substitution
+  definitions: {FOO: foo-val}
+  template: '@FOO@'
+  rendered: foo-val
+  compiled: |
+    # reference 1:2-1:5
+    ##################################################################################
+    # @FOO@
+    #  ^~^
+    ##################################################################################
+    render("${FOO}")
+
+- name: variable substitution in name
+  definitions: {FOO_bar: foo-val, BAR: bar}
+  template: '@FOO_${BAR}@'
+  rendered: foo-val
+  compiled: |
+    # reference 1:2-1:12
+    ##################################################################################
+    # @FOO_${BAR}@
+    #  ^~~~~~~~~^
+    ##################################################################################
+    render("${FOO_${BAR}}")
+
+- name: variable substitution error with invalid name
+  template: '@cmake_policy(SET CMP0010 NEW)@@FOO_${BAR@'
+  render error: |
+    syntax error, .*, expecting [}].*
+
 
 - name: literal at
-  template: |
-    Hello @@ world
-  rendered: |
-    Hello @ world
+  template: 'Hello @@ world'
+  rendered: 'Hello @ world'
   compiled: |
     # literal 1:1-1:7
     ##################################################################################
@@ -39,27 +63,23 @@
     ##################################################################################
     render("@")
 
-    # literal 1:9-2:1
+    # literal 1:9-1:15
     ##################################################################################
     # Hello @@ world
-    #         ^~~~~~~
-    #v
-    # 
+    #         ^~~~~^
     ##################################################################################
-    render([[ world
-    ]])
+    render([[ world]])
 
 - name: explicit render
-  template: '@render("foo\n")'
+  template: '@render("foo")'
+  rendered: foo
   compiled: |
-    # commands 1:2-1:17
+    # commands 1:2-1:15
     ##################################################################################
-    # @render("foo\n")
-    #  ^~~~~~~~~~~~~~^
+    # @render("foo")
+    #  ^~~~~~~~~~~~^
     ##################################################################################
-    render("foo\n")
-  rendered: |
-    foo
+    render("foo")
 
 
 - name: explicit render err
@@ -76,198 +96,120 @@
 
 
 - name: explicit render with variable
-  template: |
-    @ set(FOO 1 2 3)
-      render("${FOO}\n")
+  definitions: {FOO: foo-val}
+  template: '@render("${FOO}\n")'
   compiled: |
-    # commands 1:2-3:1
+    # commands 1:2-1:20
     ##################################################################################
-    # @ set(FOO 1 2 3)
-    #  ^~~~~~~~~~~~~~~~
-    #v
-    # 
+    # @render("${FOO}\n")
+    #  ^~~~~~~~~~~~~~~~~^
     ##################################################################################
-     set(FOO 1 2 3)
-      render("${FOO}\n")
+    render("${FOO}\n")
   rendered: |
-    1;2;3
-
-
-- name: variable substitution
-  template: |
-    @set(FOO 1 2 3)@@FOO@
-  compiled: |
-    # commands 1:2-1:16
-    ##################################################################################
-    # @set(FOO 1 2 3)@@FOO@
-    #  ^~~~~~~~~~~~~^
-    ##################################################################################
-    set(FOO 1 2 3)
-
-    # reference 1:18-1:21
-    ##################################################################################
-    # @set(FOO 1 2 3)@@FOO@
-    #                  ^~^
-    ##################################################################################
-    render("${FOO}")
-
-    # literal 1:22-2:1
-    ##################################################################################
-    # @set(FOO 1 2 3)@@FOO@
-    #                      ^
-    #v
-    # 
-    ##################################################################################
-    render([[
-
-    ]])
-  rendered: |
-    1;2;3
+    foo-val
 
 
 - name: if_else filter
-  template: |
-    @include(MaudTemplateFilters)
-    set(TRUTHY ON)
-    set(FALSY OFF)
-    @@TRUTHY | if_else(1 0)@@FALSY | if_else(1 0)@
+  definitions: {TRUTHY: ON, FALSY: OFF}
+  template: '@TRUTHY | if_else(1 0)@@FALSY | if_else(1 0)@'
+  rendered: 10
   compiled: |
-    # commands 1:2-4:1
+    # pipeline init 1:2-1:9
     ##################################################################################
-    # @include(MaudTemplateFilters)
-    #  ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    #v
-    # @@TRUTHY | if_else(1 0)@@FALSY | if_else(1 0)@
-    ##################################################################################
-    include(MaudTemplateFilters)
-    set(TRUTHY ON)
-    set(FALSY OFF)
-
-
-    # pipeline init 4:3-4:10
-    ##################################################################################
-    # @@TRUTHY | if_else(1 0)@@FALSY | if_else(1 0)@
-    #   ^~~~~~^
+    # @TRUTHY | if_else(1 0)@@FALSY | if_else(1 0)@
+    #  ^~~~~~^
     ##################################################################################
     set(IT "${TRUTHY}")
 
-    # pipeline filter 4:12-4:24
+    # pipeline filter 1:11-1:23
     ##################################################################################
-    # @@TRUTHY | if_else(1 0)@@FALSY | if_else(1 0)@
-    #            ^~~~~~~~~~~^
+    # @TRUTHY | if_else(1 0)@@FALSY | if_else(1 0)@
+    #           ^~~~~~~~~~~^
     ##################################################################################
     template_filter_if_else(1 0)
 
-    # pipeline output 4:24-4:24
+    # pipeline output 1:23-1:23
     ##################################################################################
-    # @@TRUTHY | if_else(1 0)@@FALSY | if_else(1 0)@
-    #                        ^
+    # @TRUTHY | if_else(1 0)@@FALSY | if_else(1 0)@
+    #                       ^
     ##################################################################################
     render("${IT}")
 
-    # pipeline init 4:26-4:32
+    # pipeline init 1:25-1:31
     ##################################################################################
-    # @@TRUTHY | if_else(1 0)@@FALSY | if_else(1 0)@
-    #                          ^~~~~^
+    # @TRUTHY | if_else(1 0)@@FALSY | if_else(1 0)@
+    #                         ^~~~~^
     ##################################################################################
     set(IT "${FALSY}")
 
-    # pipeline filter 4:34-4:46
+    # pipeline filter 1:33-1:45
     ##################################################################################
-    # @@TRUTHY | if_else(1 0)@@FALSY | if_else(1 0)@
-    #                                  ^~~~~~~~~~~^
+    # @TRUTHY | if_else(1 0)@@FALSY | if_else(1 0)@
+    #                                 ^~~~~~~~~~~^
     ##################################################################################
     template_filter_if_else(1 0)
 
-    # pipeline output 4:46-4:46
+    # pipeline output 1:45-1:45
     ##################################################################################
-    # @@TRUTHY | if_else(1 0)@@FALSY | if_else(1 0)@
-    #                                              ^
+    # @TRUTHY | if_else(1 0)@@FALSY | if_else(1 0)@
+    #                                             ^
     ##################################################################################
     render("${IT}")
 
-    # literal 4:47-5:1
-    ##################################################################################
-    # @@TRUTHY | if_else(1 0)@@FALSY | if_else(1 0)@
-    #                                               ^
-    #v
-    # 
-    ##################################################################################
-    render([[
-
-    ]])
-  rendered: |
-    10
 
 - name: foreach filter
-  template: |
-    @include(MaudTemplateFilters)
-     set(BOOLY ON OFF OFF ON)@@BOOLY |foreach| if_else(1 0) |endforeach| join("-")@
+  definitions: {BOOLY: ON\;OFF\;OFF\;ON}
+  template: '@BOOLY |foreach| if_else(1 0) |endforeach| join("-")@'
+  rendered: '1-0-0-1'
   compiled: |
-    # commands 1:2-2:26
+    # pipeline init 1:2-1:8
     ##################################################################################
-    # @include(MaudTemplateFilters)
-    #  ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    #~~~~~~~~~~~~~~~~~~~~~~~~~v
-    #  set(BOOLY ON OFF OFF ON)@@BOOLY |foreach| if_else(1 0) |endforeach| join("-")@
-    ##################################################################################
-    include(MaudTemplateFilters)
-     set(BOOLY ON OFF OFF ON)
-
-    # pipeline init 2:28-2:34
-    ##################################################################################
-    #  set(BOOLY ON OFF OFF ON)@@BOOLY |foreach| if_else(1 0) |endforeach| join("-")@
-    #                            ^~~~~^
+    # @BOOLY |foreach| if_else(1 0) |endforeach| join("-")@
+    #  ^~~~~^
     ##################################################################################
     set(IT "${BOOLY}")
 
-    # pipeline foreach 2:35-2:42
+    # pipeline foreach 1:9-1:16
     ##################################################################################
-    #  set(BOOLY ON OFF OFF ON)@@BOOLY |foreach| if_else(1 0) |endforeach| join("-")@
-    #                                   ^~~~~~^
+    # @BOOLY |foreach| if_else(1 0) |endforeach| join("-")@
+    #         ^~~~~~^
     ##################################################################################
     set(foreach_IT_0)
     foreach(IT ${IT})
 
-    # pipeline filter 2:44-2:57
+    # pipeline filter 1:18-1:31
     ##################################################################################
-    #  set(BOOLY ON OFF OFF ON)@@BOOLY |foreach| if_else(1 0) |endforeach| join("-")@
-    #                                            ^~~~~~~~~~~~^
+    # @BOOLY |foreach| if_else(1 0) |endforeach| join("-")@
+    #                  ^~~~~~~~~~~~^
     ##################################################################################
     template_filter_if_else(1 0) 
 
-    # pipeline endforeach 2:58-2:68
+    # pipeline endforeach 1:32-1:42
     ##################################################################################
-    #  set(BOOLY ON OFF OFF ON)@@BOOLY |foreach| if_else(1 0) |endforeach| join("-")@
-    #                                                          ^~~~~~~~~^
+    # @BOOLY |foreach| if_else(1 0) |endforeach| join("-")@
+    #                                ^~~~~~~~~^
     ##################################################################################
     list(APPEND foreach_IT_1 "${IT}")
     endforeach()
     set(IT "${foreach_IT_1}")
 
-    # pipeline filter 2:70-2:79
+    # pipeline filter 1:44-1:53
     ##################################################################################
-    #  set(BOOLY ON OFF OFF ON)@@BOOLY |foreach| if_else(1 0) |endforeach| join("-")@
-    #                                                                      ^~~~~~~~^
+    # @BOOLY |foreach| if_else(1 0) |endforeach| join("-")@
+    #                                            ^~~~~~~~^
     ##################################################################################
     template_filter_join("-")
 
-    # pipeline output 2:79-2:79
+    # pipeline output 1:53-1:53
     ##################################################################################
-    #  set(BOOLY ON OFF OFF ON)@@BOOLY |foreach| if_else(1 0) |endforeach| join("-")@
-    #                                                                               ^
+    # @BOOLY |foreach| if_else(1 0) |endforeach| join("-")@
+    #                                                     ^
     ##################################################################################
     render("${IT}")
 
-    # literal 2:80-3:1
-    ##################################################################################
-    #  set(BOOLY ON OFF OFF ON)@@BOOLY |foreach| if_else(1 0) |endforeach| join("-")@
-    #                                                                                ^
-    #v
-    # 
-    ##################################################################################
-    render([[
 
-    ]])
-  rendered: |
-    1-0-0-1
+- name: foreach filter nesting error
+  definitions: {BOOLY: ON\;OFF\;OFF\;ON}
+  template: '@BOOLY |foreach|foreach| if_else(1 0) |endforeach| join("-")@'
+  render error: |
+    Flow control statements are not properly nested.

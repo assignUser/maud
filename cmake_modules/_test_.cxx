@@ -381,6 +381,7 @@ std::string operator,(MatchCondition<C> c, End e) {
   if (matcher.MatchAndExplain(condition, &listener)) return {};
   stream << " ";
   matcher.DescribeTo(&stream);
+  stream << "\n  Actual: " << PrintToString(condition);
   return std::move(stream).str();
 }
 
@@ -451,8 +452,8 @@ export using testing::Gt;
 export using testing::Le;
 export using testing::Lt;
 export using testing::Ne;
-//export using testing::IsFalse;
-//export using testing::IsTrue;
+// export using testing::IsFalse;
+// export using testing::IsTrue;
 export using testing::IsNull;
 export using testing::NotNull;
 export using testing::Optional;
@@ -473,7 +474,7 @@ export using testing::NanSensitiveFloatNear;
 export using testing::ContainsRegex;
 export using testing::EndsWith;
 export using testing::HasSubstr;
-//export using testing::IsEmpty;
+// export using testing::IsEmpty;
 export using testing::MatchesRegex;
 export using testing::StartsWith;
 export using testing::StrCaseEq;
@@ -488,7 +489,7 @@ export using testing::Contains;
 export using testing::Each;
 export using testing::ElementsAre;
 export using testing::ElementsAreArray;
-//export using testing::IsEmpty;
+// export using testing::IsEmpty;
 export using testing::IsSubsetOf;
 export using testing::IsSupersetOf;
 export using testing::Pointwise;

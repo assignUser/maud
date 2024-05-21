@@ -37,8 +37,7 @@ TEST_(compilation, CASES) {
   auto expected_compiled = strv(parameter["compiled"]);
 
   EXPECT_(compile_in2(std::string(in2)) >>= HasSubstr(expected_compiled));
-  std::ofstream{TEMP / (name + ".e.in2.cmake"s)} << "include(Maud)\n"
-                                                 << expected_compiled;
+  std::ofstream{TEMP / (name + ".e.in2.cmake"s)} << expected_compiled;
 }
 
 TEST_(rendering, CASES) {
@@ -47,12 +46,20 @@ TEST_(rendering, CASES) {
   auto in2 = strv(parameter["template"]);
 
   auto compiled_path = TEMP / (name + ".in2.cmake"s);
-  std::ofstream{compiled_path} << "include(Maud)\n" << compile_in2(std::string(in2));
+  std::ofstream{compiled_path} << "include(Maud)\n"
+                               << "include(MaudTemplateFilters)\n"
+                               << compile_in2(std::string(in2));
 
   auto rendered_path = TEMP / name;
   std::ofstream{rendered_path} << "";
 
   auto cmd = "cmake"s;
+  if (parameter.has_child("definitions")) {
+    for (auto def : parameter["definitions"]) {
+      cmd += " -D" + std::string{def.key().data(), def.key().size()} + "="
+           + std::string(strv(def));
+    }
+  }
   cmd += " -DRENDER_FILE=\"" + rendered_path.string() + "\"";
   cmd += " -DCMAKE_MODULE_PATH=\"" + (DIR / "cmake_modules").string() + "\"";
   cmd += " -P \"" + compiled_path.string() + "\"";
