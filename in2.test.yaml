@@ -16,7 +16,7 @@
 
 
 - name: variable substitution
-  definitions: {FOO: foo-val}
+  definitions: [FOO=foo-val]
   template: '@FOO@'
   rendered: foo-val
   compiled: |
@@ -28,7 +28,7 @@
     render("${FOO}")
 
 - name: variable substitution in name
-  definitions: {FOO_bar: foo-val, BAR: bar}
+  definitions: [FOO_bar=foo-val, BAR=bar]
   template: '@FOO_${BAR}@'
   rendered: foo-val
   compiled: |
@@ -40,9 +40,11 @@
     render("${FOO_${BAR}}")
 
 - name: variable substitution error with invalid name
-  template: '@cmake_policy(SET CMP0010 NEW)@@FOO_${BAR@'
+  template: |
+    @cmake_policy(SET CMP0010 NEW)@
+    @FOO_${BAR@
   render error: |
-    syntax error, .*, expecting [}].*
+    syntax error, .* expecting }.*
 
 
 - name: literal at
@@ -96,7 +98,7 @@
 
 
 - name: explicit render with variable
-  definitions: {FOO: foo-val}
+  definitions: [FOO=foo-val]
   template: '@render("${FOO}\n")'
   compiled: |
     # commands 1:2-1:20
@@ -110,7 +112,7 @@
 
 
 - name: if_else filter
-  definitions: {TRUTHY: ON, FALSY: OFF}
+  definitions: [TRUTHY=ON, FALSY=OFF]
   template: '@TRUTHY | if_else(1 0)@@FALSY | if_else(1 0)@'
   rendered: 10
   compiled: |
@@ -158,7 +160,7 @@
 
 
 - name: foreach filter
-  definitions: {BOOLY: ON\;OFF\;OFF\;ON}
+  definitions: [BOOLY=ON\;OFF\;OFF\;ON]
   template: '@BOOLY |foreach| if_else(1 0) |endforeach| join("-")@'
   rendered: '1-0-0-1'
   compiled: |
@@ -209,7 +211,7 @@
 
 
 - name: foreach filter nesting error
-  definitions: {BOOLY: ON\;OFF\;OFF\;ON}
+  definitions: [BOOLY=ON\;OFF\;OFF\;ON]
   template: '@BOOLY |foreach|foreach| if_else(1 0) |endforeach| join("-")@'
   render error: |
     Flow control statements are not properly nested.
