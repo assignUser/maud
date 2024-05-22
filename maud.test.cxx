@@ -1,11 +1,15 @@
 module;
+#ifdef _WIN32
+#include <Windows.h>
+#else
+#include <stdlib.h>
+#endif
+
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <string>
 #include <string_view>
-
-#include <stdlib.h>
 module test_;
 
 import maud_;
@@ -96,16 +100,41 @@ auto const PROJECT_CASES = [] {
   return tree.rootref();
 }();
 
+auto const TEST_PROJECT_DIR = std::filesystem::path{BUILD_DIR} / "_maud/test_projects";
+
+struct EnvironmentVariable {
+  EnvironmentVariable(char const *name, auto mod) : name{name} {
+    if (auto *var = std::getenv(name)) {
+      original = var;
+    }
+    set(mod(original));
+    std::cout << mod(original) << std::endl;
+  }
+
+  ~EnvironmentVariable() { set(original); }
+
+  bool set(std::string const &value) {
+#ifdef _WIN32
+    return SetEnvironmentVariableA(name, value.c_str());
+#else
+    return setenv(name, value.c_str(), 1) == 0;
+#endif
+  }
+
+  char const *name;
+  std::string original;
+};
+
 TEST_(project, PROJECT_CASES) {
   auto name = to_string(parameter["name"]);
 
-  std::filesystem::create_directories(TEMP / name);
-  std::filesystem::remove_all(TEMP / name);
+  std::filesystem::create_directories(TEST_PROJECT_DIR / name);
+  std::filesystem::remove_all(TEST_PROJECT_DIR / name);
 
-  auto src = TEMP / name / "source";
+  auto src = TEST_PROJECT_DIR / name / "source";
   std::filesystem::create_directories(src);
 
-  auto usr = TEMP / name / "usr";
+  auto usr = TEST_PROJECT_DIR / "usr";
   std::filesystem::create_directories(usr);
 
   auto install_cmd = "cmake --install \""s + BUILD_DIR + "\" --prefix \""s + usr.string()
@@ -116,13 +145,33 @@ TEST_(project, PROJECT_CASES) {
     std::filesystem::path old = std::filesystem::current_path();
     WorkingDir(std::filesystem::path const &wd) { std::filesystem::current_path(wd); }
     ~WorkingDir() { std::filesystem::current_path(old); }
-  } _{src};
+  } _wd{src};
 
-  return;
+#ifdef _WIN32
+  std::string path_var = "Path", sep = ";";
+#else
+  std::string path_var = "PATH", sep = ":";
+#endif
+
+  EnvironmentVariable _path{
+      path_var.c_str(),
+      [&](std::string const &path) { return (usr / "bin").string() + sep + path; },
+  };
+  EnvironmentVariable _cmake_prefix_path{
+      "CMAKE_PREFIX_PATH",
+      [&](std::string const &path) { return (usr / "lib/cmake").string() + sep + path; },
+  };
 
   for (auto command : parameter["commands"]) {
     if (not command.is_map()) {
       if (not EXPECT_(std::system(to_string(command).c_str()) == 0)) return;
+      continue;
+    }
+
+    if (command.has_child("command")) {
+      WorkingDir _wd{std::filesystem::current_path()
+                     / to_string(command["working directory"])};
+      if (not EXPECT_(std::system(to_string(command["command"]).c_str()) == 0)) return;
       continue;
     }
 

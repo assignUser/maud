@@ -1,4 +1,4 @@
-- name: unit_testing
+- name: unit testing
   commands:
   - write: basics.cxx
     contents: |
@@ -52,3 +52,21 @@
   - cmake --install build --prefix ../usr --config Debug
   - exists: build/Debug/test_.basics
   - does not exist: ../usr/bin/test_.basics
+
+
+- name: import installed
+  commands:
+  - write: foo/foo.cxx
+    contents: |
+      export module foo;
+      export int foo() { return 0; }
+  - command: maud --log-level=VERBOSE
+    working directory: foo
+  - cmake --install foo/build --prefix ../../usr --config Debug
+  - write: use/use.cxx
+    contents: |
+      module executable;
+      import foo;
+      int main() { return foo(); }
+  - command: maud --log-level=VERBOSE
+    working directory: use
