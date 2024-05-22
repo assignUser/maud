@@ -10,6 +10,18 @@ NEXT
     - presets get written
   - use a maud based project with fetchcontent
   - verify maud works while using c++23
+  - render one in2 multiple times, one for each value from a list
+    ```
+    @
+    set(files a b c)
+    list(TRANSFORM files PREPEND "${RENDER_FILE}_")
+    foreach(RENDER_FILE ${files})
+      file(WRITE "${RENDER_FILE}" "")
+      @
+      this is @RENDER_FILE@
+      @
+    endforeach()
+    ```
 - harden and test the scanner
   - support this when preprocessing isn't required
 

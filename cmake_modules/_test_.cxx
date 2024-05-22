@@ -80,7 +80,7 @@ struct Registrar {
     auto [file, line, suite_name, test_name] = info;
 
     std::string name = test_name;
-    if (i == -1) {
+    if (i != -1) {
       name += "/" + PrintToString(i);
     }
     if (not type_name.empty()) {
