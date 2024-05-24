@@ -13,32 +13,21 @@ namespace fs = std::filesystem;
 using std::operator""s;
 using std::operator""ms;
 
-void replace(std::string &haystack, std::string_view needle, fs::path replacement) {
-  auto i = std::string_view{haystack}.find(needle);
-  if (i == std::string_view::npos) {
-    throw std::runtime_error("replace couldn't find the needle");
-  }
-  haystack.replace(i, needle.size(), replacement.string());
-}
-
-constexpr auto PATCH_TEMPLATE = R"(
+constexpr std::string_view PATCH = R"(
   #### INJECTED BY MAUD ####
-  include("<CacheVars.cmake>")
-  include("<Maud.cmake>")
-  _maud_maybe_regenerate()
+  include("${CMAKE_CURRENT_LIST_DIR}/../_maud/maybe_regenerate.cmake")
   #### INJECTED BY MAUD ####
 )";
 
-fs::path build, maud_cmake;
+fs::path build;
 
 int main(int argc, char **argv) try {
-  if (argc != 3) {
-    std::cerr << "maud_inject_regenerate <build> <Maud.cmake>" << std::endl;
+  if (argc != 2) {
+    std::cerr << "maud_inject_regenerate <BUILD>" << std::endl;
     return EINVAL;
   }
 
   build = argv[1];
-  maud_cmake = argv[2];
 
   fs::path verify_globs = build / "CMakeFiles" / "VerifyGlobs.cmake";
   while (not fs::exists(verify_globs)) {
@@ -52,18 +41,13 @@ int main(int argc, char **argv) try {
     stream.seekg(0).read(contents.data(), contents.size());
   }
 
-  std::string patch = PATCH_TEMPLATE;
-  replace(patch, "<Maud.cmake>", maud_cmake);
-  replace(patch, "<CacheVars.cmake>",
-          build / "_maud" / "configure_cache_variables.cmake");
-
-  if (contents.find(patch) != std::string_view::npos) return 0;
+  if (contents.find(PATCH) != std::string_view::npos) return 0;
 
   auto mtime = fs::last_write_time(verify_globs);
 
   for (auto delay = 50ms; delay < 1000ms; delay *= 2) {
     if (std::ofstream stream{verify_globs, std::ios_base::app}) {
-      stream << patch;
+      stream << PATCH;
       fs::last_write_time(verify_globs, mtime);
       std::cout << "success" << std::endl;
       return 0;

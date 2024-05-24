@@ -735,20 +735,17 @@ function(_maud_setup_regenerate)
   if(WIN32)
     file(
       WRITE "${MAUD_DIR}/inject.bat"
-      "@ECHO OFF\r\nstart /b \"${_MAUD_INJECT_REGENERATE}\" "
-      "\"${CMAKE_BINARY_DIR}\" \"${_MAUD_SELF_DIR}/Maud.cmake\"\r\n"
+      "@ECHO OFF\r\n"
+      "start /b \"${_MAUD_INJECT_REGENERATE}\" \"${CMAKE_BINARY_DIR}\"\r\n"
     )
     set(command "${MAUD_DIR}/inject.bat")
   else()
     find_program(_MAUD_SETSID setsid REQUIRED)
     mark_as_advanced(_MAUD_SETSID)
     set(
-      command 
-      "${_MAUD_SETSID}"
-      --fork
-      "${_MAUD_INJECT_REGENERATE}"
-      "${CMAKE_BINARY_DIR}"
-      "${_MAUD_SELF_DIR}/Maud.cmake"
+      command
+      "${_MAUD_SETSID}" --fork
+      "${_MAUD_INJECT_REGENERATE}" "${CMAKE_BINARY_DIR}"
     )
   endif()
 
@@ -785,6 +782,15 @@ function(_maud_setup)
   endforeach()
 
   file(WRITE "${MAUD_DIR}/configure_cache_variables.cmake" "${vars}")
+
+  file(
+    WRITE "${MAUD_DIR}/maybe_regenerate.cmake"
+    "
+    ${vars}
+    include(\"${_MAUD_SELF_DIR}/Maud.cmake\")
+    _maud_maybe_regenerate()
+    "
+  )
 
   file(WRITE "${MAUD_DIR}/globs" "")
 
@@ -1195,7 +1201,7 @@ function(resolve_options)
     else()
       message(STATUS "${opt}: ${type} = ${quoted} ${reason}")
     endif()
- 
+
     if(enum AND NOT ("${${opt}}" IN_LIST enum))
       message(FATAL_ERROR "ENUM option ${opt} must be one of ${enum}")
     elseif(DEFINED "_MAUD_VALIDATE_${opt}")
