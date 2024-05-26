@@ -25,6 +25,21 @@ NEXT
 - harden and test the scanner
   - support this when preprocessing isn't required
 
+TODO: optional dependencies
+---------------------------
+
+How do we deal with optional dependencies? If there is an
+option named `YML_ENABLED` and we switch it off, then we
+should not need to ensure `import yaml;` still works.
+However surrounding the import with an `#if` is transparent
+to maud_scan so it wouldn't remove the dependency.
+
+We have two methods built-in:
+- enable pre-processing scan for a unit which `export import`
+  the optional dependencies guarded by CPP conditions
+- write that unit as a `.in2` template and guard optional
+  imports with cmake conditions
+
 TODO: stages
 ------------
 
@@ -88,6 +103,8 @@ some projects can get big and maybe globs will be too slow.
 
 Even if globbing is found to be slow, that's not necessarily the end
 of it: we can cache and partition results so that it's faster to check.
+
+Also, present both sides of the globbing argument.
 
 TODO: consolidate tests
 -----------------------
@@ -154,6 +171,13 @@ TODO: options
 -------------
 
 Render options.rst with all the options summarized.
+
+Ensure that we are always dealing with native paths in 
+options: defaults, values, requirements, etc. The compiled 
+string should also always be of the native character type.
+
+Don't add a definition unless a keyword is passed to `option()`
+s
 
 TODO:
 -----
