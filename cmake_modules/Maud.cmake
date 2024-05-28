@@ -944,12 +944,12 @@ function(option type name)
     "" # prefix
     "ADVANCED" # options
     "DEFAULT;HELP;VALIDATE" # single value arguments
-    "ENUM;REQUIRES;FORCE" # multi value arguments
+    "REQUIRES;FORCE" # multi value arguments
     ${ARGV}
   )
 
   set(legacy OFF)
-  set(types "BOOL;PATH;FILEPATH;STRING;ENUM;FORCE")
+  set(types "BOOL;PATH;FILEPATH;STRING;(;FORCE")
   if(NOT ("${type}" IN_LIST types))
     # Handle legacy signature
     set(legacy ON)
@@ -959,17 +959,20 @@ function(option type name)
     if(ARGC GREATER 2)
       set(_DEFAULT "${ARGV2}")
     endif()
-  elseif(type STREQUAL "ENUM")
+  elseif(type STREQUAL "(")
     set(type STRING)
-    list(POP_BACK _ENUM name)
-    list(POP_BACK _ENUM r)
-    list(POP_FRONT _ENUM l)
-    if(NOT (l STREQUAL "(" AND r STREQUAL ")" AND _ENUM MATCHES ";"))
+    set(enum ${ARGV})
+    list(POP_FRONT enum _)
+    list(FIND enum ")" i)
+    list(REMOVE_AT enum ${i})
+    list(GET enum ${i} name)
+    list(SUBLIST enum 0 ${i} enum)
+    if(NOT (enum MATCHES ";"))
       message(FATAL_ERROR "ENUM option ${name} was improperly formatted")
-    elseif("" IN_LIST _ENUM)
+    elseif("" IN_LIST enum)
       message(FATAL_ERROR "ENUM option ${name} may not contain an empty string")
     elseif("${_DEFAULT}" STREQUAL "")
-      list(GET _ENUM 0 _DEFAULT)
+      list(GET enum 0 _DEFAULT)
     endif()
   elseif(type STREQUAL "FORCE")
     set(_REQUIRES ${_FORCE})
@@ -986,7 +989,7 @@ function(option type name)
 
   if("${name}" STREQUAL "IF")
     message(FATAL_ERROR "IF is reserved and cannot be used for an option name")
-  elseif(NOT (name MATCHES "[A-Z][A-Z0-9_]+") AND NOT legacy)
+  elseif(NOT (name MATCHES "[A-Z][A-Z0-9_]*") AND NOT legacy)
     message(FATAL_ERROR "Option name must be an all-caps identifier, got ${name}")
   endif()
 
@@ -1051,11 +1054,11 @@ function(option type name)
   endif()
 
   # store the enumeration of allowed STRING values
-  if(NOT ("${_ENUM}" STREQUAL ""))
-    set_property(CACHE ${name} PROPERTY STRINGS "${_ENUM}")
+  if(NOT ("${enum}" STREQUAL ""))
+    set_property(CACHE ${name} PROPERTY STRINGS "${enum}")
   endif()
   if(NOT ("${_VALIDATE}" STREQUAL ""))
-    if(type STREQUAL "BOOL" OR NOT ("${_ENUM}" STREQUAL ""))
+    if(type STREQUAL "BOOL" OR NOT ("${enum}" STREQUAL ""))
       message(
         FATAL_ERROR
         "${name} provided VALIDATE but this may not be used with BOOL or ENUM"
