@@ -75,7 +75,7 @@ argument(
   ""
 )
 argument(
-  project_command "project(${project_name} LANGUAGES CXX)"
+  project_command "project(\"${project_name}\" LANGUAGES CXX)"
   ""
 )
 

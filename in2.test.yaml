@@ -1,9 +1,9 @@
-- name: empty
+empty:
   template: ''
   rendered: ''
   compiled: ''
 
-- name: literal
+literal:
   template: 'Hello world'
   rendered: 'Hello world'
   compiled: |
@@ -15,7 +15,7 @@
     render([[Hello world]])
 
 
-- name: variable substitution
+variable substitution:
   definitions: [FOO=foo-val]
   template: '@FOO@'
   rendered: foo-val
@@ -27,7 +27,8 @@
     ##################################################################################
     render("${FOO}")
 
-- name: variable substitution in name
+
+variable substitution in name:
   definitions: [FOO_bar=foo-val, BAR=bar]
   template: '@FOO_${BAR}@'
   rendered: foo-val
@@ -39,7 +40,8 @@
     ##################################################################################
     render("${FOO_${BAR}}")
 
-- name: variable substitution error with invalid name
+
+variable substitution error with invalid name:
   template: |
     @cmake_policy(SET CMP0010 NEW)@
     @FOO_${BAR@
@@ -47,7 +49,7 @@
     syntax error, .* expecting }.*
 
 
-- name: literal at
+literal at:
   template: 'Hello @@ world'
   rendered: 'Hello @ world'
   compiled: |
@@ -72,7 +74,8 @@
     ##################################################################################
     render([[ world]])
 
-- name: explicit render
+
+explicit render:
   template: '@render("foo")'
   rendered: foo
   compiled: |
@@ -84,7 +87,7 @@
     render("foo")
 
 
-- name: explicit render err
+explicit render err:
   template: '@render("foo\n"'
   compiled: |
     # commands 1:2-1:16
@@ -97,7 +100,7 @@
     Parse error.  Function missing ending ")".  End of file reached.
 
 
-- name: explicit render with variable
+explicit render with variable:
   definitions: [FOO=foo-val]
   template: '@render("${FOO}\n")'
   compiled: |
@@ -111,7 +114,7 @@
     foo-val
 
 
-- name: if_else filter
+if_else filter:
   definitions: [TRUTHY=ON, FALSY=OFF]
   template: '@TRUTHY | if_else(1 0)@@FALSY | if_else(1 0)@'
   rendered: 10
@@ -159,7 +162,7 @@
     render("${IT}")
 
 
-- name: foreach filter
+foreach filter:
   definitions: [BOOLY=ON\;OFF\;OFF\;ON]
   template: '@BOOLY |foreach| if_else(1 0) |endforeach| join("-")@'
   rendered: '1-0-0-1'
@@ -210,7 +213,7 @@
     render("${IT}")
 
 
-- name: foreach filter nesting error
+foreach filter nesting error:
   definitions: [BOOLY=ON\;OFF\;OFF\;ON]
   template: '@BOOLY |foreach|foreach| if_else(1 0) |endforeach| join("-")@'
   render error: |

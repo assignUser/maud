@@ -5,6 +5,7 @@ module;
 #include <stdlib.h>
 #endif
 
+#include <coroutine>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -13,27 +14,8 @@ module;
 module test_;
 
 import maud_;
-import yml_;
 
 using std::operator""s;
-
-std::string read(std::filesystem::path const &path) {
-  std::ifstream stream{path};
-  std::string contents;
-  contents.resize(stream.seekg(0, std::ios_base::end).tellg());
-  stream.seekg(0).read(contents.data(), contents.size());
-  return contents;
-}
-
-std::ofstream write(std::filesystem::path const &path) {
-  std::filesystem::create_directories(path.parent_path());
-  return std::ofstream{path};
-}
-
-std::filesystem::path operator+(std::filesystem::path path, std::string_view ext) {
-  path += ext;
-  return path;
-}
 
 auto const DIR = std::filesystem::path{__FILE__}.parent_path();
 
@@ -43,14 +25,10 @@ auto const TEMP = [] {
   return tmp;
 }();
 
-auto const IN2_CASES = [] {
-  static auto cases = read(DIR / "in2.test.yaml");
-  static auto tree = parse_in_place(cases.data());
-  return tree.rootref();
-}();
+auto const IN2_CASES = Parameter::wrap(read(DIR / "in2.test.yaml"));
 
-TEST_(compilation, IN2_CASES) {
-  auto name = to_string(parameter["name"]);
+TEST_(in2_compilation, IN2_CASES) {
+  auto name = parameter.name();
   if (not parameter.has_child("compiled")) return;
 
   auto in2 = to_view(parameter["template"]);
@@ -60,8 +38,8 @@ TEST_(compilation, IN2_CASES) {
   std::ofstream{TEMP / name + ".e.in2.cmake"s} << expected_compiled;
 }
 
-TEST_(rendering, IN2_CASES) {
-  auto name = to_string(parameter["name"]);
+TEST_(in2_rendering, IN2_CASES) {
+  auto name = parameter.name();
   auto in2 = to_view(parameter["template"]);
 
   auto compiled_path = TEMP / name + ".in2.cmake"s;
@@ -94,11 +72,7 @@ TEST_(rendering, IN2_CASES) {
   }
 }
 
-auto const PROJECT_CASES = [] {
-  static auto cases = read(DIR / "project.test.yaml");
-  static auto tree = parse_in_place(cases.data());
-  return tree.rootref();
-}();
+auto const PROJECT_CASES = Parameter::wrap(read(DIR / "project.test.yaml"));
 
 auto const TEST_PROJECT_DIR = std::filesystem::path{BUILD_DIR} / "_maud/test_projects";
 
@@ -108,7 +82,6 @@ struct EnvironmentVariable {
       original = var;
     }
     set(mod(original));
-    std::cout << mod(original) << std::endl;
   }
 
   ~EnvironmentVariable() { set(original); }
@@ -126,12 +99,12 @@ struct EnvironmentVariable {
 };
 
 TEST_(project, PROJECT_CASES) {
-  auto name = to_string(parameter["name"]);
+  auto name = parameter.name();
 
-  std::filesystem::create_directories(TEST_PROJECT_DIR / name);
-  std::filesystem::remove_all(TEST_PROJECT_DIR / name);
+  std::filesystem::create_directories(TEST_PROJECT_DIR);
+  std::filesystem::remove_all(TEST_PROJECT_DIR);
 
-  auto src = TEST_PROJECT_DIR / name / "source";
+  auto src = TEST_PROJECT_DIR / name;
   std::filesystem::create_directories(src);
 
   auto usr = TEST_PROJECT_DIR / "usr";
@@ -162,7 +135,7 @@ TEST_(project, PROJECT_CASES) {
       [&](std::string const &path) { return (usr / "lib/cmake").string() + sep + path; },
   };
 
-  for (auto command : parameter["commands"]) {
+  for (auto command : parameter) {
     if (not command.is_map()) {
       if (not EXPECT_(std::system(to_string(command).c_str()) == 0)) return;
       continue;
@@ -190,4 +163,25 @@ TEST_(project, PROJECT_CASES) {
       continue;
     }
   }
+}
+
+TEST_(scan) {
+  auto yaml = R"(
+    revision: 0
+    rules:
+    - primary-output: ""
+      requires: []
+  )"s;
+  auto tree = parse_in_place(yaml.data());
+  auto rule = tree["rules"][0];
+
+  rule["primary-output"] = "maud_.cxx.o";
+  rule["requires"][0] |= MAP;
+  rule["requires"][0]["logical-name"] = "FOO";
+
+  // auto requires_ = rule["requires"];
+  // auto requires_0 = requires_[0];
+  // auto logical_name = requires_0["logical-name"];
+  // logical_name = "yml_";
+  std::cout << as_json(tree);
 }

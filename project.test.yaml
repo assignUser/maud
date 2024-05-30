@@ -1,72 +1,300 @@
-- name: unit testing
-  commands:
-  - write: basics.cxx
-    contents: |
-      module;
-      #include <coroutine>
-      #include <string>
-      module test_;
-
-      using std::operator""s;
-
-      SUITE_STATE { std::string yo = "yo"; };
-
-      TEST_(DISABLED_empty) {}
-
-      TEST_(basic) {
-        int three = 3, five = 5;
-        EXPECT_(three != five);
-        EXPECT_(three == three == 3);
-        EXPECT_(three < five <= 6);
-        EXPECT_(67 > five);
-        EXPECT_(three);
-        EXPECT_(not std::false_type{});
-        int a = 999, b = 88888;
-        EXPECT_(a != b);
-        int *ptr = &three;
-        if (not EXPECT_(ptr != nullptr)) return;
-        EXPECT_(*ptr == three);
-        EXPECT_(suite_state->yo == "yo");
-        EXPECT_("hello world"s >>= HasSubstr("llo"));
-      }
-
-      TEST_(parameterized, {111, 234}) {
-        EXPECT_(parameter == parameter);
-      }
-
-      TEST_(parameterized_gen, []() -> Generator<int> {
-        for (int i = 0; i < 10; ++i) co_yield i;
-      }) {
-        EXPECT_(0 <= parameter < 10);
-      }
-
-      TEST_(typed, std::tuple{0, ""s}) {
-        EXPECT_(parameter + parameter == parameter);
-      }
-
-  - maud
-
-  - ctest --test-dir build --output-on-failure -C Debug
-
-  # Assert that the test executable exists but isn't installed
-  - cmake --install build --prefix ../usr --config Debug
-  - exists: build/Debug/test_.basics
-  - does not exist: ../usr/bin/test_.basics
+auto add sources:
+- write: foo.cxx
+  contents: |
+    export module foo;
+    export int foo() { return 0; }
+- maud --log-level=VERBOSE
+- write: bar.cxx
+  contents: |
+    export module bar;
+    export int bar() { return 0; }
+- cmake --build build --config Debug
+- exists: build/Debug/libbar.a
 
 
-- name: import installed
-  commands:
-  - write: foo/foo.cxx
-    contents: |
+unit testing:
+- write: basics.cxx
+  contents: |
+    module;
+    #include <coroutine>
+    #include <string>
+    module test_;
+
+    SUITE_STATE { std::string yo = "yo"; };
+    TEST_(DISABLED_empty) {}
+    TEST_(basic) {
+      int three = 3, five = 5;
+      EXPECT_(three != five);
+      EXPECT_(three == three == 3);
+      EXPECT_(three < five <= 6);
+      EXPECT_(67 > five);
+      EXPECT_(three);
+      EXPECT_(not std::false_type{});
+      int a = 999, b = 88888;
+      EXPECT_(a != b);
+      int *ptr = &three;
+      if (not EXPECT_(ptr != nullptr)) return;
+      EXPECT_(*ptr == three);
+      EXPECT_(suite_state->yo == "yo");
+      EXPECT_("hello world" >>= HasSubstr("llo"));
+    }
+    TEST_(parameterized, {111, 234}) {
+      EXPECT_(parameter == parameter);
+    }
+    TEST_(parameterized_gen, []() -> Generator<int> {
+      for (int i = 0; i < 10; ++i) co_yield i;
+    }) {
+      EXPECT_(0 <= parameter < 10);
+    }
+    TEST_(typed, std::tuple{0, std::string("")}) {
+      EXPECT_(parameter + parameter == parameter);
+    }
+- maud
+- ctest --test-dir build --output-on-failure -C Debug
+# Assert that the test executable exists but isn't installed
+- cmake --install build --prefix ../usr --config Debug
+- exists: build/Debug/test_.basics
+- does not exist: ../usr/bin/test_.basics
+
+
+unit testimg main:
+- write: test_main.cxx
+  contents: |
+    module;
+    #include <gtest/gtest.h>
+    export module test_:main;
+    export int foo;
+    int main(int argc, char* argv[]) {
+      foo = 999;
+      testing::InitGoogleTest(&argc, argv);
+      return RUN_ALL_TESTS();
+    }
+- write: foo_check.cxx
+  contents: |
+    module test_;
+    TEST_(check_foo_is_999) {
+      EXPECT_(foo == 999);
+    }
+- write: allow_preprocessing_scan.cmake
+  contents: |
+    #add_executable(test_.foo) # FIXME this isn't working as in use_find_package
+    get_target_property(i GTest::gtest INTERFACE_INCLUDE_DIRECTORIES)
+    include_directories(${i})
+- maud --log-level=VERBOSE
+- ctest --test-dir build --output-on-failure -C Debug
+
+
+custom unit testing:
+- write: _test.cxx
+  contents: |
+    module test_;
+    int main() {
+      expect_eq(1, 3);
+    }
+- write: _test.cxx
+  contents: |
+    module;
+    #include <iostream>
+    export module test_;
+    export void expect_eq(auto const &l, auto const &r) {
+      if (l != r) std::cerr << "failed: " << l << "==" << r << std::endl;
+    }
+- write: test.cmake
+  contents: |
+    function(maud_add_test source_file partition out_target_name)
+      cmake_path(GET source_file STEM name)
+      set(${out_target_name} "test_.${name}" PARENT_SCOPE)
+
+      if(NOT TARGET "test_.${name}")
+        add_executable(test_.${name})
+      endif()
+      add_test(NAME test_.${name} COMMAND $<TARGET_FILE:test_.${name}>)
+      target_sources(
+        test_.${name}
+        PRIVATE FILE_SET module_providers TYPE CXX_MODULES
+        BASE_DIRS ${CMAKE_SOURCE_DIR} FILES _test.cxx
+      )
+      set_target_properties(test_.${name} PROPERTIES MAUD_INTERFACE _test.cxx)
+    endfunction()
+- maud --log-level=VERBOSE
+
+
+import installed:
+- write: foo/foo.cxx
+  contents: |
+    export module foo;
+    export int foo() { return 0; }
+- command: maud --log-level=VERBOSE
+  working directory: foo
+- cmake --install foo/build --prefix ../usr --config Debug
+- write: use/use.cxx
+  contents: |
+    module executable;
+    import foo;
+    int main() { return foo(); }
+- command: maud --log-level=VERBOSE
+  working directory: use
+
+
+auto primary interface:
+- write: foo_a.cxx
+  contents: |
+    export module foo:a;
+    export int a() { return 0; }
+- write: foo_b.cxx
+  contents: |
+    export module foo:b;
+    import :a;
+    export int b() { return 0; }
+- write: use.cxx
+  contents: |
+    module executable;
+    import foo;
+    int main() { return a() + b(); }
+- maud --log-level=VERBOSE
+
+
+rendered source:
+- write: render_foo.cmake
+  contents: |
+    file(
+      WRITE "${MAUD_DIR}/rendered/foo.cxx"
+      [[
       export module foo;
-      export int foo() { return 0; }
-  - command: maud --log-level=VERBOSE
-    working directory: foo
-  - cmake --install foo/build --prefix ../../usr --config Debug
-  - write: use/use.cxx
-    contents: |
-      module executable;
-      import foo;
-      int main() { return foo(); }
-  - command: maud --log-level=VERBOSE
-    working directory: use
+      import bar;
+      static_assert(BOOL);
+      static_assert(sizeof(INTS) == sizeof(int) * 11);
+      ]]
+    )
+- write: bar.cxx.in2
+  contents: |
+    @include(MaudTemplateFilters)@
+    export module bar;
+    export int INTS[] = {@
+      foreach(i RANGE 10)
+        render("${i},")
+      endforeach()
+    @};
+    export bool constexpr BOOL = @MAUD_DIR | if_else(1 0)@;
+- maud
+- exists: build/Debug/libfoo.a
+- exists: build/Debug/libbar.a
+
+
+use find_package:
+- write: use_json_fmt.cxx
+  contents: |
+    module;
+    #include <fmt/format.h>
+    #include <nlohmann/json.hpp>
+    module executable;
+    int main() {}
+
+- write: use_json_fmt.cmake
+  contents: |
+    find_package(nlohmann_json REQUIRED)
+    find_package(fmt REQUIRED)
+    add_executable(use_json_fmt)
+    target_link_libraries(
+      use_json_fmt
+      PRIVATE
+      nlohmann_json::nlohmann_json
+      fmt::fmt-header-only
+    )
+    set(options "-DFMT_HEADER_ONLY=1")
+    foreach(target fmt::fmt-header-only nlohmann_json::nlohmann_json)
+      get_target_property(i ${target} INTERFACE_INCLUDE_DIRECTORIES)
+      foreach(d ${i})
+        string(APPEND options " ${CMAKE_INCLUDE_SYSTEM_FLAG_CXX} ${d}")
+      endforeach()
+    endforeach()
+
+    set_source_files_properties(
+      "${dir}/use_json_fmt.cxx"
+      PROPERTIES
+      MAUD_PREPROCESSING_SCAN_OPTIONS "${options}"
+    )
+
+- maud
+
+
+
+
+internal decl:
+- write: foo_primary.cxx
+  contents: |
+    export module foo;
+    export import :part;
+- write: foo_part.cxx
+  contents: |
+    export module foo:part;
+    export int foo();
+    export int foo_half();
+    int foo_internal(); // not exported, but usable within module foo
+- write: foo_impl.cxx
+  contents: |
+    module foo;
+    import :part;
+    int foo() { return foo_internal(); }
+- write: foo_half_impl.cxx
+  contents: |
+    module foo:half_impl;
+    import :part;
+    int foo_half() { return foo_internal() / 2; }
+- write: foo_internal_impl.cxx
+  contents: |
+    module foo;
+    int foo_internal() { return 3; }
+- maud
+
+
+internal decl no parts:
+- write: foo_primary.cxx
+  contents: |
+    export module foo;
+    export int foo();
+    int foo_internal(); // not exported, but usable within module foo
+- write: foo_impl.cxx
+  contents: |
+    module foo;
+    int foo() { return foo_internal(); }
+- write: foo_internal_impl.cxx
+  contents: |
+    module foo;
+    int foo_internal() { return 3; }
+- maud
+
+
+internal decl faux parts:
+- write: foo_primary.cxx
+  contents: |
+    export module foo;
+    export int foo();
+    int foo_internal(); // not exported, but usable within module foo
+- write: foo_impl.cxx
+  contents: |
+    module foo:impl;
+    import foo; // it's not an error for partitions to import the primary
+    int foo() { return foo_internal(); }
+- write: foo_internal_impl.cxx
+  contents: |
+    module foo:internal;
+    import foo;
+    int foo_internal() { return 3; } // partitions can define
+- maud
+
+
+util_ is not installed:
+- write: util_.cxx
+  contents: |
+    export module util_;
+    export int zero() { return 0; }
+- write: foo.cxx
+  contents: |
+    module executable;
+    import util_;
+    int main() { return zero(); }
+- maud --log-level=VERBOSE
+- cmake --install build --prefix ../usr --config Debug
+- exists: build/Debug/foo
+- does not exist: build/Debug/libutil_.a
