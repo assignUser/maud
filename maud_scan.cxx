@@ -5,8 +5,6 @@ module;
 #include <cassert>
 #include <cstdlib>
 #include <cstring>
-#include <filesystem>
-#include <fstream>
 #include <iostream>
 #include <string>
 #include <string_view>
@@ -37,35 +35,6 @@ struct Location {
   char const *location;
   int line;
 };
-
-template <size_t PADDING>
-class Padded {
- public:
-  explicit Padded(auto size) : _storage(static_cast<size_t>(size) + PADDING * 2, '\0') {}
-
-  size_t size() const { return _storage.size() - PADDING; }
-  char *data() { return _storage.data() + PADDING; }
-
-  char const *c_str() const { return _storage.c_str() + PADDING; }
-  operator std::string_view() const { return {c_str(), size()}; }
-
- private:
-  std::string _storage;
-};
-
-// Read to Padded so we can always have plenty of zeros for look ahead and behind.
-template <size_t N = 8>
-Padded<N> read(std::filesystem::path path) {
-  std::ifstream stream{path};
-  Padded<N> contents{stream.seekg(0, std::ios_base::end).tellg()};
-  stream.seekg(0).read(contents.data(), contents.size());
-  return contents;
-}
-
-void write(std::filesystem::path path, std::string_view contents) {
-  std::ofstream stream{path};
-  stream.write(contents.data(), contents.size());
-}
 
 template <char... CHARS>
 constexpr auto first_of = [](auto s) {

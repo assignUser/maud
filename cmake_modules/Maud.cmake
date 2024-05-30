@@ -948,7 +948,7 @@ function(option type name)
 
   cmake_parse_arguments(
     "" # prefix
-    "ADVANCED" # options
+    "ADVANCED;ADD_COMPILE_DEFINITIONS" # options
     "DEFAULT;HELP;VALIDATE" # single value arguments
     "REQUIRES;FORCE" # multi value arguments
     ${ARGV}
@@ -1015,6 +1015,7 @@ function(option type name)
   if(too_long AND NOT legacy)
     message(FATAL_ERROR "${name}'s help string exceeded the 70 char line limit")
   endif()
+  set(_MAUD_HELP_${name} "${_HELP}" PARENT_SCOPE)
 
   # store the default
   if("${type}" STREQUAL "BOOL") # coerce BOOL to ON/OFF
@@ -1052,10 +1053,17 @@ function(option type name)
   endif()
 
   # declare the option's cache entry
-  list(GET _HELP 0 help_first_line)
+  if(_HELP STREQUAL "")
+    set(help_first_line "")
+  else()
+    list(GET _HELP 0 help_first_line)
+  endif()
   set(${name} "${_DEFAULT}" CACHE ${type} "${help_first_line}")
   if(_ADVANCED)
     mark_as_advanced(${name})
+  endif()
+  if(_ADD_COMPILE_DEFINITIONS)
+    set(_MAUD_ADD_COMPILE_DEFINITIONS_${name} "" PARENT_SCOPE)
   endif()
 
   # set the option's value from the environment if appropriate
@@ -1210,9 +1218,8 @@ function(resolve_options)
 
     string(JSON cache_json SET "${cache_json}" ${opt} "${quoted}")
 
-    get_property(help CACHE ${opt} PROPERTY HELPSTRING)
     file(APPEND "${defines}" "\n/*!\n")
-    foreach(line ${help})
+    foreach(line ${_MAUD_HELP_${opt}})
       message(STATUS "     ${line}")
       file(APPEND "${defines}" " *  ${line}\n")
     endforeach()
@@ -1282,7 +1289,7 @@ function(resolve_options)
     JSON presets SET "${presets}"
     configurePresets ${i} "${configure_preset}"
   )
-  file(WRITE "${CMAKE_SOURCE_DIR}/CMakeUserPresets.json" "${presets}")
+  file(WRITE "${CMAKE_SOURCE_DIR}/CMakeUserPresets.json" "${presets}\n")
 endfunction()
 
 if(_MAUD_CMAKELISTS)

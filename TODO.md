@@ -2,12 +2,6 @@ NEXT
 ----
 
 - more test projects
-  - remove the dependency on bash
-  - options:
-    - old call signature still works
-    - detect cycles
-    - various validation
-    - presets get written
   - use a maud based project with fetchcontent
   - verify maud works while using c++23
   - render one in2 multiple times, one for each value from a list
