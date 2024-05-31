@@ -8,6 +8,7 @@ module;
 #include <coroutine>
 #include <cstdint>
 #include <exception>
+#include <sstream>
 #include <vector>
 export module test_;
 export import :main;
@@ -166,11 +167,13 @@ export struct Expectation {
   int line;
   std::string failure;
 
-  explicit operator bool() const { return failure.empty(); }
+  operator bool() const { return failure.empty(); }
 
   Expectation &&operator or(auto on_fail) && {
-    if (*this) {
-      on_fail(std::back_inserter(failure));
+    if (not failure.empty()) {
+      std::stringstream ss{std::move(failure)};
+      on_fail(ss);
+      failure = std::move(ss).str();
     }
     return std::move(*this);
   }
@@ -404,14 +407,13 @@ std::string operator,(MatchCondition<C> c, End e) {
   auto cs = e.condition_string;
   cs = cs.substr(cs.find_first_not_of(" \n\t\r"));
   cs = cs.substr(0, cs.find(">>="));
-  cs = cs.substr(0, cs.find_last_not_of(" \n\t\r"));
   std::stringstream stream;
   stream << "  Expected: " << cs;
   ::testing::internal::StreamMatchResultListener listener{&stream};
   if (matcher.MatchAndExplain(condition, &listener)) return {};
   stream << " ";
   matcher.DescribeTo(&stream);
-  stream << "\n  Actual: " << PrintToString(condition);
+  stream << "\n  Argument was: " << PrintToString(condition);
   return std::move(stream).str();
 }
 
@@ -551,3 +553,18 @@ export using testing::AnyOf;
 export using testing::AnyOfArray;
 export using testing::Not;
 export using testing::Conditional;
+
+export template <typename Condition, typename Describe>
+struct Matcher {
+  Condition condition;
+  Describe describe;
+
+  using is_gtest_matcher = void;
+
+  bool MatchAndExplain(auto const &arg, std::ostream *os) const {
+    return condition(arg, *os);
+  }
+
+  void DescribeTo(std::ostream *os) const { describe(false, *os); }
+  void DescribeNegationTo(std::ostream *os) const { describe(true, *os); }
+};

@@ -1193,10 +1193,8 @@ function(resolve_options)
       get_property(enum CACHE ${opt} PROPERTY STRINGS)
       if(enum)
         list(JOIN enum " " type)
-        set(type "ENUM(${type})")
+        set(type "(${type})")
       endif()
-    elseif(type STREQUAL "BOOL")
-      set(enum OFF ON)
     else()
       set(enum)
     endif()
@@ -1212,6 +1210,11 @@ function(resolve_options)
 
     if(enum AND NOT ("${${opt}}" IN_LIST enum))
       message(FATAL_ERROR "ENUM option ${opt} must be one of ${enum}")
+    elseif(
+      type STREQUAL "BOOL"
+      AND NOT ("${${opt}}" STREQUAL "ON" OR "${${opt}}" STREQUAL "OFF")
+    )
+      message(FATAL_ERROR "BOOL option ${opt} must be ON or OFF")
     elseif(DEFINED "_MAUD_VALIDATE_${opt}")
       cmake_language(EVAL CODE "${_MAUD_VALIDATE_${opt}}")
     endif()
@@ -1272,18 +1275,18 @@ function(resolve_options)
     cacheVariables "${cache_json}"
   )
 
+  set(
+    presets
+    [[{
+        "version": 6,
+        "cmakeMinimumRequired": {"major": 3, "minor": 28, "patch": 0},
+        "configurePresets": []
+    }]]
+  )
   if(EXISTS "${CMAKE_SOURCE_DIR}/CMakeUserPresets.json")
     file(READ "${CMAKE_SOURCE_DIR}/CMakeUserPresets.json" presets)
-  else()
-    set(
-      presets
-      [[{
-          "version": 6,
-          "cmakeMinimumRequired": {"major": 3, "minor": 28, "patch": 0},
-          "configurePresets": []
-      }]]
-    )
   endif()
+
   string(JSON i LENGTH "${presets}" configurePresets)
   string(
     JSON presets SET "${presets}"

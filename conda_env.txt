@@ -3,6 +3,12 @@ ninja
 git
 clangxx>=18
 clang-tools>=18
+
 fmt>=10.2
 nlohmann_json>=3.11
 gtest
+
+sphinx
+pydata-sphinx-theme
+breathe
+doxygen

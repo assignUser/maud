@@ -38,6 +38,14 @@ unit testing:
       EXPECT_(suite_state->yo == "yo");
       EXPECT_("hello world" >>= HasSubstr("llo"));
     }
+    TEST_(custom_matcher) {
+      Matcher NotNull{
+        [](auto *ptr, auto &) { return ptr != nullptr; },
+        [](bool negation, auto &os) { os << (negation ? "is not NULL" : "is NULL"); },
+      };
+      int i;
+      EXPECT_(&i >>= NotNull);
+    }
     TEST_(parameterized, {111, 234}) {
       EXPECT_(parameter == parameter);
     }
@@ -382,6 +390,14 @@ detect option dependency cycle:
 - failing command: maud --log-level=VERBOSE
 
 
+validate bool option:
+- write: options.cmake
+  contents: |
+    option(BOOL B)
+    resolve_options()
+- failing command: maud --log-level=VERBOSE -DB=NEITHER_ON_NOR_OFF
+
+
 validate enum option:
 - write: options.cmake
   contents: |
@@ -390,7 +406,7 @@ validate enum option:
 - failing command: maud --log-level=VERBOSE -DE=D
 
 
-validate option with explicit code block:
+validate string option with explicit code block:
 - write: options.cmake
   contents: |
     option(
