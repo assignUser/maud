@@ -728,6 +728,15 @@ endfunction()
 
 
 function(_maud_setup_regenerate)
+  file(
+    WRITE "${MAUD_DIR}/maybe_regenerate.cmake"
+    "
+    include(\"${MAUD_DIR}/configure_cache_variables.cmake\")
+    include(\"${_MAUD_SELF_DIR}/Maud.cmake\")
+    _maud_maybe_regenerate()
+    "
+  )
+
   if("${_MAUD_INJECT_REGENERATE}" STREQUAL "")
     find_program(_MAUD_INJECT_REGENERATE maud_inject_regenerate REQUIRED)
   endif()
@@ -780,17 +789,7 @@ function(_maud_setup)
   )
     string(APPEND vars "set(${var} \"${${var}}\")\n")
   endforeach()
-
   file(WRITE "${MAUD_DIR}/configure_cache_variables.cmake" "${vars}")
-
-  file(
-    WRITE "${MAUD_DIR}/maybe_regenerate.cmake"
-    "
-    ${vars}
-    include(\"${_MAUD_SELF_DIR}/Maud.cmake\")
-    _maud_maybe_regenerate()
-    "
-  )
 
   file(WRITE "${MAUD_DIR}/globs" "")
 
@@ -868,6 +867,51 @@ function(_maud_in2)
     file(WRITE "${RENDER_FILE}" "")
     include("${compiled}")
   endforeach()
+endfunction()
+
+
+function(_maud_setup_doc)
+  find_program(DOXYGEN NAMES doxygen)
+  find_program(SPHINX_BUILD NAMES sphinx-build)
+  find_program(SPHINX_QUICKSTART NAMES sphinx-quickstart)
+
+  if(NOT DOXYGEN OR NOT SPHINX_BUILD OR NOT SPHINX_QUICKSTART)
+    message(VERBOSE "Could not find doxygen and sphinx, abandoning doc")
+    return()
+  endif()
+
+  set(vars)
+  foreach(var DOXYGEN;SPHINX_BUILD;SPHINX_QUICKSTART)
+    string(APPEND vars "set(${var} \"${${var}}\")\n")
+  endforeach()
+  file(APPEND "${MAUD_DIR}/configure_cache_variables.cmake" "${vars}")
+
+  file(
+    WRITE "${MAUD_DIR}/doc.cmake"
+    "
+    include(\"${MAUD_DIR}/configure_cache_variables.cmake\")
+    include(\"${_MAUD_SELF_DIR}/Maud.cmake\")
+    _maud_doc()
+    "
+  )
+
+  glob(
+    rst
+    CONFIGURE_DEPENDS
+    "\\.rst$"
+    "!${MAUD_IGNORED_SOURCE_REGEX}"
+  )
+  add_custom_command(
+    OUTPUT "${MAUD_DIR}/doc"
+    COMMAND "${CMAKE_COMMAND}" -P "${MAUD_DIR}/doc.cmake"
+    DEPENDS ${rst}
+  )
+endfunction()
+
+
+function(_maud_doc)
+  message(VERBOSE "building docs...")
+  file(WRITE "${MAUD_DIR}/doc/.mkdir-p" "")
 endfunction()
 
 

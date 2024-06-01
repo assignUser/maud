@@ -153,14 +153,6 @@ compilers you can clone the project and build/install just BMIs.
 Nice enough for demos where everything is a wrapper around FetchContent,
 and we leave a TODO saying that we need a better way to cache these.
 
-TODO: doc
----------
-
-- Switch to .rst
-- detect sphinx, doxygen, breathe, doc2dash, ...
-- glob up .rst files and assemble a docset
-- auto generate tables of contents for each directory
-
 TODO: options
 -------------
 

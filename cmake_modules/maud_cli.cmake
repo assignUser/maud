@@ -116,23 +116,24 @@ endif()
 file(
   WRITE "${source_dir}/CMakeLists.txt"
   "
-    ${cmake_minimum}
-    ${project_command}
+  ${cmake_minimum}
+  ${project_command}
 
-    set(_MAUD_CMAKELISTS ON)
-    include(\"${maud_path}\")
+  set(_MAUD_CMAKELISTS ON)
+  include(\"${maud_path}\")
 
-    include(CTest)
-    # TODO fallback to FetchContent
-    find_package(GTest)
+  include(CTest)
+  # TODO fallback to FetchContent
+  find_package(GTest)
 
-    _maud_setup()
-    _maud_cmake_modules()
-    _maud_in2()
-    _maud_include_directories()
-    _maud_cxx_sources()
-    _maud_finalize_targets()
-    _maud_setup_regenerate()
+  _maud_setup()
+  _maud_cmake_modules()
+  _maud_in2()
+  _maud_include_directories()
+  _maud_cxx_sources()
+  _maud_finalize_targets()
+  _maud_setup_doc()
+  _maud_setup_regenerate()
   "
 )
 
