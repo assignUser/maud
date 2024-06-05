@@ -1,6 +1,3 @@
-.. configuration::
-  :html_theme: groundwork
-
 Maud
 ====
 
@@ -395,3 +392,9 @@ A number of C++ programs are provided:
 - simple scanner
 
 - template compiler
+
+.. configuration::
+  project = 'Maud'
+  author = 'Benjamin Kietzman <bengilgit@gmail.com>'
+
+  html_theme = 'pydata_sphinx_theme'

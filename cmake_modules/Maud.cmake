@@ -906,15 +906,20 @@ function(_maud_setup_doc)
     COMMAND "${CMAKE_COMMAND}" -P "${MAUD_DIR}/doc.cmake"
     DEPENDS ${rst}
   )
+  file(WRITE "${MAUD_DIR}/doc/.mkdir-p" "")
+  # link every doc source into _maud/doc
+  # link CMAKE_SOURCE_DIR too
 endfunction()
 
 
 function(_maud_doc)
   message(VERBOSE "building docs...")
-  file(WRITE "${MAUD_DIR}/doc/.mkdir-p" "")
+  # extract inline conf.py using dummy builder
+  # build dirhtml
 endfunction()
 
 
+# render directly to file
 function(render content)
   file(APPEND "${RENDER_FILE}" "${content}")
 endfunction()

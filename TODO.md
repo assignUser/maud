@@ -16,6 +16,9 @@ NEXT
       @
     endforeach()
     ```
+- cmake_modules should be included at top scope, and ctest
+  and gtest too so that variables are set etc
+- rewrite `option()` so that it doesn't assume top level scope
 - harden and test the scanner
   - support this when preprocessing isn't required
 
@@ -24,7 +27,7 @@ TODO: optional dependencies
 
 How do we deal with optional dependencies? If there is an
 option named `YML_ENABLED` and we switch it off, then we
-should not need to ensure `import yaml;` still works.
+should not need to ensure `import yml;` still works.
 However surrounding the import with an `#if` is transparent
 to maud_scan so it wouldn't remove the dependency.
 

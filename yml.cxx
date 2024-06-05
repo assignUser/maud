@@ -26,11 +26,14 @@ export decltype(auto) set_map(c4::yml::NodeRef node, auto key) {
   return node[key];
 }
 
+/// A helper for unit tests parameterized using a YAML file.
 export struct Parameter : c4::yml::ConstNodeRef {
+  /// Each test parameter is identified by name (its key in the top level mapping)
   std::string name() const { return {key().data(), key().size()}; }
 
   friend void PrintTo(Parameter p, std::ostream *os) { *os << p.name(); }
 
+  /// Read a file containing a YAML mapping into a vector<Parameter>
   static auto read_file(std::filesystem::path const &path) {
     struct : std::vector<Parameter> {
       Padded<> yaml;
