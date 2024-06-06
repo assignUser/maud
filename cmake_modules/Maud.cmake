@@ -94,10 +94,11 @@ endfunction()
 
 
 # FIXME we need to ensure that deleting CMakeCache.txt will always
-# result in a clean rebuild.
+# result in a clean rebuild. Append to ADDITIONAL_CLEAN_FILES
 
 
 block(PROPAGATE _MAUD_BASE_DIRS)
+  # TODO move this into _maud_setup
   # Assert that globbing will exclude the build directory
   _maud_glob(all_files "${CMAKE_SOURCE_DIR}" "!${MAUD_IGNORED_SOURCE_REGEX}")
   foreach(file ${all_files})
@@ -128,33 +129,33 @@ block(PROPAGATE _MAUD_BASE_DIRS)
 endblock()
 
 
-function(_maud_get_ddi_path source_file out_var)
+function(_maud_relative_path path_var is_gen_var)
   set(rendered_base "${MAUD_DIR}/rendered")
-  cmake_path(IS_PREFIX rendered_base "${source_file}" NORMALIZE is_gen)
+  set(path "${${path_var}}")
+  cmake_path(IS_PREFIX rendered_base "${path}" NORMALIZE is_gen)
+  if(is_gen)
+    cmake_path(RELATIVE_PATH path BASE_DIRECTORY "${rendered_base}")
+  else()
+    cmake_path(RELATIVE_PATH path BASE_DIRECTORY "${CMAKE_SOURCE_DIR}")
+  endif()
+  set(${path_var} "${path}" PARENT_SCOPE)
+  set(${is_gen_var} ${is_gen} PARENT_SCOPE)
+endfunction()
+
+
+function(_maud_get_ddi_path source_file out_var)
+  _maud_relative_path(source_file is_gen)
 
   if(is_gen)
-    set(source_base_directory "${MAUD_DIR}/rendered")
     set(ddi_base_directory "${MAUD_DIR}/ddi/rendered")
   else()
-    set(source_base_directory "${CMAKE_SOURCE_DIR}")
     set(ddi_base_directory "${MAUD_DIR}/ddi/source")
   endif()
 
-  cmake_path(
-    RELATIVE_PATH source_file
-    BASE_DIRECTORY "${source_base_directory}"
-    OUTPUT_VARIABLE ddi_path
-  )
-  cmake_path(
-    ABSOLUTE_PATH ddi_path
-    BASE_DIRECTORY "${ddi_base_directory}"
-    OUTPUT_VARIABLE ddi_path
-  )
-
   if(MSVC)
-    set(ddi_path "${ddi_path}.obj.ddi")
+    set(ddi_path "${ddi_base_directory}/${source_file}.obj.ddi")
   else()
-    set(ddi_path "${ddi_path}.o.ddi")
+    set(ddi_path "${ddi_base_directory}/${source_file}.o.ddi")
   endif()
 
   cmake_path(NATIVE_PATH ddi_path NORMALIZE ddi_path)
@@ -523,7 +524,6 @@ function(_maud_add_test source_file partition out_target_name)
     add_executable(test_.${name})
   endif()
   add_test(NAME test_.${name} COMMAND $<TARGET_FILE:test_.${name}> --gtest_brief=1)
-  target_link_libraries(test_.${name} PRIVATE GTest::gtest)
   target_sources(
     test_.${name}
     PRIVATE
@@ -834,10 +834,7 @@ function(_maud_cmake_modules)
     "!(/|^)cmake_modules/"
     "!${MAUD_IGNORED_SOURCE_REGEX}"
   )
-  foreach(cmake_file ${auto_included})
-    cmake_path(GET cmake_file PARENT_PATH dir)
-    include("${cmake_file}")
-  endforeach()
+  set(_MAUD_CMAKE_MODULES "${auto_included}" PARENT_SCOPE)
 endfunction()
 
 
@@ -886,36 +883,78 @@ function(_maud_setup_doc)
   endforeach()
   file(APPEND "${MAUD_DIR}/configure_cache_variables.cmake" "${vars}")
 
+  glob(
+    rst
+    CONFIGURE_DEPENDS
+    "\\.rst$"
+    "!(^|/)[A-Z_0-9]+\\.rst$"
+    "!${MAUD_IGNORED_SOURCE_REGEX}"
+  )
+  if(NOT rst)
+    return()
+  endif()
+  add_custom_command(
+    OUTPUT "${MAUD_DIR}/doc/BUILT"
+    COMMAND "${CMAKE_COMMAND}" -P "${MAUD_DIR}/doc/build.cmake"
+    DEPENDS ${rst}
+    COMMENT "building docs..."
+  )
+  add_custom_target(documentation ALL DEPENDS "${MAUD_DIR}/doc/BUILT")
+
+  file(REMOVE_RECURSE "${MAUD_DIR}/doc")
   file(
-    WRITE "${MAUD_DIR}/doc.cmake"
+    WRITE "${MAUD_DIR}/doc/build.cmake"
     "
     include(\"${MAUD_DIR}/configure_cache_variables.cmake\")
     include(\"${_MAUD_SELF_DIR}/Maud.cmake\")
     _maud_doc()
     "
   )
-
-  glob(
-    rst
-    CONFIGURE_DEPENDS
-    "\\.rst$"
-    "!${MAUD_IGNORED_SOURCE_REGEX}"
-  )
-  add_custom_command(
-    OUTPUT "${MAUD_DIR}/doc"
-    COMMAND "${CMAKE_COMMAND}" -P "${MAUD_DIR}/doc.cmake"
-    DEPENDS ${rst}
-  )
-  file(WRITE "${MAUD_DIR}/doc/.mkdir-p" "")
-  # link every doc source into _maud/doc
-  # link CMAKE_SOURCE_DIR too
+  foreach(file ${rst})
+    set(link "${file}")
+    _maud_relative_path(link is_gen)
+    cmake_path(ABSOLUTE_PATH link BASE_DIRECTORY "${MAUD_DIR}/doc")
+    cmake_path(GET link PARENT_PATH dir)
+    file(MAKE_DIRECTORY "${dir}")
+    file(CREATE_LINK "${file}" "${link}" COPY_ON_ERROR)
+  endforeach()
 endfunction()
 
 
 function(_maud_doc)
-  message(VERBOSE "building docs...")
+  # TODO only extract conf.py if a source is newer
   # extract inline conf.py using dummy builder
+  file(COPY_FILE "${_MAUD_SELF_DIR}/inline_conf.py" "${MAUD_DIR}/doc/conf.py")
+  file(MAKE_DIRECTORY "${MAUD_DIR}/doc/_inline_configuration_build")
+  execute_process(
+    COMMAND
+      "${SPHINX_BUILD}" --builder dummy
+      "${MAUD_DIR}/doc"
+      "${MAUD_DIR}/doc/_inline_configuration_build"
+    WORKING_DIRECTORY "${MAUD_DIR}/doc/_inline_configuration_build"
+    OUTPUT_FILE "${MAUD_DIR}/doc/inline_configuration.log"
+    COMMAND_ERROR_IS_FATAL ANY
+  )
+
   # build dirhtml
+  file(REMOVE "${MAUD_DIR}/doc/conf.py")
+  file(
+    COPY "${MAUD_DIR}/doc/_inline_configuration_build/conf.py"
+    DESTINATION "${MAUD_DIR}/doc"
+  )
+  file(REMOVE_RECURSE "${MAUD_DIR}/doc/_inline_configuration_build")
+  file(MAKE_DIRECTORY "${MAUD_DIR}/doc/_build")
+  execute_process(
+    COMMAND
+      "${SPHINX_BUILD}" --builder dirhtml
+      "${MAUD_DIR}/doc"
+      "${MAUD_DIR}/doc/_build"
+    WORKING_DIRECTORY "${MAUD_DIR}/doc/_build"
+    OUTPUT_FILE "${MAUD_DIR}/doc/build.log"
+    COMMAND_ERROR_IS_FATAL ANY
+  )
+
+  file(WRITE "${MAUD_DIR}/doc/BUILT" "")
 endfunction()
 
 

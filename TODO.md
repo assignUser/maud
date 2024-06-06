@@ -16,9 +16,8 @@ NEXT
       @
     endforeach()
     ```
-- cmake_modules should be included at top scope, and ctest
-  and gtest too so that variables are set etc
 - rewrite `option()` so that it doesn't assume top level scope
+- strip base dirs from docs
 - harden and test the scanner
   - support this when preprocessing isn't required
 
@@ -80,7 +79,7 @@ TODO: support C++17/non-module projects
 There's plenty of maud features which could be useful even without
 full module support. All the source files would be orphaned, but
 with the `glob()` function provided it'd be pretty trivial to define
-targets manually. This would just require *not* setting
+targets manually. This would just require *not* setting/asserting
 `CMAKE_CXX_STANDARD` and gracefully skipping scanning if the compiler
 doesn't do modules anyway.
 
@@ -325,18 +324,6 @@ C:\PROGRA~1\MICROS~1\2022\COMMUN~1\VC\Tools\MSVC\1439~1.335\bin\Hostx64\x64\cl.e
 ```
 
 ... anyways, it seems I can invoke the p1689 output whenever I need it
-
-
-# Notes: template file output
-
-If we allow a pipeline to start with a command,
-we can put simple blocks on a single line.
-`@foreach(i RANGE 8) | render("${i}. \n") | endforeach()@`
-NOPE this requires checking for "namespaced" filters
-which requires a variadic macro and cmake can't do those
-... unless we have special syntax to mark prefixed calls
-`@some_list |> join(",") | message("debug: ${IT}") |> strip()@`.
-I think the complexity is not worth it.
 
 TODO: generator expressions
 ---------------------------

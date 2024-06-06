@@ -123,11 +123,17 @@ file(
   include(\"${maud_path}\")
 
   include(CTest)
-  # TODO fallback to FetchContent
-  find_package(GTest)
 
   _maud_setup()
   _maud_cmake_modules()
+  foreach(module \${_MAUD_CMAKE_MODULES})
+    cmake_path(GET module PARENT_PATH dir)
+    include(\"\${module}\")
+  endforeach()
+  if(NOT COMMAND \"maud_add_test\")
+    # TODO fallback to FetchContent
+    find_package(GTest)
+  endif()
   _maud_in2()
   _maud_include_directories()
   _maud_cxx_sources()
