@@ -189,9 +189,9 @@ support for more sophisticated configuration options. For example:
 
 This declares two options which can be specified during configuration (via ``-D``
 command line arguments, environment variables, guis, etc). ``BOOL`` options as
-well as ``PATH``, ``STRING``, and ``ENUM`` arguments may be provided. Values provided
-for ``BOOL`` and ``ENUM`` options are validated automatically to be in ``OFF;ON`` or
-from their explicit set, respectively. Other options may specify a block of code
+well as ``PATH``, ``STRING``, and enumerations may be provided. Values provided
+for ``BOOL`` and enumeration options are validated automatically to be in ``OFF;ON``
+or from their explicit set, respectively. Other options may specify a block of code
 in the ``VALIDATE`` argument which will be evaluated when the option's value is
 resolved. Groups of associated options can be specified by assigning to the
 ``OPTION_GROUP`` variable.
@@ -219,7 +219,7 @@ applications which view the cache directly only the first line will appear.
   -- 
   -- FOO_EMULATED = OFF [constrained by FOO_LEVEL]
   --      Emulate FOO functionality rather than requesting a real FOO endpoint.
-  -- FOO_LEVEL: ENUM(LOW MED HI) = HI [user configured]
+  -- FOO_LEVEL: (LOW MED HI) = HI [user configured]
   --      What level of FOO API should be requested.
 
 Each call to ``resolve_option()`` also saves a cmake configure preset to
@@ -345,7 +345,7 @@ In the most basic case, ``@VAR@`` gets replaced with ``${VAR}``'s value from cma
 
 However, arbitrary commands can also be inserted between pairs of ``@``
 
-.. code-block:: cpp
+.. code-block:: c++.in2
 
   static const char* FOO_FEATURE_NAMES[] = {@
     foreach(feature ${FOO_FEATURE_NAMES})
@@ -362,7 +362,7 @@ However, arbitrary commands can also be inserted between pairs of ``@``
 For additional syntactic sugar in the common case of modifying a
 value before rendering, pipeline syntax is also supported
 
-.. code-block:: cpp
+.. code-block:: c++.in2
 
   @include(MaudTemplateFilters)@
   #define FOO_ENABLED @FOO_ENABLED | if_else(1 0)@
@@ -376,13 +376,19 @@ rendered. For example, the filter ``if_else`` is implemented with
 
 .. code-block:: cmake
 
-  macro(template_filter_if_else then otherwise)
-    if(${IT})
-      set(IT "${then}")
+  function(template_filter_if_else then otherwise)
+    if(IT)
+      set(IT "${then}" PARENT_SCOPE)
     else()
-      set(IT "${otherwise}")
+      set(IT "${otherwise}" PARENT_SCOPE)
     endif()
-  endmacro()
+  endfunction()
+
+Documentation
+-------------
+
+If detected, Sphinx and Doxygen will be used to build HTML documentation
+from the glob of all ``.rst`` files.
 
 Utilities
 ---------
@@ -397,4 +403,35 @@ A number of C++ programs are provided:
   project = 'Maud'
   author = 'Benjamin Kietzman <bengilgit@gmail.com>'
 
-  html_theme = 'pydata_sphinx_theme'
+  html_title = u'Maud'
+  html_theme = 'furo'
+  html_theme_options = {
+    'top_of_page_buttons': ['view', 'edit'],
+    'footer_icons': [
+      {
+        'name': 'GitHub',
+        'url': 'https://github.com/bkietz/maud',
+        'html': '''
+          <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 16 16">
+            <path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path>
+          </svg>
+        ''',
+        'class': '',
+      },
+    ],
+  }
+  html_context = {
+    'github_user': 'bkietz',
+    'github_repo': 'maud',
+    'github_version': 'trunk',
+    'doc_path': '',
+  }
+
+Table of Contents
+-----------------
+
+.. toctree::
+  :glob:
+
+  *
+

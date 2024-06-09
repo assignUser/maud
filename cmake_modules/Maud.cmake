@@ -883,25 +883,16 @@ function(_maud_setup_doc)
   endforeach()
   file(APPEND "${MAUD_DIR}/configure_cache_variables.cmake" "${vars}")
 
-  glob(
-    rst
-    CONFIGURE_DEPENDS
-    "\\.rst$"
-    "!(^|/)[A-Z_0-9]+\\.rst$"
-    "!${MAUD_IGNORED_SOURCE_REGEX}"
-  )
-  if(NOT rst)
-    return()
-  endif()
   add_custom_command(
     OUTPUT "${MAUD_DIR}/doc/BUILT"
     COMMAND "${CMAKE_COMMAND}" -P "${MAUD_DIR}/doc/build.cmake"
     DEPENDS ${rst}
-    COMMENT "building docs..."
+    COMMENT "Building documentation"
   )
   add_custom_target(documentation ALL DEPENDS "${MAUD_DIR}/doc/BUILT")
+  list(APPEND ADDITIONAL_CLEAN_FILES "${MAUD_DIR}/doc")
+  set(ADDITIONAL_CLEAN_FILES "${ADDITIONAL_CLEAN_FILES}" PARENT_SCOPE)
 
-  file(REMOVE_RECURSE "${MAUD_DIR}/doc")
   file(
     WRITE "${MAUD_DIR}/doc/build.cmake"
     "
@@ -910,46 +901,52 @@ function(_maud_setup_doc)
     _maud_doc()
     "
   )
-  foreach(file ${rst})
-    set(link "${file}")
-    _maud_relative_path(link is_gen)
-    cmake_path(ABSOLUTE_PATH link BASE_DIRECTORY "${MAUD_DIR}/doc")
-    cmake_path(GET link PARENT_PATH dir)
-    file(MAKE_DIRECTORY "${dir}")
-    file(CREATE_LINK "${file}" "${link}" COPY_ON_ERROR)
-  endforeach()
 endfunction()
 
 
 function(_maud_doc)
   # TODO only extract conf.py if a source is newer
+  file(REMOVE_RECURSE "${MAUD_DIR}/doc/sources")
+
+  glob(
+    rst
+    "\\.rst$"
+    "!(^|/)[A-Z_0-9]+\\.rst$"
+    "!${MAUD_IGNORED_SOURCE_REGEX}"
+  )
+  if(NOT rst)
+    return()
+  endif()
+  foreach(file ${rst})
+    set(link "${file}")
+    _maud_relative_path(link is_gen)
+    cmake_path(ABSOLUTE_PATH link BASE_DIRECTORY "${MAUD_DIR}/doc/sources")
+    cmake_path(GET link PARENT_PATH dir)
+    file(MAKE_DIRECTORY "${dir}")
+    file(COPY_FILE "${file}" "${link}")
+  endforeach()
+
   # extract inline conf.py using dummy builder
-  file(COPY_FILE "${_MAUD_SELF_DIR}/inline_conf.py" "${MAUD_DIR}/doc/conf.py")
-  file(MAKE_DIRECTORY "${MAUD_DIR}/doc/_inline_configuration_build")
+  file(COPY_FILE "${_MAUD_SELF_DIR}/sphinx_conf.py" "${MAUD_DIR}/doc/sources/conf.py")
   execute_process(
     COMMAND
       "${SPHINX_BUILD}" --builder dummy
-      "${MAUD_DIR}/doc"
-      "${MAUD_DIR}/doc/_inline_configuration_build"
-    WORKING_DIRECTORY "${MAUD_DIR}/doc/_inline_configuration_build"
+      "${MAUD_DIR}/doc/sources"
+      "${MAUD_DIR}/doc/inline_configuration"
     OUTPUT_FILE "${MAUD_DIR}/doc/inline_configuration.log"
     COMMAND_ERROR_IS_FATAL ANY
   )
+  file(
+    APPEND "${MAUD_DIR}/doc/sources/conf.py"
+    "\nInlineConfigurationDirective.finished = True\n"
+  )
 
   # build dirhtml
-  file(REMOVE "${MAUD_DIR}/doc/conf.py")
-  file(
-    COPY "${MAUD_DIR}/doc/_inline_configuration_build/conf.py"
-    DESTINATION "${MAUD_DIR}/doc"
-  )
-  file(REMOVE_RECURSE "${MAUD_DIR}/doc/_inline_configuration_build")
-  file(MAKE_DIRECTORY "${MAUD_DIR}/doc/_build")
   execute_process(
     COMMAND
       "${SPHINX_BUILD}" --builder dirhtml
-      "${MAUD_DIR}/doc"
-      "${MAUD_DIR}/doc/_build"
-    WORKING_DIRECTORY "${MAUD_DIR}/doc/_build"
+      "${MAUD_DIR}/doc/sources"
+      "${MAUD_DIR}/doc/dirhtml"
     OUTPUT_FILE "${MAUD_DIR}/doc/build.log"
     COMMAND_ERROR_IS_FATAL ANY
   )
