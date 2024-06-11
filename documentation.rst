@@ -13,3 +13,4 @@ configuration inline
 
 ReStructuredText files can also be rendered from ``.in2`` templates,
 which allows documentation to have easy access to arbitrary cmake state.
+

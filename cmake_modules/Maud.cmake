@@ -45,7 +45,7 @@ function(_maud_glob out_var root_dir)
 
     file(
       GLOB_RECURSE all_files
-      FOLLOW_SYMLINKS
+      #FOLLOW_SYMLINKS # TODO handle excluded symlink cycles 
       LIST_DIRECTORIES true
       # Filters are applied to *relative* paths; otherwise directory
       # names above root_dir might spuriously include/exclude.
@@ -129,22 +129,21 @@ block(PROPAGATE _MAUD_BASE_DIRS)
 endblock()
 
 
-function(_maud_relative_path path_var is_gen_var)
+function(_maud_relative_path path out_var is_gen_var)
   set(rendered_base "${MAUD_DIR}/rendered")
-  set(path "${${path_var}}")
   cmake_path(IS_PREFIX rendered_base "${path}" NORMALIZE is_gen)
   if(is_gen)
     cmake_path(RELATIVE_PATH path BASE_DIRECTORY "${rendered_base}")
   else()
     cmake_path(RELATIVE_PATH path BASE_DIRECTORY "${CMAKE_SOURCE_DIR}")
   endif()
-  set(${path_var} "${path}" PARENT_SCOPE)
+  set(${out_var} "${path}" PARENT_SCOPE)
   set(${is_gen_var} ${is_gen} PARENT_SCOPE)
 endfunction()
 
 
 function(_maud_get_ddi_path source_file out_var)
-  _maud_relative_path(source_file is_gen)
+  _maud_relative_path("${source_file}" source_file is_gen)
 
   if(is_gen)
     set(ddi_base_directory "${MAUD_DIR}/ddi/rendered")
@@ -870,46 +869,15 @@ endfunction()
 function(_maud_setup_doc)
   find_program(DOXYGEN NAMES doxygen)
   find_program(SPHINX_BUILD NAMES sphinx-build)
-  find_program(SPHINX_QUICKSTART NAMES sphinx-quickstart)
 
-  if(NOT DOXYGEN OR NOT SPHINX_BUILD OR NOT SPHINX_QUICKSTART)
+  if(NOT DOXYGEN OR NOT SPHINX_BUILD)
     message(VERBOSE "Could not find doxygen and sphinx, abandoning doc")
     return()
   endif()
 
-  set(vars)
-  foreach(var DOXYGEN;SPHINX_BUILD;SPHINX_QUICKSTART)
-    string(APPEND vars "set(${var} \"${${var}}\")\n")
-  endforeach()
-  file(APPEND "${MAUD_DIR}/configure_cache_variables.cmake" "${vars}")
-
-  add_custom_command(
-    OUTPUT "${MAUD_DIR}/doc/BUILT"
-    COMMAND "${CMAKE_COMMAND}" -P "${MAUD_DIR}/doc/build.cmake"
-    DEPENDS ${rst}
-    COMMENT "Building documentation"
-  )
-  add_custom_target(documentation ALL DEPENDS "${MAUD_DIR}/doc/BUILT")
-  list(APPEND ADDITIONAL_CLEAN_FILES "${MAUD_DIR}/doc")
-  set(ADDITIONAL_CLEAN_FILES "${ADDITIONAL_CLEAN_FILES}" PARENT_SCOPE)
-
-  file(
-    WRITE "${MAUD_DIR}/doc/build.cmake"
-    "
-    include(\"${MAUD_DIR}/configure_cache_variables.cmake\")
-    include(\"${_MAUD_SELF_DIR}/Maud.cmake\")
-    _maud_doc()
-    "
-  )
-endfunction()
-
-
-function(_maud_doc)
-  # TODO only extract conf.py if a source is newer
-  file(REMOVE_RECURSE "${MAUD_DIR}/doc/sources")
-
   glob(
     rst
+    CONFIGURE_DEPENDS
     "\\.rst$"
     "!(^|/)[A-Z_0-9]+\\.rst$"
     "!${MAUD_IGNORED_SOURCE_REGEX}"
@@ -917,41 +885,68 @@ function(_maud_doc)
   if(NOT rst)
     return()
   endif()
+
+  set(doc "${MAUD_DIR}/doc")
+
+  file(REMOVE_RECURSE "${doc}")
+  file(MAKE_DIRECTORY "${doc}/stage")
+  file(CREATE_LINK "${CMAKE_SOURCE_DIR}" "${doc}/CMAKE_SOURCE_DIR" SYMBOLIC)
+
+  set(all_staged)
+  set(all_built)
   foreach(file ${rst})
-    set(link "${file}")
-    _maud_relative_path(link is_gen)
-    cmake_path(ABSOLUTE_PATH link BASE_DIRECTORY "${MAUD_DIR}/doc/sources")
-    cmake_path(GET link PARENT_PATH dir)
-    file(MAKE_DIRECTORY "${dir}")
-    file(COPY_FILE "${file}" "${link}")
+    _maud_relative_path("${file}" staged is_gen)
+    cmake_path(GET staged STEM LAST_ONLY stem)
+    if(stem STREQUAL "index")
+      cmake_path(GET staged PARENT_PATH html)
+    else()
+      cmake_path(REMOVE_EXTENSION staged LAST_ONLY OUTPUT_VARIABLE html)
+    endif()
+
+    cmake_path(ABSOLUTE_PATH staged BASE_DIRECTORY "${doc}/stage")
+    cmake_path(GET staged PARENT_PATH dir)
+
+    add_custom_command(
+      OUTPUT "${staged}"
+      DEPENDS "${file}"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${dir}"
+      COMMAND "${CMAKE_COMMAND}" -E copy "${file}" "${staged}"
+      COMMENT "Staging ${file} $<$<BOOL:${is_gen}>:(generated)> to ${staged}"
+    )
+    list(APPEND all_staged "${staged}")
+
+    add_custom_command(
+      OUTPUT "${doc}/dirhtml/${html}/index.html"
+      DEPENDS "${staged}" "${doc}/stage/conf.py"
+      WORKING_DIRECTORY "${doc}"
+      COMMAND "${SPHINX_BUILD}" --builder dirhtml
+        stage
+        dirhtml
+        "${staged}"
+        > build.log
+      COMMENT "Building ${doc}/dirhtml/${html}/index.html"
+    )
+    list(APPEND all_built "${doc}/dirhtml/${html}/index.html")
   endforeach()
 
-  # extract inline conf.py using dummy builder
-  file(COPY_FILE "${_MAUD_SELF_DIR}/sphinx_conf.py" "${MAUD_DIR}/doc/sources/conf.py")
-  execute_process(
-    COMMAND
-      "${SPHINX_BUILD}" --builder dummy
-      "${MAUD_DIR}/doc/sources"
-      "${MAUD_DIR}/doc/inline_configuration"
-    OUTPUT_FILE "${MAUD_DIR}/doc/inline_configuration.log"
-    COMMAND_ERROR_IS_FATAL ANY
-  )
-  file(
-    APPEND "${MAUD_DIR}/doc/sources/conf.py"
-    "\nInlineConfigurationDirective.finished = True\n"
-  )
-
-  # build dirhtml
-  execute_process(
-    COMMAND
-      "${SPHINX_BUILD}" --builder dirhtml
-      "${MAUD_DIR}/doc/sources"
-      "${MAUD_DIR}/doc/dirhtml"
-    OUTPUT_FILE "${MAUD_DIR}/doc/build.log"
-    COMMAND_ERROR_IS_FATAL ANY
+  add_custom_command(
+    OUTPUT "${MAUD_DIR}/doc/stage/conf.py"
+    DEPENDS "${_MAUD_SELF_DIR}/sphinx_conf.py" ${all_staged}
+    WORKING_DIRECTORY "${doc}"
+    COMMAND "${CMAKE_COMMAND}" -E copy
+      "${_MAUD_SELF_DIR}/sphinx_conf.py"
+      stage/conf.py
+    COMMAND "${SPHINX_BUILD}" --builder dummy
+      stage
+      inline_configuration_build
+      > inline_configuration.log
+    COMMAND "${CMAKE_COMMAND}" -E echo
+      "InlineConfigurationDirective.finished=True"
+      >> stage/conf.py
+    COMMENT "Extracting inline configuration"
   )
 
-  file(WRITE "${MAUD_DIR}/doc/BUILT" "")
+  add_custom_target(documentation ALL DEPENDS ${all_built})
 endfunction()
 
 

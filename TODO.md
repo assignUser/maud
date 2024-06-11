@@ -18,6 +18,7 @@ NEXT
     ```
 - rewrite `option()` so that it doesn't assume top level scope
 - strip base dirs from docs
+- yaml conversion traits
 - harden and test the scanner
   - support this when preprocessing isn't required
 
@@ -35,6 +36,14 @@ We have two methods built-in:
   the optional dependencies guarded by CPP conditions
 - write that unit as a `.in2` template and guard optional
   imports with cmake conditions
+
+TODO: better build dir exclusion
+--------------------------------
+
+Instead of having a single regex for build directories and
+assuming users will name directories to match, it'd be better
+to search for CMakeFiles and thereby identify build dirs for
+explicit exclusion.
 
 TODO: stages
 ------------
@@ -88,6 +97,19 @@ even without using modules. The module block could be written using
 a custom attribute for example, or a directory naming convention
 could be adoted, or you could write the module block verbatim inside
 an `#if false`- maud_scan would read it even if nothing else did.
+
+TODO: omni globbing
+-------------------
+
+Basically we can expect that *any* change of source tree structure
+will probably provoke reconfiguration. If there's something you
+explicitly ignore like build directories that's one thing...
+This suggests a potentially simpler and more efficient approach:
+decouple filesystem access and pattern matching. We could assemble
+a single listing of the source tree (modulo build dir and other
+top level exclusions) and store this. Then any change to that
+listing triggers reconfiguration. Separately, to match more
+specific patterns the list can just be loaded then filtered.
 
 TODO: benchmark globbing
 ------------------------

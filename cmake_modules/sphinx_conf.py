@@ -1,7 +1,9 @@
 import sphinx.util.docutils
 import pygments.lexers.c_cpp
 import sphinx.highlighting
-extensions = []
+extensions = [
+    #'breathe',
+]
 templates_path = []
 exclude_patterns = ['Thumbs.db', '.DS_Store']
 html_static_path = []

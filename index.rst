@@ -142,10 +142,9 @@ Module partitions are a useful way to compartmentalize a module interface:
   // All exports from foo:bar and foo:quux are now exported from
   // this, the primary module interface unit for foo.
 
-The primary module interface unit is required to ``export import``
-every partition which is a module interface unit `CXX(20:module.unit#3)
-<https://timsong-cpp.github.io/cppwp/n4868/module.unit#3>`_, and if you have
-written partitions then you probably don't have anything in the primary
+The primary module interface unit is required to ``export import`` every
+partition which is a module interface unit :cxx20:`module.unit#3`, and if
+you have written partitions then you probably don't have anything in the primary
 module interface unit except those ``export import`` declarations. This feels
 boilerplate-y, so if no primary module interface unit is detected then one will
 be generated containing just those ``export import`` declarations.
@@ -154,7 +153,7 @@ Questionable support:
 ~~~~~~~~~~~~~~~~~~~~~
 
 - Translation units other than module interface units are not necessarily reachable:
-  `CXX(20:module.reach#1) <https://timsong-cpp.github.io/cppwp/n4861/module.reach#1>`_
+  :cxx20:`module.reach#1`
   Importing translation units other than necessarily reachable ones is implementation
   defined. For example this includes importing a partition which is not an interface
   unit.
@@ -165,7 +164,8 @@ Questionable support:
 Options
 -------
 
-Maud overloads the built-in ``option()`` function (backwards-compatibly) to provide
+Maud backwards-compatibly overloads the built-in
+:cmake:`option <command/option.html>` function to provide
 support for more sophisticated configuration options. For example:
 
 .. code-block:: cmake
@@ -283,9 +283,7 @@ preprocessor to affect module and import declarations. For example:
 
 (I'm actually not sure that the last two are even legal since a global
 module fragment should exclusively contain preprocessing directives
-`CXX(20:module.global.frag#1)
-<https://timsong-cpp.github.io/cppwp/n4868/module.global.frag#1>`_,
-however clang allows both.)
+:cxx20:`module.global.frag#1`, however clang allows both.)
 
 IMHO, it is not desirable to write interface blocks which depend on preprocessing.
 Moreover C++26 will restrict usage of the preprocessor severely in module declarations
@@ -399,34 +397,6 @@ A number of C++ programs are provided:
 
 - template compiler
 
-.. configuration::
-  project = 'Maud'
-  author = 'Benjamin Kietzman <bengilgit@gmail.com>'
-
-  html_title = u'Maud'
-  html_theme = 'furo'
-  html_theme_options = {
-    'top_of_page_buttons': ['view', 'edit'],
-    'footer_icons': [
-      {
-        'name': 'GitHub',
-        'url': 'https://github.com/bkietz/maud',
-        'html': '''
-          <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 16 16">
-            <path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path>
-          </svg>
-        ''',
-        'class': '',
-      },
-    ],
-  }
-  html_context = {
-    'github_user': 'bkietz',
-    'github_repo': 'maud',
-    'github_version': 'trunk',
-    'doc_path': '',
-  }
-
 Table of Contents
 -----------------
 
@@ -434,4 +404,46 @@ Table of Contents
   :glob:
 
   *
+
+.. configuration::
+  project = 'Maud'
+  author = 'Benjamin Kietzman <bengilgit@gmail.com>'
+
+  html_title = u'Maud'
+  html_theme = 'furo'
+  html_theme_options = {
+      'footer_icons': [
+          {
+              'name': 'GitHub',
+              'url': 'https://github.com/bkietz/maud',
+              'html': '''
+                <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 16 16">
+                  <path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path>
+                </svg>
+              ''',
+              'class': '',
+          },
+      ],
+      'top_of_page_buttons': ['view', 'edit'],
+  }
+  html_context = {
+      'github_user': 'bkietz',
+      'github_repo': 'maud',
+      'github_version': 'trunk',
+      'doc_path': '',
+  }
+
+  extensions += ['sphinx.ext.autosectionlabel']
+  autosectionlabel_maxdepth = 2
+  autosectionlabel_prefix_document = True
+
+  extensions += ['sphinx.ext.duration']
+
+  extensions += ['sphinx.ext.extlinks']
+  extlinks_detect_hardcoded_links = True
+  extlinks = {
+      'cxx20': ('https://timsong-cpp.github.io/cppwp/n4868/%s', 'CXX(20:%s)'),
+      # TODO this should be intersphinx instead
+      'cmake': ('https://cmake.org/cmake/help/latest/%s', None),
+  }
 
