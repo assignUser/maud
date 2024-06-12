@@ -45,7 +45,6 @@ function(_maud_glob out_var root_dir)
 
     file(
       GLOB_RECURSE all_files
-      #FOLLOW_SYMLINKS # TODO handle excluded symlink cycles 
       LIST_DIRECTORIES true
       # Filters are applied to *relative* paths; otherwise directory
       # names above root_dir might spuriously include/exclude.
@@ -99,6 +98,8 @@ endfunction()
 
 block(PROPAGATE _MAUD_BASE_DIRS)
   # TODO move this into _maud_setup
+  # TODO hard code a global exclusion pattern and juat assert that CMAKE_BINARY_DIR matches
+
   # Assert that globbing will exclude the build directory
   _maud_glob(all_files "${CMAKE_SOURCE_DIR}" "!${MAUD_IGNORED_SOURCE_REGEX}")
   foreach(file ${all_files})
@@ -627,6 +628,11 @@ function(_maud_finalize_targets)
         list(TRANSFORM src PREPEND "\nexport import :")
         list(PREPEND src "export module ${target}")
         file(WRITE "${MAUD_DIR}/injected/${target}.cxx" "${src};\n")
+        set_source_files_properties(
+          "${MAUD_DIR}/injected/${target}.cxx"
+          PROPERTIES
+          MAUD_TYPE INTERFACE
+        )
         set(source_access PUBLIC)
         message(VERBOSE "  No primary interface supplied, injecting ${interface}")
       endif()
@@ -790,6 +796,14 @@ function(_maud_setup)
   endforeach()
   file(WRITE "${MAUD_DIR}/configure_cache_variables.cmake" "${vars}")
 
+  # TODO we only need *one* saved cmake: defer.cmake
+  # - stores configure cache vars
+  # - includes Maud
+  # - cmake_language(EVAL CODE "${MAUD_DEFER}")
+  # So for example instead of maybe_regenerate.cmake just inject
+  #   set(MAUD_DEFER [[_maud_maybe_regenerate()]])
+  #   include("${CMAKE_CURRENT_LIST_DIR}/../_maud/defer.cmake")
+
   file(WRITE "${MAUD_DIR}/globs" "")
 
   foreach(dir junk;rendered)
@@ -867,6 +881,7 @@ endfunction()
 
 
 function(_maud_setup_doc)
+  # TODO provide a built-in option(SPHINX_BUILDERS)
   find_program(DOXYGEN NAMES doxygen)
   find_program(SPHINX_BUILD NAMES sphinx-build)
 
@@ -890,7 +905,7 @@ function(_maud_setup_doc)
 
   file(REMOVE_RECURSE "${doc}")
   file(MAKE_DIRECTORY "${doc}/stage")
-  file(CREATE_LINK "${CMAKE_SOURCE_DIR}" "${doc}/CMAKE_SOURCE_DIR" SYMBOLIC)
+  file(CREATE_LINK "${CMAKE_SOURCE_DIR}" "${doc}/stage/CMAKE_SOURCE_DIR" SYMBOLIC)
 
   set(all_staged)
   set(all_built)
@@ -906,6 +921,7 @@ function(_maud_setup_doc)
     cmake_path(ABSOLUTE_PATH staged BASE_DIRECTORY "${doc}/stage")
     cmake_path(GET staged PARENT_PATH dir)
 
+    # TODO just stage during configuration
     add_custom_command(
       OUTPUT "${staged}"
       DEPENDS "${file}"
@@ -929,6 +945,8 @@ function(_maud_setup_doc)
     list(APPEND all_built "${doc}/dirhtml/${html}/index.html")
   endforeach()
 
+  # Rewrite this into a -P utility/deferred function; it's easy to *just* get
+  # the configuration directives and sphinx could error spuriously
   add_custom_command(
     OUTPUT "${MAUD_DIR}/doc/stage/conf.py"
     DEPENDS "${_MAUD_SELF_DIR}/sphinx_conf.py" ${all_staged}

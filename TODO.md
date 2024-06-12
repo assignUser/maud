@@ -1,6 +1,10 @@
 NEXT
 ----
 
+- defer.cmake
+- yaml conversion traits
+- omniglob
+- write doc
 - more test projects
   - use a maud based project with fetchcontent
   - verify maud works while using c++23
@@ -18,7 +22,6 @@ NEXT
     ```
 - rewrite `option()` so that it doesn't assume top level scope
 - strip base dirs from docs
-- yaml conversion traits
 - harden and test the scanner
   - support this when preprocessing isn't required
 
@@ -37,13 +40,13 @@ We have two methods built-in:
 - write that unit as a `.in2` template and guard optional
   imports with cmake conditions
 
-TODO: better build dir exclusion
---------------------------------
-
-Instead of having a single regex for build directories and
-assuming users will name directories to match, it'd be better
-to search for CMakeFiles and thereby identify build dirs for
-explicit exclusion.
+One thing which is potentially brittle is a dependency which
+is only imported for debugging; in the case of a multi config
+generator we cannot know which config is selected at build time.
+I guess we just have to assume that if any configuration would
+import a dependency then it must be available for linking to any
+configuration. In the example above, the import will still be
+linked in release but not used.
 
 TODO: stages
 ------------
