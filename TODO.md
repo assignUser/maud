@@ -2,7 +2,6 @@ NEXT
 ----
 
 - defer.cmake
-- yaml conversion traits
 - omniglob
 - write doc
 - more test projects
@@ -126,6 +125,58 @@ Even if globbing is found to be slow, that's not necessarily the end
 of it: we can cache and partition results so that it's faster to check.
 
 Also, present both sides of the globbing argument.
+
+TODO: conversion traits
+-----------------------
+
+The current yaml solution is fine for simple test cases, but for
+less ad hoc situations it'd be neat to have easy conversion traits
+available:
+
+```c++
+struct Case {
+  Scalar name, in2, expected_compiled, rendered, render_error;
+  std::vector<Scalar> definitions;
+};
+template <>
+constexpr auto Fields<Case> = [](auto &c, auto field) {
+  return field(KEY, c.name)                      //
+     and field("template", c.in2)                //
+     and field("compiled", c.expected_compiled)  //
+     and field("rendered", c.rendered)           //
+     and field("render error", c.render_error)   //
+     and field("definitions", c.definitions);
+};
+auto CASES = read_as<std::vector<Case>>(DIR / "in2.test.yaml");
+auto const TEST_DIR = std::filesystem::path{BUILD_DIR} / "_maud/in2_tests";
+//
+TEST_(compilation, CASES) {
+  auto [name, in2, expected_compiled, _ren, _err, _def] = parameter;
+  EXPECT_(compile_in2(std::string(in2)) >>= HasSubstr(expected_compiled));
+  write(TEST_DIR / name + ".e.in2.cmake"s) << expected_compiled;
+}
+//
+struct Command {
+  Scalar write, command, expect, working_directory, content;
+};
+template <>
+constexpr auto Fields<Command> = [](auto &c, auto field) {
+  return field("write", c.write)                          //
+     and field("command", c.command)                      //
+     and field("expect", c.expect)                        //
+     and field("working_directory", c.working_directory)  //
+     and field("content", c.content);
+};
+struct Case {
+  Scalar name;
+  std::vector<Command> commands;
+};
+template <>
+constexpr auto Fields<Case> = [](auto &c, auto field) {
+  return field(KEY, c.name) and field(VALUE, c.commands);
+};
+auto CASES = read_as<std::vector<Case>>(DIR / "in2.test.yaml");
+```
 
 TODO: consolidate tests
 -----------------------

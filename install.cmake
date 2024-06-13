@@ -30,13 +30,7 @@ install(
 )
 
 install(
-  PROGRAMS "${MAUD_DIR}/cli/maud"
-  DESTINATION "${CMAKE_INSTALL_BINDIR}"
-  OPTIONAL
-)
-
-install(
-  FILES "${MAUD_DIR}/cli/maud.bat"
+  PROGRAMS "${MAUD_DIR}/cli/maud" "${MAUD_DIR}/cli/maud.bat"
   DESTINATION "${CMAKE_INSTALL_BINDIR}"
   OPTIONAL
 )
