@@ -14,7 +14,7 @@ install(
   "${dir}/cmake_modules/_test_.cxx"
   "${dir}/cmake_modules/_test_.hxx"
   "${dir}/cmake_modules/_test_main_.cxx"
-  "${dir}/cmake_modules/inline_cconf.py"
+  "${dir}/cmake_modules/sphinx_conf.py"
   DESTINATION
   "${CMAKE_INSTALL_LIBDIR}/cmake/Maud"
 )

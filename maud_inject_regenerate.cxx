@@ -13,11 +13,12 @@ namespace fs = std::filesystem;
 using std::operator""s;
 using std::operator""ms;
 
-constexpr std::string_view PATCH = R"(
+constexpr std::string_view PATCH = R"cmake(
   #### INJECTED BY MAUD ####
-  include("${CMAKE_CURRENT_LIST_DIR}/../_maud/maybe_regenerate.cmake")
+  set(MAUD_CODE "_maud_maybe_regenerate()")
+  include("${CMAKE_CURRENT_LIST_DIR}/../_maud/eval.cmake")
   #### INJECTED BY MAUD ####
-)";
+)cmake";
 
 fs::path build;
 

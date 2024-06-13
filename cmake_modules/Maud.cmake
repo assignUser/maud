@@ -258,9 +258,11 @@ function(_maud_setup_clang_format)
     set(CMAKE_CONFIGURE_DEPENDS "${CMAKE_CONFIGURE_DEPENDS}" PARENT_SCOPE)
   endif()
 
+  # TODO patterns should be an array instead
   if(config MATCHES [[# Maud: ([{].*[}])]])
-    string(JSON version GET "${CMAKE_MATCH_1}" version)
-    string(JSON patterns GET "${CMAKE_MATCH_1}" patterns)
+    string(REGEX REPLACE " *\n *# *" " " json "${CMAKE_MATCH_1}")
+    string(JSON version GET "${json}" version)
+    string(JSON patterns GET "${json}" patterns)
   else()
     message(
       VERBOSE
@@ -295,10 +297,12 @@ function(_maud_setup_clang_format)
       NAME check.clang-formatted
       COMMAND "${CLANG_FORMAT_COMMAND}"
         --dry-run -Werror "--files=${MAUD_DIR}/formatted_files.list"
+      WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
     )
     add_custom_target(
       fix.clang-format
       COMMAND "${CLANG_FORMAT_COMMAND}" -i "--files=${MAUD_DIR}/formatted_files.list"
+      WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
     )
   else()
     message(VERBOSE "Could not find clang-format program with version ${version}")
@@ -733,15 +737,6 @@ endfunction()
 
 
 function(_maud_setup_regenerate)
-  file(
-    WRITE "${MAUD_DIR}/maybe_regenerate.cmake"
-    "
-    include(\"${MAUD_DIR}/configure_cache_variables.cmake\")
-    include(\"${_MAUD_SELF_DIR}/Maud.cmake\")
-    _maud_maybe_regenerate()
-    "
-  )
-
   if("${_MAUD_INJECT_REGENERATE}" STREQUAL "")
     find_program(_MAUD_INJECT_REGENERATE maud_inject_regenerate REQUIRED)
   endif()
@@ -791,18 +786,18 @@ function(_maud_setup)
     CMAKE_BINARY_DIR
     CMAKE_MODULE_PATH
     CMAKE_MESSAGE_LOG_LEVEL
+    MAUD_IGNORED_SOURCE_REGEX
   )
     string(APPEND vars "set(${var} \"${${var}}\")\n")
   endforeach()
-  file(WRITE "${MAUD_DIR}/configure_cache_variables.cmake" "${vars}")
-
-  # TODO we only need *one* saved cmake: defer.cmake
-  # - stores configure cache vars
-  # - includes Maud
-  # - cmake_language(EVAL CODE "${MAUD_DEFER}")
-  # So for example instead of maybe_regenerate.cmake just inject
-  #   set(MAUD_DEFER [[_maud_maybe_regenerate()]])
-  #   include("${CMAKE_CURRENT_LIST_DIR}/../_maud/defer.cmake")
+  file(
+    WRITE "${MAUD_DIR}/eval.cmake"
+    "
+    ${vars}
+    include(\"${_MAUD_SELF_DIR}/Maud.cmake\")
+    "
+    [[cmake_language(EVAL CODE "${MAUD_CODE}")]]
+  )
 
   file(WRITE "${MAUD_DIR}/globs" "")
 
@@ -906,6 +901,7 @@ function(_maud_setup_doc)
   file(REMOVE_RECURSE "${doc}")
   file(MAKE_DIRECTORY "${doc}/stage")
   file(CREATE_LINK "${CMAKE_SOURCE_DIR}" "${doc}/stage/CMAKE_SOURCE_DIR" SYMBOLIC)
+  file(WRITE "${doc}/sources.list" "${rst}")
 
   set(all_staged)
   set(all_built)
@@ -948,23 +944,56 @@ function(_maud_setup_doc)
   # Rewrite this into a -P utility/deferred function; it's easy to *just* get
   # the configuration directives and sphinx could error spuriously
   add_custom_command(
-    OUTPUT "${MAUD_DIR}/doc/stage/conf.py"
+    OUTPUT "${doc}/stage/conf.py"
     DEPENDS "${_MAUD_SELF_DIR}/sphinx_conf.py" ${all_staged}
-    WORKING_DIRECTORY "${doc}"
-    COMMAND "${CMAKE_COMMAND}" -E copy
-      "${_MAUD_SELF_DIR}/sphinx_conf.py"
-      stage/conf.py
-    COMMAND "${SPHINX_BUILD}" --builder dummy
-      stage
-      inline_configuration_build
-      > inline_configuration.log
-    COMMAND "${CMAKE_COMMAND}" -E echo
-      "InlineConfigurationDirective.finished=True"
-      >> stage/conf.py
+    WORKING_DIRECTORY "${MAUD_DIR}"
+    COMMAND "${CMAKE_COMMAND}" [[-DMAUD_CODE="_maud_sphinx_conf()"]] -P eval.cmake
     COMMENT "Extracting inline configuration"
   )
 
   add_custom_target(documentation ALL DEPENDS ${all_built})
+endfunction()
+
+
+function(_maud_line_count string out_var)
+  string(REGEX REPLACE "[^\n]*\n" "\n" count "${string}")
+  string(LENGTH "${count}" count)
+  set(${out_var} ${count} PARENT_SCOPE)
+endfunction()
+
+
+function(_maud_sphinx_conf)
+  set(doc "${MAUD_DIR}/doc")
+  file(READ "${doc}/sources.list" rst)
+  set(conf "")
+  foreach(file ${rst})
+    file(READ "${file}" content)
+    string(CONCAT pattern "^(.*\n)" [[\.\. configuration::]] "\n+( +)(.*)$")
+    while(content MATCHES "${pattern}")
+      set(content "${CMAKE_MATCH_1}")
+      set(indent "${CMAKE_MATCH_2}")
+      set(directive "${CMAKE_MATCH_3}")
+
+      if(directive MATCHES "^(.*)\n([^ \n].*)$")
+        set(directive "${CMAKE_MATCH_1}")
+      endif()
+      string(REGEX REPLACE "\n${indent}" "\n" directive "${directive}")
+
+      set(line_num 1)
+      _maud_line_count("${content}" line_inc)
+      math_assign(line_num + ${line_inc})
+      string(PREPEND directive "# BEGIN ${file}:${line_num}\n")
+
+      _maud_line_count("${directive}" line_inc)
+      math_assign(line_num + ${line_inc})
+      string(APPEND directive "# END ${file}:${line_num}\n")
+
+      string(PREPEND conf "${directive}\n")
+    endwhile()
+  endforeach()
+
+  file(COPY_FILE "${_MAUD_SELF_DIR}/sphinx_conf.py" "${doc}/stage/conf.py")
+  file(APPEND "${doc}/stage/conf.py" "${conf}")
 endfunction()
 
 

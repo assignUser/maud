@@ -1,8 +1,8 @@
 NEXT
 ----
 
-- defer.cmake
 - omniglob
+- cmake-format
 - write doc
 - more test projects
   - use a maud based project with fetchcontent

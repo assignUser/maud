@@ -86,6 +86,7 @@ unit testing main:
 - write: allow_preprocessing_scan.cmake
   contents: |
     #add_executable(test_.foo) # FIXME this isn't working as in use_find_package
+    find_package(GTest)
     get_target_property(i GTest::gtest INTERFACE_INCLUDE_DIRECTORIES)
     include_directories(${i})
 - maud --log-level=VERBOSE
