@@ -59,11 +59,14 @@ export template <typename S>
 struct Registrar {
   using SuiteState = std::conditional_t<Complete<S>, S, int>;
 
-  static SuiteState *const suite_state;
+  static SuiteState *const suite_state() {
+    alignas(SuiteState) static char storage[sizeof(SuiteState)];
+    return std::launder(reinterpret_cast<SuiteState *>(&storage));
+  }
 
   struct Fixture : testing::Test {
-    static void SetUpTestSuite() { new (suite_state) SuiteState{}; }
-    static void TearDownTestSuite() { suite_state->~SuiteState(); }
+    static void SetUpTestSuite() { new (suite_state()) SuiteState{}; }
+    static void TearDownTestSuite() { suite_state()->~SuiteState(); }
 
     Body *_body;
     void const *_parameter;
@@ -148,12 +151,6 @@ struct Registrar {
         std::any_cast<decltype(tuple) const &>(parameters.back()));
   }
 };
-
-template <typename S>
-typename Registrar<S>::SuiteState *const Registrar<S>::suite_state = [] {
-  alignas(SuiteState) static char storage[sizeof(SuiteState)];
-  return std::launder(reinterpret_cast<SuiteState *>(&storage));
-}();
 
 namespace expect_helper {
 

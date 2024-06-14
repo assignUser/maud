@@ -35,7 +35,7 @@ unit testing:
       int *ptr = &three;
       if (not EXPECT_(ptr != nullptr)) return;
       EXPECT_(*ptr == three);
-      EXPECT_(suite_state->yo == "yo");
+      EXPECT_(suite_state()->yo == "yo");
       EXPECT_("hello world" >>= HasSubstr("llo"));
     }
     TEST_(custom_matcher) {

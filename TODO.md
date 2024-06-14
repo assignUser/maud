@@ -531,3 +531,93 @@ int main() {
 
 Now what do you do for windows? https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/start
 `start /b` will run it in the background, I wonder if that'll be enough
+
+
+TODO: maybe import special modules instead?
+-------------------------------------------
+
+it would be a bit simpler to explain that we import special modules
+instead of implementing them. This would also mean an executable
+is only a translation unit which Imports instead of an
+implementation unit; such sources don't otherwise have much of a
+role and it might be better to define that than leave them orphaned
+especially in the C++ 17 use case
+
+```diff
+diff --git a/cmake_modules/Maud.cmake b/cmake_modules/Maud.cmake
+index 140b5e3..4c101ae 100644
+--- a/cmake_modules/Maud.cmake
++++ b/cmake_modules/Maud.cmake
+@@ -382,33 +382,17 @@ function(_maud_scan source_file)
+     set(is-interface OFF)
+   endif()
+ 
+-  if(module STREQUAL "")
+-    # No associated module was detected, but this is sometimes due to using a
+-    # scanner which doesn't report implementation units with _maud_module-name.
+-    # If it happens to be one of the special modules, then it'll be reported in
+-    # imports and we can avoid orphaning this source.
+-    if("executable" IN_LIST imports)
+-      list(REMOVE_ITEM imports "executable")
+-      set(module "executable")
+-      set(type IMPLEMENTATION)
+-    elseif("test_" IN_LIST imports)
+-      list(REMOVE_ITEM imports "test_")
+-      set(module "test_")
+-      set(type IMPLEMENTATION)
+-    else()
+-      # If we have no module name then we can't associate this source with a target
+-      message(VERBOSE "  ORPHANED, imports ${imports}")
+-      return()
+-    endif()
+-  endif()
+-
+-  message(VERBOSE "  module ${type} ${module}:${partition}")
+-  message(VERBOSE "  imports ${imports}")
+-
+-  if(module STREQUAL "executable")
++  if("executable" IN_LIST imports)
++    list(REMOVE_ITEM imports "executable")
++    set(module "executable")
++    set(type TRANSLATION)
+     cmake_path(GET source_file STEM target_name)
+     set(source_access PRIVATE)
+-  elseif(module STREQUAL "test_")
++    message(VERBOSE "  executable")
++  elseif("test_" IN_LIST imports)
++    list(REMOVE_ITEM imports "test_")
++    set(module "test_")
++    set(type TRANSLATION)
+     if(COMMAND "maud_add_test")
+       maud_add_test("${source_file}" "${partition}" target_name)
+     else()
+@@ -420,11 +404,19 @@ function(_maud_scan source_file)
+       return()
+     endif()
+     set(source_access PRIVATE)
++    message(VERBOSE "  test")
++  elseif(module STREQUAL "")
++    # If we have no module name then we can't associate this source with a target
++    message(VERBOSE "  ORPHANED, imports ${imports}")
++    return()
+   else()
+     set(target_name ${module})
+     set(source_access PUBLIC)
++    message(VERBOSE "  module ${type} ${module}:${partition}")
+   endif()
+ 
++  message(VERBOSE "  imports ${imports}")
++
+   if(NOT TARGET ${target_name})
+     if(module STREQUAL "executable")
+       add_executable(${target_name})
+@@ -449,7 +441,7 @@ function(_maud_scan source_file)
+   )
+ 
+   # attach sources
+-  if(type STREQUAL "IMPLEMENTATION")
++  if(type STREQUAL "IMPLEMENTATION" OR type STREQUAL "TRANSLATION")
+     target_sources(${target_name} PRIVATE "${source_file}")
+   else()
+     target_sources(
+```
