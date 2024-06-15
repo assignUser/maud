@@ -787,6 +787,7 @@ function(_maud_setup)
     CMAKE_MODULE_PATH
     CMAKE_MESSAGE_LOG_LEVEL
     MAUD_IGNORED_SOURCE_REGEX
+    PROJECT_NAME
   )
     string(APPEND vars "set(${var} \"${${var}}\")\n")
   endforeach()
@@ -913,15 +914,11 @@ function(_maud_setup_doc)
     else()
       cmake_path(REMOVE_EXTENSION staged LAST_ONLY OUTPUT_VARIABLE html)
     endif()
-
     cmake_path(ABSOLUTE_PATH staged BASE_DIRECTORY "${doc}/stage")
-    cmake_path(GET staged PARENT_PATH dir)
 
-    # TODO just stage during configuration
     add_custom_command(
       OUTPUT "${staged}"
       DEPENDS "${file}"
-      COMMAND "${CMAKE_COMMAND}" -E make_directory "${dir}"
       COMMAND "${CMAKE_COMMAND}" -E copy "${file}" "${staged}"
       COMMENT "Staging ${file} $<$<BOOL:${is_gen}>:(generated)> to ${staged}"
     )
@@ -941,17 +938,29 @@ function(_maud_setup_doc)
     list(APPEND all_built "${doc}/dirhtml/${html}/index.html")
   endforeach()
 
-  # Rewrite this into a -P utility/deferred function; it's easy to *just* get
-  # the configuration directives and sphinx could error spuriously
+  file(STRINGS "${MAUD_DIR}/source_files.list" source_files)
+  add_custom_command(
+    OUTPUT "${doc}/stage/Doxyfile"
+    DEPENDS "${_MAUD_SELF_DIR}/Doxyfile" ${source_files}
+    WORKING_DIRECTORY "${doc}"
+    COMMAND "${CMAKE_COMMAND}"
+      [[-DMAUD_CODE="_maud_doxygen()"]]
+      "-DDOXYGEN=\"${DOXYGEN}\""
+      -P "${MAUD_DIR}/eval.cmake"
+    COMMENT "Running Doxygen to extract apidoc"
+  )
+
   add_custom_command(
     OUTPUT "${doc}/stage/conf.py"
     DEPENDS "${_MAUD_SELF_DIR}/sphinx_conf.py" ${all_staged}
     WORKING_DIRECTORY "${MAUD_DIR}"
-    COMMAND "${CMAKE_COMMAND}" [[-DMAUD_CODE="_maud_sphinx_conf()"]] -P eval.cmake
+    COMMAND "${CMAKE_COMMAND}"
+      [[-DMAUD_CODE="_maud_sphinx_conf()"]]
+      -P "${MAUD_DIR}/eval.cmake"
     COMMENT "Extracting inline configuration"
   )
 
-  add_custom_target(documentation ALL DEPENDS ${all_built})
+  add_custom_target(documentation ALL DEPENDS ${all_built} "${doc}/stage/Doxyfile")
 endfunction()
 
 
@@ -992,8 +1001,29 @@ function(_maud_sphinx_conf)
     endwhile()
   endforeach()
 
-  file(COPY_FILE "${_MAUD_SELF_DIR}/sphinx_conf.py" "${doc}/stage/conf.py")
-  file(APPEND "${doc}/stage/conf.py" "${conf}")
+  file(READ "${_MAUD_SELF_DIR}/sphinx_conf.py" conf_prelude)
+  file(
+    APPEND "${doc}/stage/conf.py"
+    "project = \"${PROJECT_NAME}\"\n"
+    "${conf_prelude}\n"
+    "${conf}\n"
+  )
+endfunction()
+
+
+function(_maud_doxygen)
+  set(doc "${MAUD_DIR}/doc")
+  file(STRINGS "${MAUD_DIR}/source_files.list" source_files)
+  list(JOIN source_files " \\\n" inputs)
+  file(COPY_FILE "${_MAUD_SELF_DIR}/Doxyfile" "${doc}/stage/Doxyfile")
+  file(APPEND "${doc}/stage/Doxyfile" "\nINPUT=${inputs}\n\n")
+
+  execute_process(
+    COMMAND "${DOXYGEN}" "${doc}/stage/Doxyfile"
+    OUTPUT_FILE "${doc}/doxygen.log"
+    ERROR_FILE "${doc}/doxygen.log"
+    COMMAND_ERROR_IS_FATAL ANY
+  )
 endfunction()
 
 

@@ -420,3 +420,24 @@ validate string option with explicit code block:
     )
     resolve_options()
 - failing command: maud --log-level=VERBOSE -DNONZERO=0
+
+
+documentation:
+- write: index.rst
+  contents: |
+    .. doxygenstruct:: Foo
+      :members:
+- write: s.cxx
+  contents: |
+    export module foo;
+
+    /// a simple foobar struct
+    struct Foo {
+      /// metasyntactic variable
+      int bar;
+
+      /// metasyntactic variable
+      int baz;
+    };
+- maud --log-level=VERBOSE
+# TODO abolish exist etc; just provide an inline cmake command for asserting whatever

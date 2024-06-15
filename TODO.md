@@ -2,7 +2,6 @@ NEXT
 ----
 
 - omniglob
-- cmake-format
 - write doc
 - more test projects
   - use a maud based project with fetchcontent
@@ -60,7 +59,7 @@ The maud sequence is:
 - targets
 - docs
 ... but what if we need to insert something somewhere other than
-`cmake_modules`? For example: cpp2.in2 - the cpp2 glob is run in 
+`cmake_modules`? For example: cpp2.in2 - the cpp2 glob is run in
 `cmake_modules`, before in2 renders, so rendered cpp2 are not scanned.
 
 One solution is to make the stages explicitly configurable:
@@ -112,6 +111,52 @@ a single listing of the source tree (modulo build dir and other
 top level exclusions) and store this. Then any change to that
 listing triggers reconfiguration. Separately, to match more
 specific patterns the list can just be loaded then filtered.
+
+```json
+// Unless we're building a new glob_cache.json or verifying it,
+// we just look up the matching pattern's file set or build a
+// new file subset from the ALL set.
+[
+  {
+    "pattern": ".*;!(^|/)\\.;!build($|/)",
+    "files": "index.rst;yaml.cxx;_util.cxx;include;include/_foo.hxx.in2",
+    "generated files": "include;include/_foo.hxx"
+  },
+
+  {
+    "pattern": "(^|/)cmake_modules$",
+    "files": "",
+    "generated files": ""
+  },
+  {
+    "pattern": "\\.cmake$;!(^|/)cmake_modules/",
+    "files": "",
+    "generated files": ""
+  },
+  {
+    "pattern": "(^|/)include$",
+    "files": "include",
+    "generated files": "include"
+  },
+  {
+    "pattern": "\\.(cxx|mxx|ixx|cpp|cc|c[+][+])m?$",
+    "files": "yaml.cxx;_util.cxx",
+    "generated files": ""
+  },
+    //...
+]
+```
+Order of operations:
+- (setup)
+  - purge glob_cache.json, rendered/
+  - _MAUD_RENDERED_FILES_FINALIZED=FALSE
+  - assemble the list of all files
+  - save to glob_cache.json
+- (cmake_modules) (in2)
+  - search for matches to patterns, appending new file sets when necessary
+- (finalize_rendered)
+  - _MAUD_RENDERED_FILES_FINALIZED=true
+  - globs will now include files from rendered/
 
 TODO: benchmark globbing
 ------------------------
@@ -236,8 +281,8 @@ TODO: options
 
 Render options.rst with all the options summarized.
 
-Ensure that we are always dealing with native paths in 
-options: defaults, values, requirements, etc. The compiled 
+Ensure that we are always dealing with native paths in
+options: defaults, values, requirements, etc. The compiled
 string should also always be of the native character type.
 
 Don't add a definition unless a keyword is passed to `option()`
@@ -357,7 +402,7 @@ https://github.com/llvm/llvm-project/blob/llvmorg-17.0.6/clang/lib/Tooling/Depen
 
 Aha: [`CXX(20:module.unit#3)`](https://timsong-cpp.github.io/cppwp/n4868/module.unit#3)
 "A named module shall not contain multiple module partitions with the same module-partition."
-Therefore even module partition implementation units must be unique, which explains the 
+Therefore even module partition implementation units must be unique, which explains the
 different treatment.
 
 #### What do GCC/MSVC do?
@@ -470,7 +515,7 @@ execute_process(
   # Both of these hang (without both setsid and output redirection):
   #COMMAND ${CMAKE_SOURCE_DIR}/do-bg
   #COMMAND sh ${CMAKE_SOURCE_DIR}/do-bg.sh
-  
+
   OUTPUT_FILE ${MAUD_DIR}/junk
   ERROR_FILE ${MAUD_DIR}/junk
 
@@ -551,7 +596,7 @@ index 140b5e3..4c101ae 100644
 @@ -382,33 +382,17 @@ function(_maud_scan source_file)
      set(is-interface OFF)
    endif()
- 
+
 -  if(module STREQUAL "")
 -    # No associated module was detected, but this is sometimes due to using a
 -    # scanner which doesn't report implementation units with _maud_module-name.
@@ -605,7 +650,7 @@ index 140b5e3..4c101ae 100644
      set(source_access PUBLIC)
 +    message(VERBOSE "  module ${type} ${module}:${partition}")
    endif()
- 
+
 +  message(VERBOSE "  imports ${imports}")
 +
    if(NOT TARGET ${target_name})
@@ -613,7 +658,7 @@ index 140b5e3..4c101ae 100644
        add_executable(${target_name})
 @@ -449,7 +441,7 @@ function(_maud_scan source_file)
    )
- 
+
    # attach sources
 -  if(type STREQUAL "IMPLEMENTATION")
 +  if(type STREQUAL "IMPLEMENTATION" OR type STREQUAL "TRANSLATION")
@@ -621,3 +666,11 @@ index 140b5e3..4c101ae 100644
    else()
      target_sources(
 ```
+
+(not) TODO: cmake-format
+------------------------
+
+it would be nice to use cmake format to get consistent formatting, however:
+
+1. cmake is not too much of a pain to format by hand
+2. it does not support the kind of nested commands which I like to write

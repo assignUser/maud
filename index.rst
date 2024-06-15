@@ -408,7 +408,6 @@ Table of Contents
 .. TODO allow the configuration directive to name a file
 
 .. configuration::
-    project = "Maud"
     author = "Benjamin Kietzman <bengilgit@gmail.com>"
 
     html_title = "Maud"
@@ -448,11 +447,3 @@ Table of Contents
         # TODO this should be intersphinx instead
         "cmake": ("https://cmake.org/cmake/help/latest/%s", None),
     }
-
-    import warnings
-
-    warnings.filterwarnings(
-        "ignore",
-        category=DeprecationWarning,
-        message=".*will drop support for representing paths as strings.*",
-    )

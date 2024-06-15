@@ -15,6 +15,7 @@ install(
   "${dir}/cmake_modules/_test_.hxx"
   "${dir}/cmake_modules/_test_main_.cxx"
   "${dir}/cmake_modules/sphinx_conf.py"
+  "${dir}/cmake_modules/Doxyfile"
   DESTINATION
   "${CMAKE_INSTALL_LIBDIR}/cmake/Maud"
 )
