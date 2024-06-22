@@ -1,5 +1,8 @@
 include_guard()
 
+cmake_policy(PUSH)
+cmake_policy(SET CMP0057 NEW)
+
 set(MAUD_DIR "${CMAKE_BINARY_DIR}/_maud")
 set(_MAUD_SELF_DIR "${CMAKE_CURRENT_LIST_DIR}")
 
@@ -31,32 +34,61 @@ if(NOT MAUD_CXX_SOURCE_EXTENSIONS)
   )
 endif()
 if(NOT MAUD_IGNORED_SOURCE_REGEX)
-  set(MAUD_IGNORED_SOURCE_REGEX [[(/|^)(.*-|)build|(/|^)[._].*]])
+  set(MAUD_IGNORED_SOURCE_REGEX [[build(/|$)|(/|^)\.]])
 endif()
 
 
-function(_maud_glob out_var root_dir)
+function(string_hex_decode out_var)
+  # TODO replace with base64 using rapidyaml's utilities
+  string(REGEX MATCHALL .. hex "" ${ARGN})
+  set(codes)
+  foreach(code ${hex})
+    math(EXPR code 0x${code})
+    list(APPEND codes ${code})
+  endforeach()
+  string(ASCII ${codes} decoded)
+  set(${out_var} "${decoded}" PARENT_SCOPE)
+endfunction()
+
+
+function(_maud_write_lines path)
+  list(TRANSFORM ARGN APPEND "\n")
+  string(CONCAT content ${ARGN})
+  file(WRITE "${path}" "${content}")
+endfunction()
+
+
+function(_maud_filter list)
+  set(all "${${list}}")
   set(matches)
+  if(ARGN MATCHES ^!)
+    set(matches "${all}")
+  endif()
   foreach(pattern ${ARGN})
     if(pattern MATCHES "^!(.*)$")
       list(FILTER matches EXCLUDE REGEX "${CMAKE_MATCH_1}")
       continue()
     endif()
-
-    file(
-      GLOB_RECURSE all_files
-      LIST_DIRECTORIES true
-      # Filters are applied to *relative* paths; otherwise directory
-      # names above root_dir might spuriously include/exclude.
-      RELATIVE "${root_dir}"
-      "${root_dir}/*"
-    )
-    list(FILTER all_files INCLUDE REGEX "${pattern}")
-    list(APPEND matches ${all_files})
-    list(REMOVE_DUPLICATES matches)
+    set(new_matches "${all}")
+    list(FILTER new_matches INCLUDE REGEX "${pattern}")
+    list(APPEND matches ${new_matches})
   endforeach()
-  list(TRANSFORM matches PREPEND "${root_dir}/")
-  set(${out_var} "${matches}" PARENT_SCOPE)
+  list(REMOVE_DUPLICATES matches)
+  set(${list} "${matches}" PARENT_SCOPE)
+endfunction()
+
+
+function(_maud_glob out_var root_dir)
+  file(
+    GLOB_RECURSE matches
+    LIST_DIRECTORIES true
+    # Filters are applied to *relative* paths; otherwise directory
+    # names above root_dir might spuriously include/exclude.
+    RELATIVE "${root_dir}"
+    "${root_dir}/*"
+  )
+  _maud_filter(matches ${ARGN})
+  set(${out_var} ${matches} PARENT_SCOPE)
 endfunction()
 
 
@@ -68,66 +100,42 @@ function(glob out_var)
     "" # multi value arguments
     ${ARGN}
   )
-
   set(patterns ${_UNPARSED_ARGUMENTS})
-  _maud_glob(
-    matches
-    "${CMAKE_SOURCE_DIR}"
-    ${patterns}
-  )
+
+  string(HEX "${patterns}" basename)
+  if(_EXCLUDE_RENDERED)
+    string(PREPEND basename -)
+    list(PREPEND arguments EXCLUDE_RENDERED)
+  endif()
+
+  if(EXISTS "${MAUD_DIR}/glob/${basename}")
+    file(STRINGS "${MAUD_DIR}/glob/${basename}" matches)
+    set(${out_var} "${matches}" PARENT_SCOPE)
+    return()
+  endif()
+
+  file(STRINGS "${MAUD_DIR}/glob/_ALL" matches)
+  _maud_filter(matches ${patterns})
+  list(TRANSFORM matches PREPEND "${CMAKE_SOURCE_DIR}/")
+
   if(NOT _EXCLUDE_RENDERED)
-    _maud_glob(
-      gen_matches
-      "${MAUD_DIR}/rendered"
-      ${patterns}
-    )
+    file(STRINGS "${MAUD_DIR}/glob/_ALL_GENERATED" gen_matches)
+    _maud_filter(gen_matches ${patterns})
+    list(TRANSFORM gen_matches PREPEND "${MAUD_DIR}/rendered/")
     list(APPEND matches ${gen_matches})
-  else()
-    list(PREPEND patterns EXCLUDE_RENDERED)
   endif()
-  set(${out_var} "${matches}" PARENT_SCOPE)
+
   if(_CONFIGURE_DEPENDS)
-    file(APPEND "${MAUD_DIR}/globs" "${patterns} :MATCHED: ${matches}\n")
+    file(APPEND "${MAUD_DIR}/glob/_CONFIGURE_DEPENDS" "${basename}\n")
   endif()
+
+  _maud_write_lines("${MAUD_DIR}/glob/${basename}" ${matches})
+  set_property(
+    DIRECTORY APPEND PROPERTY ADDITIONAL_CLEAN_FILES
+    "${MAUD_DIR}/glob/${basename}"
+  )
+  set(${out_var} "${matches}" PARENT_SCOPE)
 endfunction()
-
-
-# FIXME we need to ensure that deleting CMakeCache.txt will always
-# result in a clean rebuild. Append to ADDITIONAL_CLEAN_FILES
-
-
-block(PROPAGATE _MAUD_BASE_DIRS)
-  # TODO move this into _maud_setup
-  # TODO hard code a global exclusion pattern and juat assert that CMAKE_BINARY_DIR matches
-
-  # Assert that globbing will exclude the build directory
-  _maud_glob(all_files "${CMAKE_SOURCE_DIR}" "!${MAUD_IGNORED_SOURCE_REGEX}")
-  foreach(file ${all_files})
-    cmake_path(IS_PREFIX CMAKE_BINARY_DIR "${file}" NORMALIZE is_prefix)
-    if(is_prefix)
-      message(
-        FATAL_ERROR
-        "Build directory ${CMAKE_BINARY_DIR} is not excluded from globs"
-      )
-    endif()
-  endforeach()
-
-  # Assemble the minimal list of FILE_SET BASE_DIRS
-  set(base_dirs "${CMAKE_SOURCE_DIR};${MAUD_DIR}/rendered;${_MAUD_SELF_DIR}")
-  foreach(base_dir ${base_dirs})
-    foreach(other_dir ${base_dirs})
-      if(base_dir STREQUAL other_dir)
-        continue()
-      endif()
-
-      cmake_path(IS_PREFIX base_dir "${other_dir}" is_prefix)
-      if(is_prefix)
-        list(REMOVE_ITEM base_dirs "${other_dir}")
-      endif()
-    endforeach()
-  endforeach()
-  set(_MAUD_BASE_DIRS BASE_DIRS ${base_dirs})
-endblock()
 
 
 function(_maud_relative_path path out_var is_gen_var)
@@ -219,7 +227,6 @@ function(_maud_include_directories)
     include_dirs
     CONFIGURE_DEPENDS
     "(/|^)include$"
-    "!${MAUD_IGNORED_SOURCE_REGEX}"
   )
   foreach(include_dir ${include_dirs})
     message(VERBOSE "Detected include directory: ${include_dir}")
@@ -234,12 +241,7 @@ function(_maud_cxx_sources)
   list(TRANSFORM source_regex REPLACE [[\.(.+)]] [[\\.\1$]])
   string(JOIN "|" source_regex ${source_regex})
 
-  glob(
-    source_files
-    CONFIGURE_DEPENDS
-    ${source_regex}
-    "!${MAUD_IGNORED_SOURCE_REGEX}"
-  )
+  glob(source_files CONFIGURE_DEPENDS ${source_regex} "!(/|^)_")
   foreach(source_file ${source_files})
     _maud_scan("${source_file}")
   endforeach()
@@ -702,25 +704,53 @@ endfunction()
 
 
 function(_maud_maybe_regenerate)
-  file(STRINGS "${MAUD_DIR}/globs" glob_lines)
+  file(STRINGS "${MAUD_DIR}/glob/_ALL" old_all_files)
+  file(STRINGS "${MAUD_DIR}/glob/_ALL_GENERATED" old_all_gen_files)
+  _maud_glob(all_files "${CMAKE_SOURCE_DIR}" "!${MAUD_IGNORED_SOURCE_REGEX}")
+  _maud_glob(all_gen_files "${MAUD_DIR}/rendered" "!${MAUD_IGNORED_SOURCE_REGEX}")
 
-  foreach(glob_line ${glob_lines})
-    if("${glob_line}" MATCHES "^(.*) :MATCHED: (.*)$")
-      set(pattern "${CMAKE_MATCH_1}")
-      message(VERBOSE "checking for different matches to: ${pattern}")
-      glob(files ${pattern})
-      if("${files}" STREQUAL "${CMAKE_MATCH_2}")
+  if("${all_files}:${all_gen_files}" STREQUAL "${old_all_files}:${old_all_gen_files}")
+    message(VERBOSE "total file set is unchanged, skipping glob verification")
+  else()
+    _maud_write_lines("${MAUD_DIR}/glob/_ALL" ${all_files})
+    _maud_write_lines("${MAUD_DIR}/glob/_ALL_GENERATED" ${all_gen_files})
+
+    _maud_glob(globs "${MAUD_DIR}/glob" !^_)
+    file(STRINGS "${MAUD_DIR}/glob/_CONFIGURE_DEPENDS" configure_depends)
+
+    set(regen FALSE)
+    foreach(glob ${globs})
+      file(STRINGS "${MAUD_DIR}/glob/${glob}" old_files)
+      file(REMOVE "${MAUD_DIR}/glob/${glob}")
+
+      if(glob MATCHES "^-(.*)$")
+        set(exclude_rendered EXCLUDE_RENDERED)
+        string_hex_decode(patterns "${CMAKE_MATCH_1}")
+      else()
+        set(exclude_rendered)
+        string_hex_decode(patterns "${glob}")
+      endif()
+
+      message(VERBOSE "checking for different matches to: ${patterns}")
+      glob(files ${exclude_rendered} ${patterns})
+      if(NOT (glob IN_LIST configure_depends))
         continue()
       endif()
-      message(STATUS "change in matches to: ${pattern}, regenerating")
-      message(VERBOSE "  (was: '${CMAKE_MATCH_2}')")
+
+      if("${files}" STREQUAL "${old_files}")
+        continue()
+      endif()
+      message(STATUS "change in matches to: ${patterns}, regenerating")
+      message(VERBOSE "  (was: '${old_files}')")
       message(VERBOSE "  (now: '${files}')")
+      set(regen TRUE)
+    endforeach()
+
+    if(regen)
       file(TOUCH_NOCREATE "${CMAKE_BINARY_DIR}/CMakeFiles/cmake.verify_globs")
       return()
-    else()
-      message(FATAL_ERROR "corrupted '${MAUD_DIR}/globs' file!")
     endif()
-  endforeach()
+  endif()
 
   file(STRINGS "${MAUD_DIR}/source_files.list" source_files)
   foreach(source_file ${source_files})
@@ -789,24 +819,30 @@ function(_maud_setup)
     MAUD_IGNORED_SOURCE_REGEX
     PROJECT_NAME
   )
-    string(APPEND vars "set(${var} \"${${var}}\")\n")
+    string_escape("${${var}}" val)
+    string(APPEND vars "set(${var} ${val})\n")
   endforeach()
   file(
     WRITE "${MAUD_DIR}/eval.cmake"
     "
     ${vars}
     include(\"${_MAUD_SELF_DIR}/Maud.cmake\")
+    cmake_language(EVAL CODE \"\${MAUD_CODE}\")
     "
-    [[cmake_language(EVAL CODE "${MAUD_CODE}")]]
   )
 
-  file(WRITE "${MAUD_DIR}/globs" "")
-
-  foreach(dir junk;rendered)
+  foreach(dir junk;rendered;glob)
     if(NOT EXISTS "${MAUD_DIR}/${dir}")
       file(MAKE_DIRECTORY "${MAUD_DIR}/${dir}")
     endif()
   endforeach()
+
+  _maud_glob(all_files "${CMAKE_SOURCE_DIR}" "!${MAUD_IGNORED_SOURCE_REGEX}")
+  _maud_write_lines("${MAUD_DIR}/glob/_ALL" ${all_files})
+  if("${CMAKE_BINARY_DIR}" IN_LIST all_files)
+    message(FATAL_ERROR "Build directory is not excluded from CMAKE_SOURCE_DIR globs")
+  endif()
+  file(WRITE "${MAUD_DIR}/glob/_CONFIGURE_DEPENDS" "")
 
   set_source_files_properties(
     "${_MAUD_SELF_DIR}/_executable.cxx"
@@ -815,19 +851,35 @@ function(_maud_setup)
     PROPERTIES
     MAUD_TYPE INTERFACE
   )
+
+  # Assemble the minimal list of FILE_SET BASE_DIRS
+  set(base_dirs "${CMAKE_SOURCE_DIR};${MAUD_DIR}/rendered;${_MAUD_SELF_DIR}")
+  foreach(base_dir ${base_dirs})
+    foreach(other_dir ${base_dirs})
+      if(base_dir STREQUAL other_dir)
+        continue()
+      endif()
+
+      cmake_path(IS_PREFIX base_dir "${other_dir}" is_prefix)
+      if(is_prefix)
+        list(REMOVE_ITEM base_dirs "${other_dir}")
+      endif()
+    endforeach()
+  endforeach()
+  set(_MAUD_BASE_DIRS BASE_DIRS ${base_dirs} PARENT_SCOPE)
+endfunction()
+
+
+function(_maud_finalize_generated)
+  _maud_glob(all_gen_files "${MAUD_DIR}/rendered" "!${MAUD_IGNORED_SOURCE_REGEX}")
+  _maud_write_lines("${MAUD_DIR}/glob/_ALL_GENERATED" ${all_gen_files})
 endfunction()
 
 
 function(_maud_cmake_modules)
   list(APPEND CMAKE_MODULE_PATH "${_MAUD_SELF_DIR}")
 
-  glob(
-    module_dirs
-    CONFIGURE_DEPENDS
-    EXCLUDE_RENDERED
-    "(/|^)cmake_modules$"
-    "!${MAUD_IGNORED_SOURCE_REGEX}"
-  )
+  glob(module_dirs CONFIGURE_DEPENDS EXCLUDE_RENDERED "(/|^)cmake_modules$")
   foreach(module_dir ${module_dirs})
     list(APPEND CMAKE_MODULE_PATH "${module_dir}")
     message(STATUS "Detected CMake module directory: ${module_dir}")
@@ -841,20 +893,14 @@ function(_maud_cmake_modules)
     EXCLUDE_RENDERED
     "\\.cmake$"
     "!(/|^)cmake_modules/"
-    "!${MAUD_IGNORED_SOURCE_REGEX}"
+    "!(/|^)_"
   )
   set(_MAUD_CMAKE_MODULES "${auto_included}" PARENT_SCOPE)
 endfunction()
 
 
 function(_maud_in2)
-  glob(
-    templates
-    CONFIGURE_DEPENDS
-    EXCLUDE_RENDERED
-    "\\.in2$"
-    "!${MAUD_IGNORED_SOURCE_REGEX}"
-  )
+  glob(templates CONFIGURE_DEPENDS EXCLUDE_RENDERED "\\.in2$")
   foreach(template ${templates})
     cmake_path(GET template PARENT_PATH dir)
     cmake_path(GET template STEM LAST_ONLY RENDER_FILE)
@@ -891,7 +937,7 @@ function(_maud_setup_doc)
     CONFIGURE_DEPENDS
     "\\.rst$"
     "!(^|/)[A-Z_0-9]+\\.rst$"
-    "!${MAUD_IGNORED_SOURCE_REGEX}"
+    "!(/|^)_"
   )
   if(NOT rst)
     return()
@@ -924,6 +970,10 @@ function(_maud_setup_doc)
     )
     list(APPEND all_staged "${staged}")
 
+    # TODO instead of enumerating outputs, just extract a directory_stamp fn
+    # which touches a stamp file to be newer than anything in the dir.
+    # Then we don't need to guess what output files there will be and we can
+    # rely on sphinx to update only stale outputs
     add_custom_command(
       OUTPUT "${doc}/dirhtml/${html}/index.html"
       DEPENDS "${staged}" "${doc}/stage/conf.py"
@@ -932,7 +982,7 @@ function(_maud_setup_doc)
         stage
         dirhtml
         "${staged}"
-        > build.log
+        > dirhtml.log
       COMMENT "Building ${doc}/dirhtml/${html}/index.html"
     )
     list(APPEND all_built "${doc}/dirhtml/${html}/index.html")
@@ -1017,7 +1067,6 @@ function(_maud_doxygen)
   list(JOIN source_files " \\\n" inputs)
   file(COPY_FILE "${_MAUD_SELF_DIR}/Doxyfile" "${doc}/stage/Doxyfile")
   file(APPEND "${doc}/stage/Doxyfile" "\nINPUT=${inputs}\n\n")
-
   execute_process(
     COMMAND "${DOXYGEN}" "${doc}/stage/Doxyfile"
     OUTPUT_FILE "${doc}/doxygen.log"
@@ -1570,3 +1619,5 @@ function(add_generator_expression_display_target target_name)
     COMMAND "${CMAKE_COMMAND}" -E echo "\\'${str}\\'"
   )
 endfunction()
+
+cmake_policy(POP)

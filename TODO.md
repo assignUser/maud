@@ -1,7 +1,6 @@
 NEXT
 ----
 
-- omniglob
 - write doc
 - more test projects
   - use a maud based project with fetchcontent
@@ -98,65 +97,6 @@ even without using modules. The module block could be written using
 a custom attribute for example, or a directory naming convention
 could be adoted, or you could write the module block verbatim inside
 an `#if false`- maud_scan would read it even if nothing else did.
-
-TODO: omni globbing
--------------------
-
-Basically we can expect that *any* change of source tree structure
-will probably provoke reconfiguration. If there's something you
-explicitly ignore like build directories that's one thing...
-This suggests a potentially simpler and more efficient approach:
-decouple filesystem access and pattern matching. We could assemble
-a single listing of the source tree (modulo build dir and other
-top level exclusions) and store this. Then any change to that
-listing triggers reconfiguration. Separately, to match more
-specific patterns the list can just be loaded then filtered.
-
-```json
-// Unless we're building a new glob_cache.json or verifying it,
-// we just look up the matching pattern's file set or build a
-// new file subset from the ALL set.
-[
-  {
-    "pattern": ".*;!(^|/)\\.;!build($|/)",
-    "files": "index.rst;yaml.cxx;_util.cxx;include;include/_foo.hxx.in2",
-    "generated files": "include;include/_foo.hxx"
-  },
-
-  {
-    "pattern": "(^|/)cmake_modules$",
-    "files": "",
-    "generated files": ""
-  },
-  {
-    "pattern": "\\.cmake$;!(^|/)cmake_modules/",
-    "files": "",
-    "generated files": ""
-  },
-  {
-    "pattern": "(^|/)include$",
-    "files": "include",
-    "generated files": "include"
-  },
-  {
-    "pattern": "\\.(cxx|mxx|ixx|cpp|cc|c[+][+])m?$",
-    "files": "yaml.cxx;_util.cxx",
-    "generated files": ""
-  },
-    //...
-]
-```
-Order of operations:
-- (setup)
-  - purge glob_cache.json, rendered/
-  - _MAUD_RENDERED_FILES_FINALIZED=FALSE
-  - assemble the list of all files
-  - save to glob_cache.json
-- (cmake_modules) (in2)
-  - search for matches to patterns, appending new file sets when necessary
-- (finalize_rendered)
-  - _MAUD_RENDERED_FILES_FINALIZED=true
-  - globs will now include files from rendered/
 
 TODO: benchmark globbing
 ------------------------

@@ -135,6 +135,7 @@ file(
     find_package(GTest)
   endif()
   _maud_in2()
+  _maud_finalize_generated()
   _maud_include_directories()
   _maud_cxx_sources()
   _maud_finalize_targets()
