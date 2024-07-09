@@ -64,7 +64,7 @@ argument(
   "Directory in which to generate CMakeLists.txt"
 )
 argument(
-  build_dir "${CMAKE_SOURCE_DIR}/build"
+  build_dir "${CMAKE_SOURCE_DIR}/.build"
   "Path where build directory should be generated"
 )
 
@@ -110,7 +110,7 @@ if(source_readonly)
   file(WRITE "${build_dir}/CMakeLists.txt" "")
   file(CREATE_LINK "${source_dir}" "${build_dir}/source" SYMBOLIC)
   set(source_dir "${build_dir}")
-  set(build_dir "${build_dir}/build")
+  set(build_dir "${build_dir}/.build")
 endif()
 
 file(

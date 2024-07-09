@@ -3,8 +3,8 @@ module;
 #include <ostream>
 #include <vector>
 #define RYML_SINGLE_HDR_DEFINE_NOW
-#include "c4/yml.hxx"
-export module maud_:yml;
+#include "rapidyaml.hxx"
+export module maud_:yaml;
 import :filesystem;
 
 namespace c4::yml {

@@ -31,9 +31,8 @@ By default the extensions used to identify C++ source files are
 These can be customized by setting the variable ``MAUD_CXX_SOURCE_EXTENSIONS``
 at build generation time.
 
-By default, directories named ``build``, ``foo-build``, ``.bar``, or ``_baz`` will
-be excluded from globbing. This can be adjusted with the
-``MAUD_IGNORED_SOURCE_REGEX`` variable. Build directories *MUST* be excluded;
+Directories and files whose names start with ``.`` are excluded from globbing.
+Build directories *MUST* be excluded;
 if they are detected in any glob then build generation will terminate.
 
 CMake

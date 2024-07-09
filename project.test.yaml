@@ -8,8 +8,8 @@ auto add sources:
   contents: |
     export module bar;
     export int bar() { return 0; }
-- cmake --build build --config Debug
-- exists: build/Debug/libbar.a
+- cmake --build .build --config Debug
+- exists: .build/Debug/libbar.a
 
 
 unit testing:
@@ -58,10 +58,10 @@ unit testing:
       EXPECT_(parameter + parameter == parameter);
     }
 - maud
-- ctest --test-dir build --output-on-failure -C Debug
+- ctest --test-dir .build --output-on-failure -C Debug
 # Assert that the test executable exists but isn't installed
-- cmake --install build --prefix ../usr --config Debug
-- exists: build/Debug/test_.basics
+- cmake --install .build --prefix ../usr --config Debug
+- exists: .build/Debug/test_.basics
 - does not exist: ../usr/bin/test_.basics
 
 
@@ -90,7 +90,7 @@ unit testing main:
     get_target_property(i GTest::gtest INTERFACE_INCLUDE_DIRECTORIES)
     include_directories(${i})
 - maud --log-level=VERBOSE
-- ctest --test-dir build --output-on-failure -C Debug
+- ctest --test-dir .build --output-on-failure -C Debug
 
 
 custom unit testing:
@@ -135,7 +135,7 @@ import installed:
     export int foo() { return 0; }
 - command: maud --log-level=VERBOSE
   working directory: foo
-- cmake --install foo/build --prefix ../usr --config Debug
+- cmake --install foo/.build --prefix ../usr --config Debug
 - write: use/use.cxx
   contents: |
     module executable;
@@ -166,7 +166,7 @@ DISABLED_import installed with options:
     )
 - command: maud --log-level=VERBOSE
   working directory: fmt_42
-- cmake --install fmt_42/build --prefix ../usr --config Debug
+- cmake --install fmt_42/.build --prefix ../usr --config Debug
 - write: use/use.cxx
   contents: |
     module executable;
@@ -177,7 +177,7 @@ DISABLED_import installed with options:
   # This fails because the installed export doesn't include a
   # call to find_package(fmt):
   #
-  # CMake Error at /home/ben/maud/tools/build/_maud/test_projects/usr/lib/cmake/fmt_42.maud-config.cmake:60 (set_target_properties):
+  # CMake Error at /home/ben/maud/tools/.build/_maud/test_projects/usr/lib/cmake/fmt_42.maud-config.cmake:60 (set_target_properties):
   #  The link interface of target "fmt_42" contains:
   #
   #    fmt::fmt
@@ -224,8 +224,8 @@ rendered source:
     @};
     export bool constexpr BOOL = @MAUD_DIR | if_else(1 0)@;
 - maud
-- exists: build/Debug/libfoo.a
-- exists: build/Debug/libbar.a
+- exists: .build/Debug/libfoo.a
+- exists: .build/Debug/libbar.a
 
 
 use find_package:
@@ -342,9 +342,9 @@ util_ is not installed:
     import util_;
     int main() { return zero(); }
 - maud --log-level=VERBOSE
-- cmake --install build --prefix ../usr --config Debug
-- exists: build/Debug/foo
-- does not exist: build/Debug/libutil_.a
+- cmake --install .build --prefix ../usr --config Debug
+- exists: .build/Debug/foo
+- does not exist: .build/Debug/libutil_.a
 
 
 options:

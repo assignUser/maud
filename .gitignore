@@ -1,8 +1,7 @@
 .ninja_*
 .cache
 
-build
--build
+.build
 
 CMakeLists.txt
 CMakeUserPresets.json

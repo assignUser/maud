@@ -26,8 +26,8 @@ TODO: optional dependencies
 ---------------------------
 
 How do we deal with optional dependencies? If there is an
-option named `YML_ENABLED` and we switch it off, then we
-should not need to ensure `import yml;` still works.
+option named `YAML_ENABLED` and we switch it off, then we
+should not need to ensure `import yaml;` still works.
 However surrounding the import with an `#if` is transparent
 to maud_scan so it wouldn't remove the dependency.
 
