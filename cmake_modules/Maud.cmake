@@ -54,26 +54,6 @@ function(_maud_load_cache)
 endfunction()
 
 
-function(string_hex_decode out_var)
-  # TODO replace with base64 using rapidyaml's utilities
-  string(REGEX MATCHALL .. hex "" ${ARGN})
-  set(codes)
-  foreach(code ${hex})
-    math(EXPR code 0x${code})
-    list(APPEND codes ${code})
-  endforeach()
-  string(ASCII ${codes} decoded)
-  set(${out_var} "${decoded}" PARENT_SCOPE)
-endfunction()
-
-
-function(_maud_write_lines path)
-  list(TRANSFORM ARGN APPEND "\n")
-  string(CONCAT content ${ARGN})
-  file(WRITE "${path}" "${content}")
-endfunction()
-
-
 function(_maud_filter list)
   set(all "${${list}}")
   set(matches)
@@ -547,6 +527,12 @@ endfunction()
 function(_maud_rescan source_file out_var)
   set(${out_var} "" PARENT_SCOPE)
   _maud_get_ddi_path("${source_file}" ddi)
+
+  if(NOT EXISTS "${ddi}")
+    set(${out_var} "UNSCANNED ${source_file}" PARENT_SCOPE)
+    return()
+  endif()
+
   file(TIMESTAMP "${source_file}" src_ts "%s")
   file(TIMESTAMP "${ddi}" ddi_ts "%s")
   # Should be able to use:
@@ -1129,10 +1115,20 @@ endfunction()
 
 function(string_escape str out_var)
   string(JSON escaped_key ERROR_VARIABLE error SET "{}" "${str}" null)
-  if(NOT error AND escaped_key MATCHES "(\".*\")")
+  if(NOT error AND escaped_key MATCHES "\"(.*)\"")
     set(${out_var} "${CMAKE_MATCH_1}" PARENT_SCOPE)
   else()
     message(FATAL_ERROR "Couldn't escape `${str}`")
+  endif()
+endfunction()
+
+
+function(string_unescape str out_var)
+  string(JSON unescaped ERROR_VARIABLE error MEMBER "{\"${str}\": 0}" 0)
+  if(NOT error)
+    set(${out_var} "${unescaped}" PARENT_SCOPE)
+  else()
+    message(FATAL_ERROR "Couldn't unescape `${str}`")
   endif()
 endfunction()
 
@@ -1156,7 +1152,7 @@ function(option type name)
 
   cmake_parse_arguments(
     "" # prefix
-    "ADVANCED;ADD_COMPILE_DEFINITIONS" # options
+    "ADVANCED;DISABLE_COMPILE_DEFINITIONS" # options
     "DEFAULT;HELP;VALIDATE" # single value arguments
     "REQUIRES;FORCE" # multi value arguments
     ${ARGV}
@@ -1203,7 +1199,7 @@ function(option type name)
   if(name IN_LIST _MAUD_ALL_OPTIONS)
     return() # silently ignore duplicate declaration of the same option
   endif()
-  set(_MAUD_ALL_OPTIONS ${_MAUD_ALL_OPTIONS} ${name} PARENT_SCOPE)
+  _maud_set(_MAUD_ALL_OPTIONS ${_MAUD_ALL_OPTIONS} ${name})
 
   if("${name}" STREQUAL "IF")
     message(FATAL_ERROR "IF is reserved and cannot be used for an option name")
@@ -1211,19 +1207,16 @@ function(option type name)
     message(FATAL_ERROR "Option name must be an all-caps identifier, got ${name}")
   endif()
 
-  set(_MAUD_OPTION_GROUP_${name} "${OPTION_GROUP}" PARENT_SCOPE)
+  _maud_set(_MAUD_OPTION_GROUP_${name} "${OPTION_GROUP}")
 
-  # dedent and store lines of HELP (set(CACHE) only allows a one-line docstring)
-  string(REGEX REPLACE "\n *" ";" _HELP "${_HELP}")
-  set(too_long ${_HELP})
-  list(
-    FILTER too_long INCLUDE REGEX
-    "......................................................................"
-  )
-  if(too_long AND NOT legacy)
+  # dedent and escape HELP (set(CACHE) only allows one line)
+  string(STRIP "${_HELP}" _HELP)
+  string(REGEX REPLACE "(\n *)+" "\n" _HELP "${_HELP}")
+  string(REPEAT "[^\n]" 71 too_long)
+  if(_HELP MATCHES "${too_long}" AND NOT legacy)
     message(FATAL_ERROR "${name}'s help string exceeded the 70 char line limit")
   endif()
-  set(_MAUD_HELP_${name} "${_HELP}" PARENT_SCOPE)
+  string_escape("${_HELP}" _HELP)
 
   # store the default
   if("${type}" STREQUAL "BOOL") # coerce BOOL to ON/OFF
@@ -1233,7 +1226,7 @@ function(option type name)
       set(_DEFAULT OFF)
     endif()
   endif()
-  set(_MAUD_DEFAULT_${name} "${_DEFAULT}" PARENT_SCOPE)
+  _maud_set(_MAUD_DEFAULT_${name} "${_DEFAULT}")
 
   # store requirements for this option
   set(condition ON) # as a special case, `IF ON` is implicit for BOOL options
@@ -1246,33 +1239,25 @@ function(option type name)
       set(condition "${value}")
       continue()
     endif()
-    set(
+    _maud_set(
       _MAUD_${name}_CONSTRAINS
-      ${dependency} ${_MAUD_${name}_CONSTRAINS} PARENT_SCOPE
+      ${dependency} ${_MAUD_${name}_CONSTRAINS}
     )
     string(SHA512 req "${dependency}-${name}-${condition}")
-    set(req "_MAUD_REQUIREMENT_${req}")
-    set(${req} "${value}" PARENT_SCOPE)
+    _maud_set(_MAUD_REQUIREMENT_${req} "${value}")
   endwhile()
 
   if(NOT EXISTS "${CMAKE_BINARY_DIR}/CMakeCache.txt" AND DEFINED CACHE{${name}})
     # this is a fresh build and the user has definitely configured this option
-    set(_MAUD_DEFINITELY_USER_${name} "${${name}}" PARENT_SCOPE)
+    _maud_set(_MAUD_DEFINITELY_USER_${name} "${${name}}")
   endif()
 
   # declare the option's cache entry
-  if(_HELP STREQUAL "")
-    set(help_first_line "")
-  else()
-    list(GET _HELP 0 help_first_line)
-  endif()
-  set(${name} "${_DEFAULT}" CACHE ${type} "${help_first_line}")
+  set(${name} "${_DEFAULT}" CACHE ${type} "${_HELP}")
   if(_ADVANCED)
     mark_as_advanced(${name})
   endif()
-  if(_ADD_COMPILE_DEFINITIONS)
-    set(_MAUD_ADD_COMPILE_DEFINITIONS_${name} "" PARENT_SCOPE)
-  endif()
+  _maud_set(_MAUD_DISABLE_COMPILE_DEFINITIONS_${name} ${_DISABLE_COMPILE_DEFINITIONS})
 
   # set the option's value from the environment if appropriate
   if(
@@ -1293,12 +1278,12 @@ function(option type name)
         "${name} provided VALIDATE but this may not be used with BOOL or ENUM"
       )
     endif()
-    set(_MAUD_VALIDATE_${name} ${_VALIDATE} PARENT_SCOPE)
+    _maud_set(_MAUD_VALIDATE_${name} ${_VALIDATE})
   endif()
 
   if(type MATCHES "PATH" AND NOT ("${${name}}" STREQUAL "${_DEFAULT}"))
     cmake_path(NATIVE_PATH ${name} value)
-    set(${name} "${value}" CACHE ${type} "${help_first_line}" FORCE)
+    set(${name} "${value}" CACHE ${type} "${_HELP}" FORCE)
   endif()
 endfunction()
 
@@ -1407,13 +1392,19 @@ function(resolve_options)
       set(enum)
     endif()
 
+    get_property(help CACHE ${opt} PROPERTY HELPSTRING)
+    string_unescape("${help}" help)
+
+    string(REPLACE "\n" "\n--      " help_status "\n${help}")
+
     string_escape("${${opt}}" quoted)
+    set(quoted "\"${quoted}\"")
     if(type STREQUAL "BOOL")
-      message(STATUS "${opt} = ${${opt}} ${reason}")
+      message(STATUS "${opt} = ${${opt}} ${reason}${help_status}")
     elseif(enum)
-      message(STATUS "${opt}: ${type} = ${${opt}} ${reason}")
+      message(STATUS "${opt}: ${type} = ${${opt}} ${reason}${help_status}")
     else()
-      message(STATUS "${opt}: ${type} = ${quoted} ${reason}")
+      message(STATUS "${opt}: ${type} = ${quoted} ${reason}${help_status}")
     endif()
 
     if(enum AND NOT ("${${opt}}" IN_LIST enum))
@@ -1429,29 +1420,27 @@ function(resolve_options)
 
     string(JSON cache_json SET "${cache_json}" ${opt} "${quoted}")
 
-    file(APPEND "${defines}" "\n/*!\n")
-    foreach(line ${_MAUD_HELP_${opt}})
-      message(STATUS "     ${line}")
-      file(APPEND "${defines}" " *  ${line}\n")
-    endforeach()
-    file(APPEND "${defines}" " */\n")
+    if(NOT _MAUD_DISABLE_COMPILE_DEFINITIONS_${opt})
+      string(REPLACE "\n" "\n *  " help_comment "\n${help}")
+      file(APPEND "${defines}" "\n/*!${help_comment}\n */\n")
 
-    if(type STREQUAL "BOOL")
-      if(${${opt}})
-        file(APPEND "${defines}" "#define ${opt} 1\n")
-      else()
-        file(APPEND "${defines}" "#define ${opt} 0\n")
-      endif()
-    elseif(enum)
-      foreach(e ${enum})
-        if("${${opt}}" STREQUAL "${e}")
-          file(APPEND "${defines}" "#define ${opt}_${e} 1\n")
+      if(type STREQUAL "BOOL")
+        if(${${opt}})
+          file(APPEND "${defines}" "#define ${opt} 1\n")
         else()
-          file(APPEND "${defines}" "#define ${opt}_${e} 0\n")
+          file(APPEND "${defines}" "#define ${opt} 0\n")
         endif()
-      endforeach()
-    else()
-      file(APPEND "${defines}" "#define ${opt} ${quoted}")
+      elseif(enum)
+        foreach(e ${enum})
+          if("${${opt}}" STREQUAL "${e}")
+            file(APPEND "${defines}" "#define ${opt}_${e} 1\n")
+          else()
+            file(APPEND "${defines}" "#define ${opt}_${e} 0\n")
+          endif()
+        endforeach()
+      else()
+        file(APPEND "${defines}" "#define ${opt} ${quoted}")
+      endif()
     endif()
 
     if(

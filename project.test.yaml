@@ -357,9 +357,13 @@ options:
       BOOL B
       HELP "
         Bool option
-
         Some help text
       "
+    )
+    option(
+      BOOL B4
+      HELP "HIDDEN"
+      DISABLE_COMPILE_DEFINITIONS
     )
     resolve_options()
 - write: assertions.cxx
@@ -369,6 +373,10 @@ options:
     static_assert(not LEGACY_0);
     static_assert(LEGACY_1);
     static_assert(not B);
+
+    #ifdef B4
+    #error "should be disabled"
+    #endif
 - maud --log-level=VERBOSE
 - json: CMakeUserPresets.json
   expect:
@@ -376,6 +384,7 @@ options:
     like:
       cacheVariables:
         B: OFF
+        B4: OFF
         BUILD_SHARED_LIBS: OFF
         BUILD_TESTING: ON
         LEGACY_0: OFF
