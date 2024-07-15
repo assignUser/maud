@@ -119,7 +119,6 @@ file(
   ${cmake_minimum}
   ${project_command}
 
-  set(_MAUD_CMAKELISTS ON)
   include(\"${maud_path}\")
 
   include(CTest)
@@ -138,6 +137,7 @@ file(
   _maud_finalize_generated()
   _maud_include_directories()
   _maud_cxx_sources()
+  _maud_setup_clang_format()
   _maud_finalize_targets()
   _maud_setup_doc()
   _maud_setup_regenerate()

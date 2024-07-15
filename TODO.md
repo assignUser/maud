@@ -2,6 +2,15 @@ NEXT
 ----
 
 - write doc
+- options need more than just a single resolution
+  - you can't use an option until after resolution...
+    but an option might import others which need
+    independent resolution
+  - move the summary, json update, and defines to after
+    the cmake stage is complete but before scan
+    - also resolve any options remaining
+    - don't show FORCE options in the summary
+  - make defines a meta option like OPTION_GROUP
 - more test projects
   - use a maud based project with fetchcontent
   - verify maud works while using c++23
@@ -17,7 +26,6 @@ NEXT
       @
     endforeach()
     ```
-- rewrite `option()` so that it doesn't assume top level scope
 - strip base dirs from docs
 - harden and test the scanner
   - support this when preprocessing isn't required

@@ -1,7 +1,10 @@
 ---
 # Maud: {
 #   "version": 18,
-#   "patterns": "\\..xx$;!(/|^)(.*-|)build(/|$);!c4/"
+#   "patterns": [
+#     "\\.[ch]xx$",
+#     "!rapidyaml\\.hxx"
+#   ]
 # }
 BasedOnStyle: Google
 ColumnLimit: 90

@@ -74,6 +74,43 @@ function(_maud_filter list)
 endfunction()
 
 
+function(json_list out_var)
+  cmake_parse_arguments(
+    "" # prefix
+    "" # options
+    "ERROR_VARIABLE;GET" # single value arguments
+    "[]" # multi value arguments
+    ${ARGN}
+  )
+
+  string(JSON type ERROR_VARIABLE error TYPE "${_GET}" ${_UNPARSED_ARGUMENTS})
+  if(type AND NOT (type STREQUAL "ARRAY"))
+    set(error "Selector ${_UNPARSED_ARGUMENTS} selected ${type} instead of ARRAY")
+  endif()
+  if(error AND NOT _ERROR_VARIABLE)
+    message(FATAL_ERROR "${error}")
+  elseif(error)
+    set(${_ERROR_VARIABLE} "${error}" PARENT_SCOPE)
+    set(${out_var} NOTFOUND PARENT_SCOPE)
+    return()
+  endif()
+  string(JSON array GET "${_GET}" ${_UNPARSED_ARGUMENTS})
+
+  set(element_path "_[]")
+  set(element_path "${${element_path}}")
+  set(list)
+
+  string(JSON max_i LENGTH "${array}")
+  math_assign(max_i - 1)
+  foreach(i RANGE ${max_i})
+    string(JSON element ERROR_VARIABLE error GET "${array}" ${i} ${element_path})
+    list(APPEND list "${element}")
+  endforeach()
+
+  set(${out_var} "${list}" PARENT_SCOPE)
+endfunction()
+
+
 function(_maud_glob out_var root_dir)
   file(
     GLOB_RECURSE matches
@@ -224,8 +261,6 @@ function(_maud_cxx_sources)
   foreach(source_file ${_MAUD_CXX_SOURCES})
     _maud_scan("${source_file}")
   endforeach()
-
-  #_maud_setup_clang_format()
 endfunction()
 
 
@@ -238,17 +273,17 @@ function(_maud_setup_clang_format)
   endif()
 
   # TODO patterns should be an array instead
-  if(config MATCHES [[# Maud: ([{].*[}])]])
+  if(config MATCHES "# Maud: ([{]([^\n]|\n *#)+[}])")
     string(REGEX REPLACE " *\n *# *" " " json "${CMAKE_MATCH_1}")
     string(JSON version GET "${json}" version)
-    string(JSON patterns GET "${json}" patterns)
+    json_list(patterns GET "${json}" patterns)
   else()
     message(
       VERBOSE
       "Could not detect the required clang-format version, "
       "add a comment to ${CMAKE_SOURCE_DIR}/.clang-format like\n"
       [[        # Maud: ]]
-      [[{"version": 18, "patterns": "\\.cxx$;\\.hxx$;!(/|^)(.*-|)build(/|$)"}]]
+      [[{"version": 18, "patterns": ["\\.[ch]xx$", "!thirdparty/"]}]]
     )
     return()
   endif()
@@ -320,15 +355,9 @@ function(_maud_scan source_file)
   file(READ "${ddi}" ddi)
 
   # collect all imports
-  string(JSON requires ERROR_VARIABLE error GET "${ddi}" rules 0 requires)
-  set(imports)
-  if(NOT error)
-    string(JSON i LENGTH ${requires})
-    while(i GREATER 0)
-      math_assign(i - 1)
-      string(JSON import GET "${requires}" "${i}" logical-name)
-      list(APPEND imports "${import}")
-    endwhile()
+  json_list(imports ERROR_VARIABLE error GET "${ddi}" rules 0 requires [] logical-name)
+  if(NOT imports)
+    set(imports)
   endif()
 
   string(JSON module ERROR_VARIABLE error GET "${ddi}" rules 0 _maud_module-name)
@@ -859,6 +888,12 @@ function(_maud_setup)
     endforeach()
   endforeach()
   set(_MAUD_BASE_DIRS BASE_DIRS ${base_dirs} PARENT_SCOPE)
+
+  option(
+    BOOL BUILD_SHARED_LIBS
+    DEFAULT OFF
+    HELP "Build shared libraries by default."
+  )
 endfunction()
 
 
@@ -1125,9 +1160,8 @@ endfunction()
 
 function(string_unescape str out_var)
   string(JSON unescaped ERROR_VARIABLE error MEMBER "{\"${str}\": 0}" 0)
-  if(NOT error)
-    set(${out_var} "${unescaped}" PARENT_SCOPE)
-  else()
+  set(${out_var} "${unescaped}" PARENT_SCOPE)
+  if(error)
     message(FATAL_ERROR "Couldn't unescape `${str}`")
   endif()
 endfunction()
@@ -1360,6 +1394,7 @@ function(resolve_options)
   set(defines "${MAUD_DIR}/options.h")
   file(WRITE "${defines}" "")
 
+  # TODO sort options by group first
   set(group "")
   message(STATUS)
   foreach(opt ${_MAUD_ALL_OPTIONS})
@@ -1491,14 +1526,6 @@ function(resolve_options)
   )
   file(WRITE "${CMAKE_SOURCE_DIR}/CMakeUserPresets.json" "${presets}\n")
 endfunction()
-
-if(_MAUD_CMAKELISTS)
-  option(
-    BOOL BUILD_SHARED_LIBS
-    DEFAULT OFF
-    HELP "Build shared libraries by default"
-  )
-endif()
 
 
 ################################################################################
