@@ -9,6 +9,6 @@ nlohmann_json>=3.11
 gtest
 
 sphinx
-pydata-sphinx-theme
-breathe
+furo
+breathe>=4.35
 doxygen

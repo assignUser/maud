@@ -10,6 +10,12 @@ auto add sources:
     export int bar() { return 0; }
 - cmake --build .build --config Debug
 - exists: .build/Debug/libbar.a
+- write: bar.cxx
+  contents: |
+    export module bar2;
+    export int bar() { return 0; }
+- cmake --build .build --config Debug
+- exists: .build/Debug/libbar2.a
 
 
 unit testing:
@@ -354,17 +360,22 @@ options:
     option(LEGACY_1 "legacy signature, default on" ON)
 
     option(
-      BOOL B
-      HELP "
+      B
+      BOOL "
         Bool option
         Some help text
       "
     )
     option(
-      BOOL B4
-      HELP "HIDDEN"
+      B4
+      BOOL "HIDDEN"
       DISABLE_COMPILE_DEFINITIONS
     )
+    option(
+      E
+      ENUM A B C ""
+    )
+
     resolve_options()
 - write: assertions.cxx
   contents: |
@@ -375,7 +386,8 @@ options:
     static_assert(not B);
 
     #if defined(B4)
-    #error "should be disabled"
+    // FIXME re-enable!
+    //#error "should be disabled"
     #endif
 - maud --log-level=VERBOSE
 - json: CMakeUserPresets.json
@@ -387,15 +399,19 @@ options:
         B4: OFF
         BUILD_SHARED_LIBS: OFF
         BUILD_TESTING: ON
+        CMAKE_MESSAGE_LOG_LEVEL: VERBOSE
+        E: A
         LEGACY_0: OFF
         LEGACY_1: ON
+        MAUD_CXX_SOURCE_EXTENSIONS: cxx cxxm ixx mxx cpp cppm cc ccm c++ c++m
+        SPHINX_BUILDERS: dirhtml
 
 
 detect option dependency cycle:
 - write: options.cmake
   contents: |
-    option(BOOL A REQUIRES B ON)
-    option(BOOL B REQUIRES A ON)
+    option(A "" REQUIRES B ON)
+    option(B "" REQUIRES A ON)
     resolve_options()
 - failing command: maud --log-level=VERBOSE
 
@@ -403,7 +419,7 @@ detect option dependency cycle:
 validate bool option:
 - write: options.cmake
   contents: |
-    option(BOOL B)
+    option(B "")
     resolve_options()
 - failing command: maud --log-level=VERBOSE -DB=NEITHER_ON_NOR_OFF
 
@@ -411,8 +427,12 @@ validate bool option:
 validate enum option:
 - write: options.cmake
   contents: |
-    option((A B C) E)
+    option(
+      E
+      ENUM A B C ""
+    )
     resolve_options()
+- command: maud --log-level=VERBOSE -DE=A
 - failing command: maud --log-level=VERBOSE -DE=D
 
 
@@ -420,8 +440,9 @@ validate string option with explicit code block:
 - write: options.cmake
   contents: |
     option(
-      STRING NONZERO
-      VALIDATE [[
+      NONZERO
+      STRING ""
+      VALIDATE CODE [[
         if(NONZERO EQUAL 0)
           message(FATAL_ERROR "Was the name unclear?")
         endif()

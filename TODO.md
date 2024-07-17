@@ -2,16 +2,13 @@ NEXT
 ----
 
 - write doc
+- glob() should *always* be CONFIGURE_DEPENDS
 - options need more than just a single resolution
   - you can't use an option until after resolution...
     but an option might import others which need
     independent resolution
-  - move the summary, json update, and defines to after
-    the cmake stage is complete but before scan
-    - also resolve any options remaining
-    - don't show FORCE options in the summary
-  - make defines a meta option like OPTION_GROUP
 - more test projects
+  - write the test project runner in cmake, the only c++ we need is `yaml_to_json_` private exe
   - use a maud based project with fetchcontent
   - verify maud works while using c++23
   - render one in2 multiple times, one for each value from a list

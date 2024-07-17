@@ -11,16 +11,6 @@ set(_MAUD_INCLUDE "SHELL: $<IF:$<CXX_COMPILER_ID:MSVC>,/Fi,-include>")
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-if(NOT CMAKE_MESSAGE_LOG_LEVEL)
-  cmake_language(GET_MESSAGE_LOG_LEVEL CMAKE_MESSAGE_LOG_LEVEL)
-  set(
-    CMAKE_MESSAGE_LOG_LEVEL
-    "${CMAKE_MESSAGE_LOG_LEVEL}"
-    CACHE STRING
-    "log level for cmake message() commands"
-  )
-endif()
-
 # TODO defer this until c++ source scan time
 if(NOT CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_STANDARD 20)
@@ -28,13 +18,6 @@ if(NOT CMAKE_CXX_STANDARD)
 elseif(CMAKE_CXX_STANDARD LESS 20)
   message(FATAL_ERROR "Building with modules requires at least C++20")
 endif()
-
-
-# TODO make this an advanced option
-set(
-  MAUD_CXX_SOURCE_EXTENSIONS cxx cxxm ixx mxx cpp cppm cc ccm c++ c++m
-  CACHE INTERNAL ""
-)
 
 
 function(_maud_set var)
@@ -49,8 +32,19 @@ function(_maud_load_cache)
       _maud_set(${CMAKE_MATCH_1} "${CMAKE_MATCH_2}")
     endif()
   endforeach()
-
   #string(CONCAT pattern "^(.*\n)" [[\.\. configuration::]] "\n+( +)(.*)$")
+endfunction()
+
+
+function(_maud_load_cache_updates mode)
+  _maud_glob(updates "${MAUD_DIR}/cache_updates")
+  foreach(var ${updates})
+    file(READ "${MAUD_DIR}/cache_updates/${var}" val)
+    _maud_set(${var} "${val}")
+    if(mode STREQUAL "CLEAR")
+      file(REMOVE "${MAUD_DIR}/cache_updates/${var}")
+    endif()
+  endforeach()
 endfunction()
 
 
@@ -126,7 +120,7 @@ endfunction()
 
 
 function(glob out_var)
-  if(DEFINED ${out_var})
+  if(DEFINED CACHE{${out_var}})
     return()
   endif()
 
@@ -253,8 +247,8 @@ endfunction()
 
 function(_maud_cxx_sources)
   set(source_regex ${MAUD_CXX_SOURCE_EXTENSIONS})
-  list(TRANSFORM source_regex REPLACE [=[[+][+]]=] [=[[+][+]]=])
-  string(JOIN "|" source_regex ${source_regex})
+  string(REPLACE "+" "[+]" source_regex "${source_regex}")
+  string(REPLACE " " "|" source_regex "${source_regex}")
   set(source_regex "\\.(${source_regex})$")
 
   glob(_MAUD_CXX_SOURCES CONFIGURE_DEPENDS ${source_regex} "!(/|^)_")
@@ -280,10 +274,10 @@ function(_maud_setup_clang_format)
   else()
     message(
       VERBOSE
-      "Could not detect the required clang-format version, "
-      "add a comment to ${CMAKE_SOURCE_DIR}/.clang-format like\n"
-      [[        # Maud: ]]
-      [[{"version": 18, "patterns": ["\\.[ch]xx$", "!thirdparty/"]}]]
+      "Couldn't read required clang-format version"
+      "\n--   add a comment to ${CMAKE_SOURCE_DIR}/.clang-format"
+      "\n--   like "
+      [[# Maud: {"version": 18, "patterns": ["\\.[ch]xx$", "!thirdparty/"]}]]
     )
     return()
   endif()
@@ -562,12 +556,12 @@ function(_maud_rescan source_file out_var)
     return()
   endif()
 
-  file(TIMESTAMP "${source_file}" src_ts "%s")
-  file(TIMESTAMP "${ddi}" ddi_ts "%s")
+  file(TIMESTAMP "${source_file}" src_ts "%s.%f")
+  file(TIMESTAMP "${ddi}" ddi_ts "%s.%f")
   # Should be able to use:
   #if(ddi IS_NEWER_THAN source_file)
   # but it falls down sometimes...
-  if(ddi_ts GREATER src_ts)
+  if(ddi_ts VERSION_GREATER src_ts)
     message(VERBOSE "skipping rescan of ${source_file}")
     return()
   endif()
@@ -715,18 +709,40 @@ function(_maud_finalize_targets)
 endfunction()
 
 
+function(_maud_print_glob_changes old new)
+  if(CMAKE_MESSAGE_LOG_LEVEL MATCHES "ERROR|WARNING|NOTICE|STATUS")
+    return()
+  endif()
+  set(added "${new}")
+  list(REMOVE_ITEM added ${old})
+  list(TRANSFORM added PREPEND "ADD ")
+  set(removed "${old}")
+  list(REMOVE_ITEM removed ${new})
+  list(TRANSFORM removed PREPEND "REMOVE ")
+  foreach(change ${added} ${removed})
+    message(VERBOSE "  ${change}")
+  endforeach()
+endfunction()
+
+
 function(_maud_maybe_regenerate)
   set(total_set_changed FALSE)
 
   _maud_glob(all "${CMAKE_SOURCE_DIR}" "!(/|^)\\.")
-  if(NOT (all STREQUAL _MAUD_ALL))
+  if(NOT ("${all}" STREQUAL "${_MAUD_ALL}"))
+    message(VERBOSE "change to _MAUD_ALL detected")
+    _maud_print_glob_changes("${_MAUD_ALL}" "${all}")
+
     set(total_set_changed TRUE)
     _maud_set(_MAUD_ALL "${all}")
     file(WRITE "${MAUD_DIR}/cache_updates/_MAUD_ALL" "${all}")
   endif()
 
   _maud_glob(all "${MAUD_DIR}/rendered" "!(/|^)\\.")
-  if(NOT (all STREQUAL _MAUD_ALL_GENERATED))
+  if(NOT ("${all}" STREQUAL "${_MAUD_ALL_GENERATED}"))
+    message(VERBOSE "change to _MAUD_ALL_GENERATED detected")
+    _maud_print_glob_changes("${_MAUD_ALL_GENERATED}" "${all}")
+
     set(total_set_changed TRUE)
     _maud_set(_MAUD_ALL_GENERATED "${all}")
     file(WRITE "${MAUD_DIR}/cache_updates/_MAUD_ALL_GENERATED" "${all}")
@@ -747,9 +763,8 @@ function(_maud_maybe_regenerate)
         continue()
       endif()
 
-      message(STATUS "change detected, regenerating")
-      message(VERBOSE "  (was: '${old}')")
-      message(VERBOSE "  (now: '${${glob}}')")
+      message(STATUS "change in glob ${glob} detected, will regenerate")
+      _maud_print_glob_changes("${old}" "${${glob}}")
       file(WRITE "${MAUD_DIR}/cache_updates/${glob}" "${${glob}}")
       _maud_set(${glob} "${${glob}}")
 
@@ -764,13 +779,10 @@ function(_maud_maybe_regenerate)
   foreach(source_file ${_MAUD_CXX_SOURCES})
     _maud_rescan("${source_file}" scan-results-differ)
     if(scan-results-differ)
-      message(STATUS "change detected ${scan-results-differ}, regenerating")
+      message(STATUS "change detected ${scan-results-differ}, will regenerate")
       file(TOUCH_NOCREATE "${CMAKE_BINARY_DIR}/CMakeFiles/cmake.verify_globs")
-      return()
     endif()
   endforeach()
-
-  message(VERBOSE "regeneration unnecessary")
 endfunction()
 
 
@@ -817,14 +829,18 @@ endfunction()
 
 
 function(_maud_setup)
-  # We store cache mods from regenerate and apply them
-  # here (which modifies CMakeCache automatically), then
-  # delete the mods until next time
+  if(EXISTS "${CMAKE_BINARY_DIR}/CMakeFiles/VerifyGlobs.cmake")
+    file(REMOVE "${CMAKE_BINARY_DIR}/CMakeFiles/VerifyGlobs.cmake")
+  endif()
+
+  _maud_load_cache_updates(CLEAR)
   foreach(dir junk;rendered;cache_updates)
     if(NOT EXISTS "${MAUD_DIR}/${dir}")
       file(MAKE_DIRECTORY "${MAUD_DIR}/${dir}")
     endif()
   endforeach()
+  file(WRITE "${MAUD_DIR}/options.h" "")
+  add_compile_options("${_MAUD_INCLUDE} \"${MAUD_DIR}/options.h\"")
 
   set(vars "")
   foreach(
@@ -832,7 +848,6 @@ function(_maud_setup)
     CMAKE_SOURCE_DIR
     CMAKE_BINARY_DIR
     CMAKE_MODULE_PATH
-    CMAKE_MESSAGE_LOG_LEVEL
   )
     string(APPEND vars "set(${var} \"${${var}}\")\n")
   endforeach()
@@ -843,16 +858,10 @@ function(_maud_setup)
     ${vars}
     include(\"${_MAUD_SELF_DIR}/Maud.cmake\")
     _maud_load_cache()
+    _maud_load_cache_updates(LEAVE)
     cmake_language(EVAL CODE \"\${MAUD_CODE}\")
     "
   )
-
-  _maud_glob(updates "${MAUD_DIR}/cache_updates")
-  foreach(var ${updates})
-    file(READ "${MAUD_DIR}/cache_updates/${var}" val)
-    _maud_set(${var} "${val}")
-  endforeach()
-  unset(val)
 
   if(NOT DEFINED _MAUD_ALL)
     _maud_glob(_MAUD_ALL "${CMAKE_SOURCE_DIR}" "!(^|/)\\.")
@@ -890,9 +899,25 @@ function(_maud_setup)
   set(_MAUD_BASE_DIRS BASE_DIRS ${base_dirs} PARENT_SCOPE)
 
   option(
-    BOOL BUILD_SHARED_LIBS
+    BUILD_SHARED_LIBS
+    BOOL "Build shared libraries by default."
     DEFAULT OFF
-    HELP "Build shared libraries by default."
+  )
+
+  option(
+    MAUD_CXX_SOURCE_EXTENSIONS
+    STRING "Files with any of these extensions will be scanned as C++ modules."
+    DEFAULT "cxx cxxm ixx mxx cpp cppm cc ccm c++ c++m"
+    MARK_AS_ADVANCED
+  )
+
+  cmake_language(GET_MESSAGE_LOG_LEVEL level)
+  option(
+    CMAKE_MESSAGE_LOG_LEVEL
+    ENUM ERROR WARNING NOTICE STATUS VERBOSE DEBUG TRACE
+      "Log level for the message() comand."
+    DEFAULT "${level}"
+    MARK_AS_ADVANCED
   )
 endfunction()
 
@@ -951,7 +976,11 @@ endfunction()
 
 
 function(_maud_setup_doc)
-  # TODO provide a built-in option(SPHINX_BUILDERS)
+  option(
+    SPHINX_BUILDERS
+    STRING "A ;-list of builders which will be used with Sphinx."
+    DEFAULT "dirhtml"
+  )
   find_program(DOXYGEN NAMES doxygen)
   find_program(SPHINX_BUILD NAMES sphinx-build)
 
@@ -997,6 +1026,7 @@ function(_maud_setup_doc)
     )
     list(APPEND all_staged "${staged}")
 
+    # TODO use the SPHINX_BUILDERS option
     # TODO instead of enumerating outputs, just extract a directory_stamp fn
     # which touches a stamp file to be newer than anything in the dir.
     # Then we don't need to guess what output files there will be and we can
@@ -1167,7 +1197,7 @@ function(string_unescape str out_var)
 endfunction()
 
 
-function(option type name)
+function(option name type)
   # Options are considered to form a directed acyclic graph: each option may
   # declare a requirement on any other option so long as no cycles are formed.
   # Options with no requirements placed on them will have their default value.
@@ -1181,76 +1211,47 @@ function(option type name)
   # an option(), and are the only guaranteed way to specify option values. This
   # includes user provided options (On the CLI with -DFOO=a, through ccmake,
   # etc.) which will be overridden by requirements if they would produce an
-  # invalid configuration. To introduce requirements directly, use
-  # `option(FORCE FOO 0)` to add a dummy option with the listed requirements.
+  # invalid configuration.
 
   cmake_parse_arguments(
+    PARSE_ARGV 1
     "" # prefix
-    "ADVANCED;DISABLE_COMPILE_DEFINITIONS" # options
-    "DEFAULT;HELP;VALIDATE" # single value arguments
-    "REQUIRES;FORCE" # multi value arguments
-    ${ARGV}
+    "MARK_AS_ADVANCED" # options
+    "BOOL;PATH;FILEPATH;STRING;DEFAULT" # single value arguments
+    "REQUIRES;VALIDATE;ENUM" # multi value arguments
   )
 
-  set(legacy OFF)
-  set(types "BOOL;PATH;FILEPATH;STRING;(;FORCE")
-  if(NOT ("${type}" IN_LIST types))
-    # Handle legacy signature
-    set(legacy ON)
-    set(type BOOL)
-    set(name ${ARGV0})
-    set(_HELP "${ARGV1}")
-    if(ARGC GREATER 2)
-      set(_DEFAULT "${ARGV2}")
-    endif()
-  elseif(type STREQUAL "(")
+  if(type MATCHES "^(BOOL|PATH|FILEPATH|STRING)$")
+    set(help "${_${type}}")
+  elseif(type STREQUAL ENUM)
+    list(POP_BACK _ENUM help)
     set(type STRING)
-    set(enum ${ARGV})
-    list(POP_FRONT enum _)
-    list(FIND enum ")" i)
-    list(REMOVE_AT enum ${i})
-    list(GET enum ${i} name)
-    list(SUBLIST enum 0 ${i} enum)
-    if(NOT (enum MATCHES ";"))
-      message(FATAL_ERROR "ENUM option ${name} was improperly formatted")
-    elseif("" IN_LIST enum)
-      message(FATAL_ERROR "ENUM option ${name} may not contain an empty string")
-    elseif("${_DEFAULT}" STREQUAL "")
-      list(GET enum 0 _DEFAULT)
-    endif()
-  elseif(type MATCHES "PATH")
-    if(DEFINED _DEFAULT)
-      cmake_path(NATIVE_PATH _DEFAULT _DEFAULT)
-    endif()
-  elseif(type STREQUAL "FORCE")
-    set(_REQUIRES ${_FORCE})
-    string(MAKE_C_IDENTIFIER "FORCE_${_REQUIRES}" name)
+  else()
+    set(help "${ARGV1}")
     set(type BOOL)
-    set(_DEFAULT ON)
-    set(_HELP "FORCE placeholder option")
+    if(ARGV2 STREQUAL "ON")
+      # handle legacy default
+      set(_DEFAULT ON)
+    endif()
   endif()
 
-  if(name IN_LIST _MAUD_ALL_OPTIONS)
+  if(DEFINED "_MAUD_OPTION_STATE_${name}")
     return() # silently ignore duplicate declaration of the same option
   endif()
+  _maud_set(_MAUD_OPTION_STATE_${name} DECLARED)
   _maud_set(_MAUD_ALL_OPTIONS ${_MAUD_ALL_OPTIONS} ${name})
 
-  if("${name}" STREQUAL "IF")
-    message(FATAL_ERROR "IF is reserved and cannot be used for an option name")
-  elseif(NOT (name MATCHES "[A-Z][A-Z0-9_]*") AND NOT legacy)
-    message(FATAL_ERROR "Option name must be an all-caps identifier, got ${name}")
+  if(type MATCHES "PATH" AND DEFINED _DEFAULT)
+    # FIXME path options are always coerced to absolute, relative to the current working directory
+    cmake_path(NATIVE_PATH _DEFAULT _DEFAULT)
   endif()
 
   _maud_set(_MAUD_OPTION_GROUP_${name} "${OPTION_GROUP}")
 
   # dedent and escape HELP (set(CACHE) only allows one line)
-  string(STRIP "${_HELP}" _HELP)
-  string(REGEX REPLACE "(\n *)+" "\n" _HELP "${_HELP}")
-  string(REPEAT "[^\n]" 71 too_long)
-  if(_HELP MATCHES "${too_long}" AND NOT legacy)
-    message(FATAL_ERROR "${name}'s help string exceeded the 70 char line limit")
-  endif()
-  string_escape("${_HELP}" _HELP)
+  string(STRIP "${help}" help)
+  string(REGEX REPLACE "(\n *)+" "\n" help "${help}")
+  string_escape("${help}" help)
 
   # store the default
   if("${type}" STREQUAL "BOOL") # coerce BOOL to ON/OFF
@@ -1259,6 +1260,8 @@ function(option type name)
     else()
       set(_DEFAULT OFF)
     endif()
+  elseif(DEFINED _ENUM AND NOT DEFINED _DEFAULT)
+    list(GET _ENUM 0 _DEFAULT)
   endif()
   _maud_set(_MAUD_DEFAULT_${name} "${_DEFAULT}")
 
@@ -1283,15 +1286,15 @@ function(option type name)
 
   if(NOT EXISTS "${CMAKE_BINARY_DIR}/CMakeCache.txt" AND DEFINED CACHE{${name}})
     # this is a fresh build and the user has definitely configured this option
-    _maud_set(_MAUD_DEFINITELY_USER_${name} "${${name}}")
+    # FIXME path options are always coerced to absolute, relative to the current working directory
+    _maud_set(_MAUD_DEFINITELY_USER_${name} "$CACHE{${name}}")
   endif()
 
   # declare the option's cache entry
-  set(${name} "${_DEFAULT}" CACHE ${type} "${_HELP}")
-  if(_ADVANCED)
+  set(${name} "${_DEFAULT}" CACHE ${type} "${help}")
+  if(_MARK_AS_ADVANCED)
     mark_as_advanced(${name})
   endif()
-  _maud_set(_MAUD_DISABLE_COMPILE_DEFINITIONS_${name} ${_DISABLE_COMPILE_DEFINITIONS})
 
   # set the option's value from the environment if appropriate
   if(
@@ -1302,27 +1305,31 @@ function(option type name)
   endif()
 
   # store the enumeration of allowed STRING values
-  if(NOT ("${enum}" STREQUAL ""))
-    set_property(CACHE ${name} PROPERTY STRINGS "${enum}")
+  if(DEFINED _ENUM)
+    set_property(CACHE ${name} PROPERTY STRINGS "${_ENUM}")
   endif()
-  if(NOT ("${_VALIDATE}" STREQUAL ""))
-    if(type STREQUAL "BOOL" OR NOT ("${enum}" STREQUAL ""))
-      message(
-        FATAL_ERROR
-        "${name} provided VALIDATE but this may not be used with BOOL or ENUM"
-      )
-    endif()
-    _maud_set(_MAUD_VALIDATE_${name} ${_VALIDATE})
+
+  if(DEFINED _VALIDATE)
+    _maud_set(_MAUD_VALIDATE_${name} "${_VALIDATE}")
   endif()
 
   if(type MATCHES "PATH" AND NOT ("${${name}}" STREQUAL "${_DEFAULT}"))
     cmake_path(NATIVE_PATH ${name} value)
-    set(${name} "${value}" CACHE ${type} "${_HELP}" FORCE)
+    set(${name} "${value}" CACHE ${type} "${help}" FORCE)
   endif()
 endfunction()
 
 
 function(resolve_options)
+  cmake_parse_arguments(
+    "" # prefix
+    "DISABLE_COMPILE_DEFINITIONS" # options
+    "" # single value arguments
+    "" # multi value arguments
+    ${ARGN}
+  )
+  # TODO allow this to resolve a subset of all options by name
+
   foreach(opt ${_MAUD_ALL_OPTIONS})
     set(${opt}_constraint_count 0)
     set(${opt}_actual_constraints)
@@ -1370,9 +1377,7 @@ function(resolve_options)
         continue()
       endif()
 
-      if("${${dep}_actual_constraints}" STREQUAL "")
-        set_property(CACHE ${dep} PROPERTY VALUE "${${req}}")
-      elseif(NOT ("${${dep}}" STREQUAL "${${req}}"))
+      if(NOT ("${${dep}}" STREQUAL "${${req}}"))
         message(
           FATAL_ERROR
           "
@@ -1385,14 +1390,66 @@ function(resolve_options)
         )
       endif()
 
+      set_property(CACHE ${dep} PROPERTY VALUE "${${req}}")
       list(APPEND ${dep}_actual_constraints ${opt})
     endforeach()
   endforeach()
 
-  set(cache_json "{}")
+  foreach(opt ${_MAUD_ALL_OPTIONS})
+    get_property(type CACHE ${opt} PROPERTY TYPE)
+    get_property(enum CACHE ${opt} PROPERTY STRINGS)
 
-  set(defines "${MAUD_DIR}/options.h")
-  file(WRITE "${defines}" "")
+    if(enum AND NOT ("${${opt}}" IN_LIST enum))
+      message(FATAL_ERROR "ENUM option ${opt} must be one of ${enum}")
+    elseif(
+      type STREQUAL "BOOL"
+      AND NOT ("${${opt}}" STREQUAL "ON" OR "${${opt}}" STREQUAL "OFF")
+    )
+      message(FATAL_ERROR "BOOL option ${opt} must be ON or OFF")
+    endif()
+
+    if(DEFINED "_MAUD_VALIDATE_${opt}")
+      cmake_language(EVAL ${_MAUD_VALIDATE_${opt}})
+    endif()
+
+    if(NOT _DISABLE_COMPILE_DEFINITIONS)
+      get_property(help CACHE ${opt} PROPERTY HELPSTRING)
+      string_unescape("${help}" help)
+      string(REPLACE "\n" "\n *  " help "\n${help}")
+      file(APPEND "${MAUD_DIR}/options.h" "\n/*!${help}\n */\n")
+
+      if(type STREQUAL "BOOL")
+        if(${${opt}})
+          file(APPEND "${MAUD_DIR}/options.h" "#define ${opt} 1\n")
+        else()
+          file(APPEND "${MAUD_DIR}/options.h" "#define ${opt} 0\n")
+        endif()
+      elseif(enum)
+        foreach(e ${enum})
+          if("${${opt}}" STREQUAL "${e}")
+            file(APPEND "${MAUD_DIR}/options.h" "#define ${opt}_${e} 1\n")
+          else()
+            file(APPEND "${MAUD_DIR}/options.h" "#define ${opt}_${e} 0\n")
+          endif()
+        endforeach()
+      else()
+        string_escape("${${opt}}" escaped)
+        file(APPEND "${MAUD_DIR}/options.h" "#define ${opt} \"${escaped}\"")
+      endif()
+    endif()
+
+    if(
+      DEFINED "_MAUD_DEFINITELY_USER_${opt}"
+      AND NOT "${_MAUD_DEFINITELY_USER_${opt}}" STREQUAL "${${opt}}"
+    )
+      message(WARNING "Detected override of user-provided value for ${opt}")
+    endif()
+  endforeach()
+endfunction()
+
+
+function(_maud_options_summary)
+  set(cache_json "{}")
 
   # TODO sort options by group first
   set(group "")
@@ -1402,45 +1459,10 @@ function(resolve_options)
       set(group "${_MAUD_OPTION_GROUP_${opt}}")
       message(STATUS "${group}:")
       message(STATUS)
-      file(APPEND "${defines}" "\n/* ${group}: */\n\n")
-    endif()
-
-    if(NOT ("${${opt}_actual_constraints}" STREQUAL ""))
-      list(JOIN ${opt}_actual_constraints ", " reason)
-      set(reason "[constrained by ${reason}]")
-    elseif(DEFINED ENV{${opt}} AND NOT "$ENV{MAUD_DISABLE_ENVIRONMENT_OPTIONS}")
-      set(reason "[environment]")
-    elseif("${${opt}}" STREQUAL "${_MAUD_DEFAULT_${opt}}")
-      set(reason "[default]")
-    else()
-      set(reason "[user configured]")
     endif()
 
     get_property(type CACHE ${opt} PROPERTY TYPE)
-    if(type STREQUAL "STRING")
-      get_property(enum CACHE ${opt} PROPERTY STRINGS)
-      if(enum)
-        list(JOIN enum " " type)
-        set(type "(${type})")
-      endif()
-    else()
-      set(enum)
-    endif()
-
-    get_property(help CACHE ${opt} PROPERTY HELPSTRING)
-    string_unescape("${help}" help)
-
-    string(REPLACE "\n" "\n--      " help_status "\n${help}")
-
-    string_escape("${${opt}}" quoted)
-    set(quoted "\"${quoted}\"")
-    if(type STREQUAL "BOOL")
-      message(STATUS "${opt} = ${${opt}} ${reason}${help_status}")
-    elseif(enum)
-      message(STATUS "${opt}: ${type} = ${${opt}} ${reason}${help_status}")
-    else()
-      message(STATUS "${opt}: ${type} = ${quoted} ${reason}${help_status}")
-    endif()
+    get_property(enum CACHE ${opt} PROPERTY STRINGS)
 
     if(enum AND NOT ("${${opt}}" IN_LIST enum))
       message(FATAL_ERROR "ENUM option ${opt} must be one of ${enum}")
@@ -1453,39 +1475,39 @@ function(resolve_options)
       cmake_language(EVAL CODE "${_MAUD_VALIDATE_${opt}}")
     endif()
 
+    string_escape("${${opt}}" quoted)
+    set(quoted "\"${quoted}\"")
     string(JSON cache_json SET "${cache_json}" ${opt} "${quoted}")
 
-    if(NOT _MAUD_DISABLE_COMPILE_DEFINITIONS_${opt})
-      string(REPLACE "\n" "\n *  " help_comment "\n${help}")
-      file(APPEND "${defines}" "\n/*!${help_comment}\n */\n")
-
-      if(type STREQUAL "BOOL")
-        if(${${opt}})
-          file(APPEND "${defines}" "#define ${opt} 1\n")
-        else()
-          file(APPEND "${defines}" "#define ${opt} 0\n")
-        endif()
-      elseif(enum)
-        foreach(e ${enum})
-          if("${${opt}}" STREQUAL "${e}")
-            file(APPEND "${defines}" "#define ${opt}_${e} 1\n")
-          else()
-            file(APPEND "${defines}" "#define ${opt}_${e} 0\n")
-          endif()
-        endforeach()
-      else()
-        file(APPEND "${defines}" "#define ${opt} ${quoted}")
-      endif()
+    get_property(advanced CACHE ${opt} PROPERTY ADVANCED)
+    if(advanced)
+      continue() # Don't display advanced options in the summary
     endif()
 
-    if(
-      DEFINED "_MAUD_DEFINITELY_USER_${opt}"
-      AND NOT "${_MAUD_DEFINITELY_USER_${opt}}" STREQUAL "${${opt}}"
-    )
-      message(WARNING "Detected override of user-provided value for ${opt}")
+    if(NOT ("${${opt}_actual_constraints}" STREQUAL ""))
+      list(JOIN ${opt}_actual_constraints ", " reason)
+      set(reason "[constrained by ${reason}]")
+    elseif(DEFINED ENV{${opt}} AND NOT "$ENV{MAUD_DISABLE_ENVIRONMENT_OPTIONS}")
+      set(reason "[environment]")
+    elseif("${${opt}}" STREQUAL "${_MAUD_DEFAULT_${opt}}")
+      set(reason "[default]")
+    else()
+      set(reason "[user configured]")
+    endif()
+    if(enum)
+      string(PREPEND reason "(of ${enum}) ")
+    endif()
+
+    get_property(help CACHE ${opt} PROPERTY HELPSTRING)
+    string_unescape("${help}" help)
+    string(REPLACE "\n" "\n--      " help "\n${help}")
+
+    if(type STREQUAL "STRING" AND NOT enum)
+      message(STATUS "${opt} = ${quoted} ${reason}${help}")
+    else()
+      message(STATUS "${opt} = ${${opt}} ${reason}${help}")
     endif()
   endforeach()
-  add_compile_options("${_MAUD_INCLUDE} ${defines}")
   message(STATUS)
 
   set(configure_preset "{}")
@@ -1636,6 +1658,12 @@ function(add_generator_expression_display_target target_name)
     ${target_name}
     COMMAND "${CMAKE_COMMAND}" -E echo "\\'${str}\\'"
   )
+endfunction()
+
+
+function(dump_file path)
+  file(READ "${CMAKE_BINARY_DIR}/${path}" f)
+  message(STATUS "${path}: '${f}'")
 endfunction()
 
 cmake_policy(POP)

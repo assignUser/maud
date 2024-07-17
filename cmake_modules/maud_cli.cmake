@@ -140,6 +140,7 @@ file(
   _maud_setup_clang_format()
   _maud_finalize_targets()
   _maud_setup_doc()
+  _maud_options_summary()
   _maud_setup_regenerate()
   "
 )
@@ -167,6 +168,13 @@ endif()
 if(generate_only)
   return()
 endif()
+
+set(verify)
+while(NOT (verify MATCHES "INJECTED BY MAUD"))
+  if(EXISTS "${build_dir}/CMakeFiles/VerifyGlobs.cmake")
+    file(READ "${build_dir}/CMakeFiles/VerifyGlobs.cmake" verify)
+  endif()
+endwhile()
 
 execute_process(
   COMMAND
