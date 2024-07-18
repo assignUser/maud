@@ -1,7 +1,8 @@
 include_guard()
 
 cmake_policy(PUSH)
-cmake_policy(SET CMP0057 NEW)
+cmake_policy(SET CMP0009 NEW) # GLOB_RECURSE calls should not follow symlinks by default.
+cmake_policy(SET CMP0057 NEW) # Support new ``if()`` IN_LIST operator.
 
 
 set(MAUD_DIR "${CMAKE_BINARY_DIR}/_maud")
@@ -803,18 +804,19 @@ function(_maud_setup_regenerate)
     )
   endif()
 
+  if(EXISTS "${MAUD_DIR}/maud_inject_regenerate.error")
+    file(REMOVE "${MAUD_DIR}/maud_inject_regenerate.error")
+    message(WARNING "Maud failed to inject regeneration patch")
+    file(READ "${MAUD_DIR}/maud_inject_regenerate.log" log)
+    message(VERBOSE "  log: '\n${log}'")
+  endif()
+
   execute_process(
     COMMAND ${command}
     OUTPUT_FILE "${MAUD_DIR}/maud_inject_regenerate.log"
     ERROR_FILE "${MAUD_DIR}/maud_inject_regenerate.log"
     COMMAND_ERROR_IS_FATAL ANY
   )
-
-  if(EXISTS "${MAUD_DIR}/maud_inject_regenerate.error")
-    file(READ "${MAUD_DIR}/maud_inject_regenerate.error" err)
-    file(REMOVE "${MAUD_DIR}/maud_inject_regenerate.error")
-    message(WARNING "Maud failed to inject regeneration patch: '${err}'")
-  endif()
   # GLOB once to ensure VerifyGlobs will be generated.
   # This also ensures that if injection fails we will
   # regenerate anyway (because a new .error file will be
@@ -1326,6 +1328,9 @@ function(resolve_options)
   # TODO allow this to resolve a subset of all options by name
 
   foreach(opt ${_MAUD_ALL_OPTIONS})
+    if("${_MAUD_OPTION_STATE_${opt}}" STREQUAL "RESOLVED")
+      message(FATAL_ERROR "Redundant resolution of ${opt}")
+    endif()
     set(${opt}_constraint_count 0)
     set(${opt}_actual_constraints)
   endforeach()
@@ -1385,9 +1390,13 @@ function(resolve_options)
         )
       endif()
 
+      if(NOT DEFINED CACHE{${dep}})
+        message(FATAL_ERROR "FIXME set_property does nothing if ${dep} has not been declared yet")
+      endif()
       set_property(CACHE ${dep} PROPERTY VALUE "${${req}}")
       list(APPEND ${dep}_actual_constraints ${opt})
     endforeach()
+    _maud_set(_MAUD_OPTION_STATE_${opt} RESOLVED)
   endforeach()
 
   foreach(opt ${_MAUD_ALL_OPTIONS})
