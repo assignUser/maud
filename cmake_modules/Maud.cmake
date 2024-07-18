@@ -556,17 +556,12 @@ function(_maud_rescan source_file out_var)
     return()
   endif()
 
-  file(TIMESTAMP "${source_file}" src_ts "%s.%f")
-  file(TIMESTAMP "${ddi}" ddi_ts "%s.%f")
-  # Should be able to use:
-  #if(ddi IS_NEWER_THAN source_file)
-  # but it falls down sometimes...
-  if(ddi_ts VERSION_GREATER src_ts)
+  if("${ddi}" IS_NEWER_THAN "${source_file}")
     message(VERBOSE "skipping rescan of ${source_file}")
     return()
   endif()
-  message(VERBOSE "rescanning ${source_file}")
 
+  message(VERBOSE "rescanning ${source_file}")
   if(MSVC)
     set(command "${ddi}.scan.bat" .new)
   else()
