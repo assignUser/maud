@@ -1545,8 +1545,8 @@ function(_maud_options_summary)
     string(JSON cache_json SET "${cache_json}" ${name} "${quoted}")
 
     get_property(advanced CACHE ${name} PROPERTY ADVANCED)
-    if(advanced)
-      continue() # Don't display advanced options in the summary
+    if(advanced AND "${${name}}" STREQUAL "${_MAUD_DEFAULT_${name}}")
+      continue() # Don't display defaulted, advanced options in the summary
     endif()
 
     list(JOIN _MAUD_ACTUAL_CONSTRAINTS_${name} ", " reason)
@@ -1558,6 +1558,9 @@ function(_maud_options_summary)
       set(reason "[default]")
     else()
       set(reason "[user configured]")
+    endif()
+    if(advanced)
+      string(PREPEND reason "(advanced) ")
     endif()
     if(enum)
       string(PREPEND reason "(of ${enum}) ")
