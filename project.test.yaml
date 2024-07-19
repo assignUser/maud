@@ -442,6 +442,30 @@ option dependencies resolve correctly:
 - # Note that only -DA=ON will not be overridden
   command: maud --log-level=VERBOSE -DA=ON -DB=OFF -DE=yo -DD=1
 
+- write: options.cmake
+  contents: |
+    option(A "A help")
+    resolve_options()
+    # If A were not already resolved, it could've been mutated here. However,
+    # since it was already resolved it cannot be constrained to a new value.
+    option(FORCE_A "" REQUIRES A ON)
+    resolve_options()
+- failing command: maud --log-level=VERBOSE -DFORCE_A=ON
+
+
+resolve undeclared options correctly:
+- write: options.cmake
+  contents: |
+    option(A "A help" REQUIRES B ON)
+    resolve_options()
+    option(B "B help")
+    resolve_options()
+- write: assertions.cxx
+  contents: |
+    module executable; int main() {}
+    static_assert(A and B);
+- maud --log-level=VERBOSE -DA=ON -DB=OFF
+
 
 path option:
 - write: options.cmake

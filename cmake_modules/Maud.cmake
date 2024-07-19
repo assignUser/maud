@@ -1241,10 +1241,10 @@ function(option name type)
     endif()
   endif()
 
-  if(DEFINED "_MAUD_OPTION_STATE_${name}")
+  if("DECLARED" IN_LIST "_MAUD_OPTION_STATE_${name}")
     return() # silently ignore duplicate declaration of the same option
   endif()
-  _maud_set(_MAUD_OPTION_STATE_${name} DECLARED)
+  _maud_set(_MAUD_OPTION_STATE_${name} ${_MAUD_OPTION_STATE_${name}} DECLARED)
   _maud_set(_MAUD_ALL_OPTIONS ${_MAUD_ALL_OPTIONS} ${name})
 
   if(type MATCHES "PATH" AND DEFINED _DEFAULT)
@@ -1345,7 +1345,7 @@ function(resolve_options)
     # No options were specifically named; resolve all unresolved options now
     set(all)
     foreach(name ${_MAUD_ALL_OPTIONS})
-      if("${_MAUD_OPTION_STATE_${name}}" STREQUAL "RESOLVED")
+      if("RESOLVED" IN_LIST "_MAUD_OPTION_STATE_${name}")
         continue()
       endif()
       list(APPEND all ${name})
@@ -1356,7 +1356,7 @@ function(resolve_options)
     message(VERBOSE "Resolving options [${_UNPARSED_ARGUMENTS}]")
     set(all ${_UNPARSED_ARGUMENTS})
     foreach(name ${all})
-      if("${_MAUD_OPTION_STATE_${name}}" STREQUAL "RESOLVED")
+      if("RESOLVED" IN_LIST "_MAUD_OPTION_STATE_${name}")
         message(FATAL_ERROR "Redundant resolution of ${name}")
       endif()
     endforeach()
@@ -1409,33 +1409,53 @@ function(resolve_options)
         continue()
       endif()
 
-      if(${dep}_actual_constraints AND NOT "${${dep}}" STREQUAL "${${req}}")
-        message(
-          FATAL_ERROR
-          "
-          Option constraint conflict: ${dep} is constrained
-          by ${${dep}_actual_constraints} to be
-            \"${${dep}}\"
-          but ${name} requires it to be
-            \"${${req}}\"
-          "
+      if(NOT "${${dep}}" STREQUAL "${${req}}")
+        if(${dep}_actual_constraints)
+          message(
+            FATAL_ERROR
+            "
+    Option constraint conflict: ${dep} is constrained
+    by ${${dep}_actual_constraints} to be
+      \"${${dep}}\"
+    but ${name} requires it to be
+      \"${${req}}\"
+            "
+          )
+        endif()
+
+        if("RESOLVED" IN_LIST "_MAUD_OPTION_STATE_${dep}")
+          message(
+            FATAL_ERROR
+            "
+    Option constraint conflict: ${dep} was already resolved to
+      \"${${dep}}\"
+    but ${name} requires it to be
+      \"${${req}}\"
+            "
+          )
+        endif()
+      endif()
+
+      if(DEFINED CACHE{${dep}})
+        set_property(CACHE ${dep} PROPERTY VALUE "${${req}}")
+      else()
+        # ${dep} has not yet been declared, so leave its type and help in a state
+        # which will be overridden by a subsequent call to set().
+        set(
+          ${dep} "${${req}}" CACHE UNINITIALIZED
+          "No help, variable specified on the command line."
         )
       endif()
-
-      if(NOT DEFINED CACHE{${dep}})
-        message(FATAL_ERROR "FIXME set_property does nothing if ${dep} has not been declared yet")
-      endif()
-      set_property(CACHE ${dep} PROPERTY VALUE "${${req}}")
       list(APPEND ${dep}_actual_constraints ${name})
     endforeach()
-    _maud_set(_MAUD_OPTION_STATE_${name} RESOLVED)
+    _maud_set(_MAUD_OPTION_STATE_${name} ${_MAUD_OPTION_STATE_${name}} RESOLVED)
   endforeach()
 
-  foreach(name ${all})
+  foreach(name ${resolve_ordered})
     _maud_set(_MAUD_ACTUAL_CONSTRAINTS_${name} ${${name}_actual_constraints})
   endforeach()
 
-  foreach(name ${all})
+  foreach(name ${resolve_ordered})
     get_property(type CACHE ${name} PROPERTY TYPE)
     get_property(enum CACHE ${name} PROPERTY STRINGS)
 
@@ -1485,7 +1505,7 @@ function(resolve_options)
       endforeach()
     else()
       string_escape("${${name}}" escaped)
-      file(APPEND "${MAUD_DIR}/options.h" "#define ${name} \"${escaped}\"")
+      file(APPEND "${MAUD_DIR}/options.h" "#define ${name} \"${escaped}\"\n")
     endif()
   endforeach()
 endfunction()
