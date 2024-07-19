@@ -181,7 +181,6 @@ export struct Expectation {
                       ::testing::TestPartResult::kNonFatalFailure);
   }
 };
-enum { EQ, NE, GT, GE, LT, LE };
 
 export template <typename C>
 struct Condition {
@@ -211,56 +210,40 @@ std::string operator,(Condition<C> c, End e) {
   return s;
 }
 
-export template <typename L, auto OP, typename R>
+export template <typename L, typename R>
 struct Comparison {
   L const &lhs;
   R const &rhs;
-
-  constexpr bool check() const {
-    if constexpr (OP == EQ) return lhs == rhs;
-    if constexpr (OP == NE) return lhs != rhs;
-    if constexpr (OP == GT) return lhs > rhs;
-    if constexpr (OP == GE) return lhs >= rhs;
-    if constexpr (OP == LT) return lhs < rhs;
-    if constexpr (OP == LE) return lhs <= rhs;
-  }
-
-  static constexpr std::string_view name = [] {
-    if constexpr (OP == EQ) return "==";
-    if constexpr (OP == NE) return "!=";
-    if constexpr (OP == GT) return ">";
-    if constexpr (OP == GE) return ">=";
-    if constexpr (OP == LT) return "<";
-    if constexpr (OP == LE) return "<=";
-  }();
+  bool condition;
+  std::string_view name;
 };
 export template <typename L, typename R>
-Comparison<L, EQ, R> operator==(Condition<L> lhs, R const &rhs) {
-  return {lhs.condition, rhs};
+Comparison<L, R> operator==(Condition<L> lhs, R const &rhs) {
+  return {lhs.condition, rhs, lhs.condition == rhs, "=="};
 }
 export template <typename L, typename R>
-Comparison<L, NE, R> operator!=(Condition<L> lhs, R const &rhs) {
-  return {lhs.condition, rhs};
+Comparison<L, R> operator!=(Condition<L> lhs, R const &rhs) {
+  return {lhs.condition, rhs, lhs.condition != rhs, "!="};
 }
 export template <typename L, typename R>
-Comparison<L, GT, R> operator>(Condition<L> lhs, R const &rhs) {
-  return {lhs.condition, rhs};
+Comparison<L, R> operator>(Condition<L> lhs, R const &rhs) {
+  return {lhs.condition, rhs, lhs.condition > rhs, ">"};
 }
 export template <typename L, typename R>
-Comparison<L, GE, R> operator>=(Condition<L> lhs, R const &rhs) {
-  return {lhs.condition, rhs};
+Comparison<L, R> operator>=(Condition<L> lhs, R const &rhs) {
+  return {lhs.condition, rhs, lhs.condition >= rhs, ">="};
 }
 export template <typename L, typename R>
-Comparison<L, LT, R> operator<(Condition<L> lhs, R const &rhs) {
-  return {lhs.condition, rhs};
+Comparison<L, R> operator<(Condition<L> lhs, R const &rhs) {
+  return {lhs.condition, rhs, lhs.condition < rhs, "<"};
 }
 export template <typename L, typename R>
-Comparison<L, LE, R> operator<=(Condition<L> lhs, R const &rhs) {
-  return {lhs.condition, rhs};
+Comparison<L, R> operator<=(Condition<L> lhs, R const &rhs) {
+  return {lhs.condition, rhs, lhs.condition <= rhs, "<="};
 }
-export template <typename L, auto OP, typename R>
-std::string operator,(Comparison<L, OP, R> c, End e) {
-  if (c.check()) return {};
+export template <typename L, typename R>
+std::string operator,(Comparison<L, R> c, End e) {
+  if (c.condition) return {};
 
   auto lhs = testing::PrintToString(c.lhs);
   auto i = e.condition_string.find(c.name);
@@ -302,90 +285,6 @@ std::string operator,(Comparison<L, OP, R> c, End e) {
   s += testing::PrintToString(c.lhs);
   s += " vs ";
   s += testing::PrintToString(c.rhs);
-  return s;
-}
-
-template <typename... C>
-struct MultiEquality {
-  std::tuple<C const &...> tuple;
-  bool equal;
-};
-export template <typename L, typename R, typename T>
-MultiEquality<L, R, T> operator==(Comparison<L, EQ, R> c, T const &rhs) {
-  return {
-      {c.lhs, c.rhs, rhs},
-      c.check() and c.rhs == rhs
-  };
-}
-export template <typename... C, typename R>
-MultiEquality<C..., R> operator==(MultiEquality<C...> c, R const &rhs) {
-  bool equal = c.equal and std::get<sizeof...(C) - 1>(c.tuple) == rhs;
-  return {std::tuple_cat(c.tuple, std::tie(rhs)), equal};
-}
-export template <typename... C>
-std::string operator,(MultiEquality<C...> c, End e) {
-  if (c.equal) return {};
-
-  std::string s;
-  std::apply(
-      [&](auto const &c0, auto const &...c) {
-        s += "Expected: ";
-        s += e.condition_string;
-        s += "\n";
-        s += "  Actual: ";
-        s += testing::PrintToString(c0);
-        s += (... + (" vs " + testing::PrintToString(c)));
-      },
-      c.tuple);
-  return s;
-}
-
-template <typename... C>
-struct Ordering {
-  std::tuple<C const &...> tuple;
-  bool ordered;
-};
-export template <typename L, auto OP, typename R, typename T>
-  requires(OP == LE or OP == LT)
-Ordering<L, R, T> operator<(Comparison<L, OP, R> c, T const &rhs) {
-  return {
-      {c.lhs, c.rhs, rhs},
-      c.check() and c.rhs < rhs
-  };
-}
-export template <typename L, auto OP, typename R, typename T>
-  requires(OP == LE or OP == LT)
-Ordering<L, R, T> operator<=(Comparison<L, OP, R> c, T const &rhs) {
-  return {
-      {c.lhs, c.rhs, rhs},
-      c.check() and c.rhs <= rhs
-  };
-}
-export template <typename... C, typename R>
-Ordering<C..., R> operator<(Ordering<C...> c, R const &rhs) {
-  bool ordered = c.ordered and std::get<sizeof...(C) - 1>(c.tuple) < rhs;
-  return {std::tuple_cat(c.tuple, std::tie(rhs)), ordered};
-}
-export template <typename... C, typename R>
-Ordering<C..., R> operator<=(Ordering<C...> c, R const &rhs) {
-  bool ordered = c.ordered and std::get<sizeof...(C) - 1>(c.tuple) <= rhs;
-  return {std::tuple_cat(c.tuple, std::tie(rhs)), ordered};
-}
-export template <typename... C>
-std::string operator,(Ordering<C...> c, End e) {
-  if (c.ordered) return {};
-
-  std::string s;
-  std::apply(
-      [&](auto const &c0, auto const &...c) {
-        s += "Expected: ";
-        s += e.condition_string;
-        s += "\n";
-        s += "  Actual: ";
-        s += testing::PrintToString(c0);
-        s += (... + (" vs " + testing::PrintToString(c)));
-      },
-      c.tuple);
   return s;
 }
 

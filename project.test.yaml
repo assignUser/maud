@@ -31,8 +31,6 @@ unit testing:
     TEST_(basic) {
       int three = 3, five = 5;
       EXPECT_(three != five);
-      EXPECT_(three == three == 3);
-      EXPECT_(three < five <= 6);
       EXPECT_(67 > five);
       EXPECT_(three);
       EXPECT_(not std::false_type{});
@@ -58,7 +56,8 @@ unit testing:
     TEST_(parameterized_gen, []() -> Generator<int> {
       for (int i = 0; i < 10; ++i) co_yield i;
     }) {
-      EXPECT_(0 <= parameter < 10);
+      EXPECT_(0 <= parameter);
+      EXPECT_(parameter < 10);
     }
     TEST_(typed, std::tuple{0, std::string("")}) {
       EXPECT_(parameter + parameter == parameter);
