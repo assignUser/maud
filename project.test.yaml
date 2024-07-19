@@ -369,14 +369,13 @@ options:
     option(
       B4
       BOOL "HIDDEN"
-      DISABLE_COMPILE_DEFINITIONS
     )
     option(
       E
       ENUM A B C ""
     )
 
-    resolve_options()
+    resolve_options(B4 DISABLE_COMPILE_DEFINITIONS)
 - write: assertions.cxx
   contents: |
     module executable; int main() {}
@@ -386,8 +385,7 @@ options:
     static_assert(not B);
 
     #if defined(B4)
-    // FIXME re-enable!
-    //#error "should be disabled"
+    #error "should be disabled"
     #endif
 - maud --log-level=VERBOSE
 - json: CMakeUserPresets.json
@@ -414,6 +412,35 @@ detect option dependency cycle:
     option(B "" REQUIRES A ON)
     resolve_options()
 - failing command: maud --log-level=VERBOSE
+
+
+option dependencies resolve correctly:
+- write: options.cmake
+  contents: |
+    option(A "" REQUIRES B ON)
+    option(B "" REQUIRES C ON)
+    option(C "" REQUIRES D 3)
+    option(
+      D ENUM 0 1 2 3 ""
+      REQUIRES
+        IF 1 E "one"
+        IF 2 E "two"
+        IF 3 E "three"
+    )
+    option(E STRING "")
+    resolve_options()
+- write: assertions.cxx
+  contents: |
+    module;
+    #include <string_view>
+    module executable; int main() {}
+    using std::operator""sv;
+
+    static_assert(A and B and C);
+    static_assert(D_3);
+    static_assert(E == "three"sv);
+- # Note that only -DA=ON will not be overridden
+  command: maud --log-level=VERBOSE -DA=ON -DB=OFF -DE=yo -DD=1
 
 
 validate bool option:

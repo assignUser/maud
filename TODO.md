@@ -3,10 +3,6 @@ NEXT
 
 - write doc
 - glob() should *always* be CONFIGURE_DEPENDS
-- options need more than just a single resolution
-  - you can't use an option until after resolution...
-    but an option might import others which need
-    independent resolution
 - more test projects
   - write the test project runner in cmake, the only c++ we need is `yaml_to_json_` private exe
   - use a maud based project with fetchcontent
@@ -220,18 +216,6 @@ We provide a reserved target called `interfaces`, so if you switch
 compilers you can clone the project and build/install just BMIs.
 Nice enough for demos where everything is a wrapper around FetchContent,
 and we leave a TODO saying that we need a better way to cache these.
-
-TODO: options
--------------
-
-Render options.rst with all the options summarized.
-
-Ensure that we are always dealing with native paths in
-options: defaults, values, requirements, etc. The compiled
-string should also always be of the native character type.
-
-Don't add a definition unless a keyword is passed to `option()`
-s
 
 TODO:
 -----
