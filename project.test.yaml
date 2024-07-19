@@ -18,6 +18,29 @@ auto add sources:
 - exists: .build/Debug/libbar2.a
 
 
+std lib:
+- write: std_.cxx
+  contents: |
+    module;
+    #include <string>
+    #include <vector>
+    // Technically not reserved since it doesn't match ^std[0-9]*$
+    export module std_;
+    namespace std {
+      export using std::string;
+      export using std::vector;
+    }
+- write: bar.cxx
+  contents: |
+    module executable;
+    import std_;
+    int main() {
+      std::vector<std::string> s;
+      return 0;
+    }
+- maud --log-level=VERBOSE
+
+
 unit testing:
 - write: basics.cxx
   contents: |
