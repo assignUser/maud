@@ -915,6 +915,17 @@ function(_maud_setup)
     DEFAULT "${level}"
     MARK_AS_ADVANCED
   )
+
+  # PATH options are always coerced to absolute, relative to the working directory
+  # of the configuring cmake process. Therefore we need to have that directory correctly
+  # detect changes to PATH options.
+ 
+  # define the variable with UNINITIALIZED type so that it's as-if from the CLI
+  set(_MAUD_CWD "." CACHE UNINITIALIZED "")
+  # the value already exists and isn't absolute, so it will be coerced by set() now
+  set(_MAUD_CWD "." CACHE FILEPATH "")
+  # finally, hide this ugliness from GUIs
+  _maud_set(_MAUD_CWD "${_MAUD_CWD}")
 endfunction()
 
 
@@ -1238,8 +1249,9 @@ function(option name type)
   _maud_set(_MAUD_ALL_OPTIONS ${_MAUD_ALL_OPTIONS} ${name})
 
   if(type MATCHES "PATH" AND DEFINED _DEFAULT)
-    # FIXME path options are always coerced to absolute, relative to the current working directory
     cmake_path(NATIVE_PATH _DEFAULT _DEFAULT)
+    # Coerce relative DEFAULT for a PATH to be absolute relative to CMAKE_SOURCE_DIR
+    cmake_path(ABSOLUTE_PATH _DEFAULT)
   endif()
 
   _maud_set(_MAUD_OPTION_GROUP_${name} "${OPTION_GROUP}")
@@ -1282,8 +1294,13 @@ function(option name type)
 
   if(NOT EXISTS "${CMAKE_BINARY_DIR}/CMakeCache.txt" AND DEFINED CACHE{${name}})
     # this is a fresh build and the user has definitely configured this option
-    # FIXME path options are always coerced to absolute, relative to the current working directory
-    _maud_set(_MAUD_DEFINITELY_USER_${name} "$CACHE{${name}}")
+    if(type MATCHES "PATH")
+      set(path "$CACHE{${name}}")
+      cmake_path(ABSOLUTE_PATH path BASE_DIRECTORY "${_MAUD_CWD}")
+      _maud_set(_MAUD_DEFINITELY_USER_${name} "${path}")
+    else()
+      _maud_set(_MAUD_DEFINITELY_USER_${name} "$CACHE{${name}}")
+    endif()
   endif()
 
   # declare the option's cache entry

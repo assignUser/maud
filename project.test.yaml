@@ -443,6 +443,21 @@ option dependencies resolve correctly:
   command: maud --log-level=VERBOSE -DA=ON -DB=OFF -DE=yo -DD=1
 
 
+path option:
+- write: options.cmake
+  contents: |
+    option(P PATH "")
+- write: assertions.cxx
+  contents: |
+    module;
+    #include <string_view>
+    module executable; int main() {}
+    using std::operator""sv;
+    static_assert(P == std::string_view{__FILE__});
+- # Note that only -DA=ON will not be overridden
+  command: maud --log-level=VERBOSE -DP=./assertions.cxx
+
+
 validate bool option:
 - write: options.cmake
   contents: |
