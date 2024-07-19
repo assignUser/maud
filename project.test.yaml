@@ -446,7 +446,12 @@ option dependencies resolve correctly:
 path option:
 - write: options.cmake
   contents: |
-    option(P PATH "")
+    option(
+      P PATH "
+      Some path option
+      Some more description
+      "
+    )
 - write: assertions.cxx
   contents: |
     module;

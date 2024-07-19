@@ -27,13 +27,12 @@ endfunction()
 
 
 function(_maud_load_cache)
-  file(STRINGS "${CMAKE_BINARY_DIR}/CMakeCache.txt" cache_lines)
-  foreach(cache_line ${cache_lines})
-    if(cache_line MATCHES "^([^#/].*):.+=(.*)$")
-      _maud_set(${CMAKE_MATCH_1} "${CMAKE_MATCH_2}")
-    endif()
-  endforeach()
-  #string(CONCAT pattern "^(.*\n)" [[\.\. configuration::]] "\n+( +)(.*)$")
+  file(READ "${CMAKE_BINARY_DIR}/CMakeCache.txt" cache)
+  string(CONCAT pattern "^(.*\n)" [[([^#/].*):.+=]] "([^\n]*)" "\n(.*)$")
+  while(cache MATCHES "${pattern}")
+    set(cache "${CMAKE_MATCH_1}")
+    _maud_set(${CMAKE_MATCH_2} "${CMAKE_MATCH_3}")
+  endwhile()
 endfunction()
 
 
