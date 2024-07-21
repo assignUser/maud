@@ -56,6 +56,8 @@ glob benchmark:
       WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
     )
 
+    find_program(FD NAMES fd)
+
     set(files)
     foreach(i RANGE ${F})
       foreach(j RANGE ${F})
@@ -100,10 +102,29 @@ glob benchmark:
     message(STATUS "Writing: ${delta_ms}ms")
 
     time([[
-      file(GLOB_RECURSE files RELATIVE "${CMAKE_SOURCE_DIR}" "*")
-      _maud_set(files ${files})
+      file(
+        GLOB_RECURSE _
+        LIST_DIRECTORIES true
+        RELATIVE "${CMAKE_SOURCE_DIR}"
+        "*"
+      )
+      list(FILTER _ EXCLUDE REGEX "(^|/)\\.")
     ]])
     message(STATUS "Globbing: ${delta_ms}ms")
+
+    if(FD)
+      time([[
+        execute_process(
+          COMMAND cmake -E chdir "${CMAKE_SOURCE_DIR}" "${FD}" -I
+          OUTPUT_VARIABLE _
+        )
+        string(STRIP "${_}" _)
+        string(REGEX REPLACE "/?\n" ";" _ "${_}")
+      ]])
+    else()
+      set(delta_ms fd-NOTFOUND)
+    endif()
+    message(STATUS "Globbing with fd: ${delta_ms}ms")
 
     time([[
       list(FILTER files INCLUDE REGEX ".*")
@@ -111,17 +132,16 @@ glob benchmark:
     ]])
     message(STATUS "Filtering: ${delta_ms}ms")
 
-    list(GET files 0 file_0)
     time([[
       foreach(f ${files})
-        if("${f}" IS_NEWER_THAN "${file_0}")
+        if("${f}" IS_NEWER_THAN "${f}")
         endif()
       endforeach()
     ]])
     message(STATUS "New checking: ${delta_ms}ms")
 
     time([[
-      _maud_load_cache()
+      _maud_load_cache("${CMAKE_BINARY_DIR}")
     ]])
     message(STATUS "Loading the cache: ${delta_ms}ms")
 

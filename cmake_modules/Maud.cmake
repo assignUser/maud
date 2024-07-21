@@ -1,16 +1,13 @@
 include_guard()
 
 cmake_policy(PUSH)
+cmake_policy(SET CMP0007 NEW) # list command no longer ignores empty elements.
 cmake_policy(SET CMP0009 NEW) # GLOB_RECURSE calls should not follow symlinks by default.
 cmake_policy(SET CMP0057 NEW) # Support new ``if()`` IN_LIST operator.
 
 
-set(MAUD_DIR "${CMAKE_BINARY_DIR}/_maud")
 set(_MAUD_SELF_DIR "${CMAKE_CURRENT_LIST_DIR}")
 
-set(_MAUD_INCLUDE "SHELL: $<IF:$<CXX_COMPILER_ID:MSVC>,/Fi,-include>")
-
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # TODO defer this until c++ source scan time
 if(NOT CMAKE_CXX_STANDARD)
@@ -23,28 +20,6 @@ endif()
 
 function(_maud_set var)
   set(${var} "${ARGN}" CACHE INTERNAL "" FORCE)
-endfunction()
-
-
-function(_maud_load_cache)
-  file(READ "${CMAKE_BINARY_DIR}/CMakeCache.txt" cache)
-  string(CONCAT pattern "^(.*\n)" [[([^#/].*):.+=]] "([^\n]*)" "\n(.*)$")
-  while(cache MATCHES "${pattern}")
-    set(cache "${CMAKE_MATCH_1}")
-    _maud_set(${CMAKE_MATCH_2} "${CMAKE_MATCH_3}")
-  endwhile()
-endfunction()
-
-
-function(_maud_load_cache_updates mode)
-  _maud_glob(updates "${MAUD_DIR}/cache_updates")
-  foreach(var ${updates})
-    file(READ "${MAUD_DIR}/cache_updates/${var}" val)
-    _maud_set(${var} "${val}")
-    if(mode STREQUAL "CLEAR")
-      file(REMOVE "${MAUD_DIR}/cache_updates/${var}")
-    endif()
-  endforeach()
 endfunction()
 
 
@@ -114,7 +89,7 @@ function(_maud_glob out_var root_dir)
     RELATIVE "${root_dir}"
     "${root_dir}/*"
   )
-  _maud_filter(matches ${ARGN})
+  _maud_filter(matches  "!(/|^)\\.")
   set(${out_var} ${matches} PARENT_SCOPE)
 endfunction()
 
@@ -703,15 +678,22 @@ function(_maud_finalize_targets)
 endfunction()
 
 
+function(_maud_diff_sets old new out_added out_removed)
+  set(added "${new}")
+  list(REMOVE_ITEM added ${old})
+  set(removed "${old}")
+  list(REMOVE_ITEM removed ${new})
+  set(${out_added} "${added}" PARENT_SCOPE)
+  set(${out_removed} "${removed}" PARENT_SCOPE)
+endfunction()
+
+
 function(_maud_print_glob_changes old new)
   if(CMAKE_MESSAGE_LOG_LEVEL MATCHES "ERROR|WARNING|NOTICE|STATUS")
     return()
   endif()
-  set(added "${new}")
-  list(REMOVE_ITEM added ${old})
+  _maud_diff_sets("${old}" "${new}" added removed)
   list(TRANSFORM added PREPEND "ADD ")
-  set(removed "${old}")
-  list(REMOVE_ITEM removed ${new})
   list(TRANSFORM removed PREPEND "REMOVE ")
   foreach(change ${added} ${removed})
     message(VERBOSE "  ${change}")
@@ -722,7 +704,7 @@ endfunction()
 function(_maud_maybe_regenerate)
   set(total_set_changed FALSE)
 
-  _maud_glob(all "${CMAKE_SOURCE_DIR}" "!(/|^)\\.")
+  _maud_glob(all "${CMAKE_SOURCE_DIR}")
   if(NOT "${all}" STREQUAL "${_MAUD_ALL}")
     message(VERBOSE "change to _MAUD_ALL detected")
     _maud_print_glob_changes("${_MAUD_ALL}" "${all}")
@@ -732,7 +714,7 @@ function(_maud_maybe_regenerate)
     file(WRITE "${MAUD_DIR}/cache_updates/_MAUD_ALL" "${all}")
   endif()
 
-  _maud_glob(all "${MAUD_DIR}/rendered" "!(/|^)\\.")
+  _maud_glob(all "${MAUD_DIR}/rendered")
   if(NOT "${all}" STREQUAL "${_MAUD_ALL_GENERATED}")
     message(VERBOSE "change to _MAUD_ALL_GENERATED detected")
     _maud_print_glob_changes("${_MAUD_ALL_GENERATED}" "${all}")
@@ -823,45 +805,66 @@ function(_maud_setup_regenerate)
 endfunction()
 
 
-function(_maud_setup)
-  if(EXISTS "${CMAKE_BINARY_DIR}/CMakeFiles/VerifyGlobs.cmake")
-    file(REMOVE "${CMAKE_BINARY_DIR}/CMakeFiles/VerifyGlobs.cmake")
+function(_maud_load_cache build_dir)
+  if(NOT build_dir STREQUAL "CONFIGURING")
+    # We haven't loaded CMakeCache.txt yet, so do that now.
+    # Unset vars which are just CWD in script mode.
+    unset(CMAKE_SOURCE_DIR PARENT_SCOPE)
+    unset(CMAKE_BINARY_DIR PARENT_SCOPE)
+    file(READ "${build_dir}/CMakeCache.txt" cache)
+    string(CONCAT pattern "^(.*\n)" [[([^#/].*):.+=]] "([^\n]*)" "\n(.*)$")
+    while(cache MATCHES "${pattern}")
+      set(cache "${CMAKE_MATCH_1}")
+      _maud_set(${CMAKE_MATCH_2} "${CMAKE_MATCH_3}")
+    endwhile()
   endif()
 
-  _maud_load_cache_updates(CLEAR)
-  foreach(dir junk;rendered;cache_updates)
+  _maud_glob(updates "${MAUD_DIR}/cache_updates")
+  foreach(var ${updates})
+    file(READ "${MAUD_DIR}/cache_updates/${var}" val)
+    _maud_set(${var} "${val}")
+  endforeach()
+
+  if(build_dir STREQUAL "CONFIGURING")
+    # cache updates will be persisted so cache_updates/ can be cleared
+    file(REMOVE_RECURSE "${MAUD_DIR}/cache_updates")
+  endif()
+endfunction()
+
+
+function(_maud_setup)
+  _maud_set(CMAKE_SOURCE_DIR "${CMAKE_SOURCE_DIR}")
+  _maud_set(CMAKE_BINARY_DIR "${CMAKE_BINARY_DIR}")
+  _maud_set(MAUD_DIR "${CMAKE_BINARY_DIR}/_maud")
+
+  _maud_set(_MAUD_INCLUDE "SHELL: $<IF:$<CXX_COMPILER_ID:MSVC>,/Fi,-include>")
+  _maud_set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+  _maud_load_cache(CONFIGURING)
+
+  if(NOT DEFINED _MAUD_ALL)
+    _maud_glob(_MAUD_ALL "${CMAKE_SOURCE_DIR}")
+    _maud_set(_MAUD_ALL ${_MAUD_ALL})
+  endif()
+
+  file(REMOVE "${CMAKE_BINARY_DIR}/CMakeFiles/VerifyGlobs.cmake")
+
+  file(
+    WRITE "${MAUD_DIR}/eval.cmake"
+    "
+    include(\"${_MAUD_SELF_DIR}/Maud.cmake\")
+    _maud_load_cache(\"${CMAKE_BINARY_DIR}\")
+    cmake_language(EVAL CODE \"\${MAUD_CODE}\")
+    "
+  )
+
+  foreach(dir junk;rendered)
     if(NOT EXISTS "${MAUD_DIR}/${dir}")
       file(MAKE_DIRECTORY "${MAUD_DIR}/${dir}")
     endif()
   endforeach()
   file(WRITE "${MAUD_DIR}/options.h" "")
   add_compile_options("${_MAUD_INCLUDE} \"${MAUD_DIR}/options.h\"")
-
-  set(vars "")
-  foreach(
-    var
-    CMAKE_SOURCE_DIR
-    CMAKE_BINARY_DIR
-  )
-    string(APPEND vars "set(${var} \"${${var}}\")\n")
-  endforeach()
-
-  file(
-    WRITE "${MAUD_DIR}/eval.cmake"
-    "
-    ${vars}
-    include(\"${_MAUD_SELF_DIR}/Maud.cmake\")
-    _maud_load_cache()
-    _maud_load_cache_updates(LEAVE)
-    message(VERBOSE \"EVAL '\n\${MAUD_CODE}'\")
-    cmake_language(EVAL CODE \"\${MAUD_CODE}\")
-    "
-  )
-
-  if(NOT DEFINED _MAUD_ALL)
-    _maud_glob(_MAUD_ALL "${CMAKE_SOURCE_DIR}" "!(^|/)\\.")
-    _maud_set(_MAUD_ALL ${_MAUD_ALL})
-  endif()
 
   cmake_path(IS_PREFIX CMAKE_SOURCE_DIR "${CMAKE_BINARY_DIR}" is_prefix)
   cmake_path(GET CMAKE_BINARY_DIR FILENAME build)
@@ -930,7 +933,7 @@ endfunction()
 
 function(_maud_finalize_generated)
   if(NOT DEFINED _MAUD_ALL_GENERATED)
-    _maud_glob(_MAUD_ALL_GENERATED "${MAUD_DIR}/rendered" "!(^|/)\\.")
+    _maud_glob(_MAUD_ALL_GENERATED "${MAUD_DIR}/rendered")
     _maud_set(_MAUD_ALL_GENERATED ${_MAUD_ALL_GENERATED})
   endif()
 endfunction()
