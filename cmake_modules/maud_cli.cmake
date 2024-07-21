@@ -133,6 +133,8 @@ file(
     # TODO fallback to FetchContent
     find_package(GTest)
   endif()
+  # if any module appended to the PATH, save that to the cache
+  _maud_set(CMAKE_MODULE_PATH \"\${CMAKE_MODULE_PATH}\")
   _maud_in2()
   _maud_finalize_generated()
   _maud_include_directories()

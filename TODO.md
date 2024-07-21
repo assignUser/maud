@@ -107,9 +107,6 @@ that the cost is negligible (comparable to checking every file's
 timestamp, say), then some users will not want to use Maud because
 some projects can get big and maybe globs will be too slow.
 
-Even if globbing is found to be slow, that's not necessarily the end
-of it: we can cache and partition results so that it's faster to check.
-
 Also, present both sides of the globbing argument.
 
 TODO: conversion traits

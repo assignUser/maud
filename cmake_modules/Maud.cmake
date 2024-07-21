@@ -842,7 +842,6 @@ function(_maud_setup)
     var
     CMAKE_SOURCE_DIR
     CMAKE_BINARY_DIR
-    CMAKE_MODULE_PATH
   )
     string(APPEND vars "set(${var} \"${${var}}\")\n")
   endforeach()
@@ -854,6 +853,7 @@ function(_maud_setup)
     include(\"${_MAUD_SELF_DIR}/Maud.cmake\")
     _maud_load_cache()
     _maud_load_cache_updates(LEAVE)
+    message(VERBOSE \"EVAL '\n\${MAUD_CODE}'\")
     cmake_language(EVAL CODE \"\${MAUD_CODE}\")
     "
   )
@@ -945,7 +945,7 @@ function(_maud_cmake_modules)
     message(STATUS "Detected CMake module directory: ${module_dir}")
   endforeach()
   list(REMOVE_DUPLICATES CMAKE_MODULE_PATH)
-  set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" PARENT_SCOPE)
+  _maud_set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}")
 
   glob(
     _MAUD_CMAKE_MODULES

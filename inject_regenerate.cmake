@@ -9,11 +9,22 @@ set(
   "try_compile'd maud_inject_regenerate for bootstrapping Maud"
 )
 
+file(
+  WRITE "${MAUD_DIR}/maud_.cxx"
+  "
+  export module maud_;
+  export import :filesystem;
+  "
+)
+
 try_compile(
   success
   SOURCES "${dir}/maud_inject_regenerate.cxx"
   SOURCES_TYPE CXX_MODULE
-  SOURCES "${dir}/cmake_modules/_executable.cxx"
+  SOURCES
+    "${MAUD_DIR}/maud_.cxx"
+    "${dir}/filesystem.cxx"
+    "${dir}/cmake_modules/_executable.cxx"
   COPY_FILE "${_MAUD_INJECT_REGENERATE}"
   OUTPUT_VARIABLE errors
   CXX_STANDARD 20

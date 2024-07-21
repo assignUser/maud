@@ -41,6 +41,97 @@ std lib:
 - maud --log-level=VERBOSE
 
 
+glob benchmark:
+- write: benchmark.cmake
+  contents: |
+    _maud_set(N 7)
+    _maud_set(F 26)
+
+    add_custom_target(
+      benchmark ALL
+      COMMAND
+        "${CMAKE_COMMAND}"
+        [[-DMAUD_CODE="include(Time)"]]
+        -P "${MAUD_DIR}/eval.cmake"
+      WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    )
+
+    set(files)
+    foreach(i RANGE ${F})
+      foreach(j RANGE ${F})
+        foreach(k RANGE ${F})
+          list(APPEND files "${i}/${j}/${k}")
+        endforeach()
+      endforeach()
+    endforeach()
+    _maud_set(files ${files})
+
+- write: cmake_modules/Time.cmake
+  contents: |
+    message(STATUS "\n\nBENCHMARK")
+    function(time code)
+      set(sum 0)
+      set(min 9999999999)
+      cmake_language(
+        EVAL CODE
+        "
+        foreach(i RANGE ${N})
+          string(TIMESTAMP before [[%s%f]])
+          ${code}
+          string(TIMESTAMP after [[%s%f]])
+          math(EXPR d \"\${after} - \${before}\")
+          math(EXPR sum \"\${sum} + \${d}\")
+          if(min GREATER d)
+            set(min \${d})
+          endif()
+        endforeach()
+        "
+      )
+      math(EXPR mean "${sum} / 1000 / (${N} + 1)")
+      math(EXPR min "${min} / 1000")
+      set(delta_ms "(mean=${mean} min=${min})" PARENT_SCOPE)
+    endfunction()
+
+    time([[
+      foreach(f ${files})
+        file(WRITE "${f}" "")
+      endforeach()
+    ]])
+    message(STATUS "Writing: ${delta_ms}ms")
+
+    time([[
+      file(GLOB_RECURSE files RELATIVE "${CMAKE_SOURCE_DIR}" "*")
+      _maud_set(files ${files})
+    ]])
+    message(STATUS "Globbing: ${delta_ms}ms")
+
+    time([[
+      list(FILTER files INCLUDE REGEX ".*")
+      list(FILTER files EXCLUDE REGEX "(^|/)\\.")
+    ]])
+    message(STATUS "Filtering: ${delta_ms}ms")
+
+    list(GET files 0 file_0)
+    time([[
+      foreach(f ${files})
+        if("${f}" IS_NEWER_THAN "${file_0}")
+        endif()
+      endforeach()
+    ]])
+    message(STATUS "New checking: ${delta_ms}ms")
+
+    time([[
+      _maud_load_cache()
+    ]])
+    message(STATUS "Loading the cache: ${delta_ms}ms")
+
+    list(LENGTH files count)
+    math(EXPR N "${N} + 1")
+    message(STATUS "\n\n  ${N} iterations with ${count} files")
+
+- maud
+
+
 unit testing:
 - write: basics.cxx
   contents: |
