@@ -507,7 +507,8 @@ options:
       ENUM A B C ""
     )
 
-    resolve_options(B4 DISABLE_COMPILE_DEFINITIONS)
+    resolve_options(B4)
+    resolve_options(ADD_COMPILE_DEFINITIONS)
 - write: assertions.cxx
   contents: |
     module executable; int main() {}
@@ -560,7 +561,7 @@ option dependencies resolve correctly:
         IF 3 E "three"
     )
     option(E STRING "")
-    resolve_options()
+    resolve_options(ADD_COMPILE_DEFINITIONS)
 - write: assertions.cxx
   contents: |
     module;
@@ -589,9 +590,9 @@ resolve undeclared options correctly:
 - write: options.cmake
   contents: |
     option(A "A help" REQUIRES B ON)
-    resolve_options()
+    resolve_options(ADD_COMPILE_DEFINITIONS)
     option(B "B help")
-    resolve_options()
+    resolve_options(ADD_COMPILE_DEFINITIONS)
 - write: assertions.cxx
   contents: |
     module executable; int main() {}
@@ -608,12 +609,12 @@ path option:
       Some more description
       "
     )
+    resolve_options(ADD_COMPILE_DEFINITIONS)
 - write: assertions.cxx
   contents: |
     module;
     #include <string_view>
     module executable; int main() {}
-    using std::operator""sv;
     static_assert(P == std::string_view{__FILE__});
 - # Note that only -DA=ON will not be overridden
   command: maud --log-level=VERBOSE -DP=./assertions.cxx

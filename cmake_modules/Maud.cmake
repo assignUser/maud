@@ -1075,7 +1075,8 @@ function(_maud_setup_doc)
     OUTPUT "${doc}/stage/Doxyfile"
     DEPENDS "${_MAUD_SELF_DIR}/Doxyfile" ${_MAUD_CXX_SOURCES}
     WORKING_DIRECTORY "${doc}"
-    COMMAND ${MAUD_EVAL} [["_maud_doxygen()"]]
+    COMMAND ${MAUD_EVAL} "_maud_doxygen()"
+    VERBATIM
     COMMAND_EXPAND_LISTS
     COMMENT "Running Doxygen to extract apidoc"
   )
@@ -1084,7 +1085,8 @@ function(_maud_setup_doc)
     OUTPUT "${doc}/stage/conf.py"
     DEPENDS "${_MAUD_SELF_DIR}/sphinx_conf.py" ${all_staged}
     WORKING_DIRECTORY "${MAUD_DIR}"
-    COMMAND ${MAUD_EVAL} [["_maud_sphinx_conf()"]]
+    COMMAND ${MAUD_EVAL} "_maud_sphinx_conf()"
+    VERBATIM
     COMMAND_EXPAND_LISTS
     COMMENT "Extracting inline configuration"
   )
@@ -1222,21 +1224,6 @@ endfunction()
 
 
 function(option name type)
-  # Options are considered to form a directed acyclic graph: each option may
-  # declare a requirement on any other option so long as no cycles are formed.
-  # Options with no requirements placed on them will have their default value.
-  # Otherwise if there are requirements on the option's value then it is
-  # assumed to be fixed (even if it happens to be fixed to the default).
-  # New requirements can be placed on an already fixed option as long as they
-  # are identical to the existing requirement; conflicting requirements will
-  # result in failed configuration.
-  #
-  # Requirements may only be added to options through the REQUIRES argument of
-  # an option(), and are the only guaranteed way to specify option values. This
-  # includes user provided options (On the CLI with -DFOO=a, through ccmake,
-  # etc.) which will be overridden by requirements if they would produce an
-  # invalid configuration.
-
   cmake_parse_arguments(
     PARSE_ARGV 1
     "" # prefix
@@ -1342,6 +1329,7 @@ function(option name type)
   endif()
 
   if(DEFINED _VALIDATE)
+    string_escape("${_VALIDATE}" _VALIDATE)
     _maud_set(_MAUD_VALIDATE_${name} "${_VALIDATE}")
   endif()
 
@@ -1355,7 +1343,7 @@ endfunction()
 function(resolve_options)
   cmake_parse_arguments(
     "" # prefix
-    "DISABLE_COMPILE_DEFINITIONS" # options
+    "ADD_COMPILE_DEFINITIONS" # options
     "" # single value arguments
     "" # multi value arguments
     ${ARGN}
@@ -1380,6 +1368,10 @@ function(resolve_options)
         message(FATAL_ERROR "Redundant resolution of ${name}")
       endif()
     endforeach()
+  endif()
+
+  if(NOT _ADD_COMPILE_DEFINITIONS)
+    message(VERBOSE "    Compile definitions not enabled")
   endif()
 
   foreach(name ${all})
@@ -1489,7 +1481,8 @@ function(resolve_options)
     endif()
 
     if(DEFINED "_MAUD_VALIDATE_${name}")
-      cmake_language(EVAL ${_MAUD_VALIDATE_${name}})
+      string_unescape("${_MAUD_VALIDATE_${name}}" validate)
+      cmake_language(EVAL ${validate})
     endif()
 
     if(
@@ -1499,33 +1492,32 @@ function(resolve_options)
       message(WARNING "Detected override of user-provided value for ${name}")
     endif()
 
-    if(_DISABLE_COMPILE_DEFINITIONS)
-      message(VERBOSE "Disabled compile definitions for ${name}")
+    if(NOT _ADD_COMPILE_DEFINITIONS)
       continue()
     endif()
 
     get_property(help CACHE ${name} PROPERTY HELPSTRING)
     string_unescape("${help}" help)
-    string(REPLACE "\n" "\n *  " help "\n${help}")
-    file(APPEND "${MAUD_DIR}/options.h" "\n/*!${help}\n */\n")
+    string(REPLACE "\n" "\n/// " help "\n${help}")
 
     if(type STREQUAL "BOOL")
       if(${${name}})
-        file(APPEND "${MAUD_DIR}/options.h" "#define ${name} 1\n")
+        file(APPEND "${MAUD_DIR}/options.h" "${help}\n#define ${name} 1\n")
       else()
-        file(APPEND "${MAUD_DIR}/options.h" "#define ${name} 0\n")
+        file(APPEND "${MAUD_DIR}/options.h" "${help}\n#define ${name} 0\n")
       endif()
     elseif(enum)
       foreach(e ${enum})
+        file(APPEND "${MAUD_DIR}/options.h" "${help}\n/// (${${name}} of ${enum})")
         if("${${name}}" STREQUAL "${e}")
-          file(APPEND "${MAUD_DIR}/options.h" "#define ${name}_${e} 1\n")
+          file(APPEND "${MAUD_DIR}/options.h" "\n#define ${name}_${e} 1\n")
         else()
-          file(APPEND "${MAUD_DIR}/options.h" "#define ${name}_${e} 0\n")
+          file(APPEND "${MAUD_DIR}/options.h" "\n#define ${name}_${e} 0\n")
         endif()
       endforeach()
     else()
-      string_escape("${${name}}" escaped)
-      file(APPEND "${MAUD_DIR}/options.h" "#define ${name} \"${escaped}\"\n")
+      string_escape("${${name}}" esc)
+      file(APPEND "${MAUD_DIR}/options.h" "${help}\n#define ${name} \"${esc}\"\n")
     endif()
   endforeach()
 endfunction()
@@ -1548,17 +1540,6 @@ function(_maud_options_summary)
 
     get_property(type CACHE ${name} PROPERTY TYPE)
     get_property(enum CACHE ${name} PROPERTY STRINGS)
-
-    if(enum AND NOT "${${name}}" IN_LIST enum)
-      message(FATAL_ERROR "ENUM option ${name} must be one of ${enum}")
-    elseif(
-      type STREQUAL "BOOL"
-      AND NOT ("${${name}}" STREQUAL "ON" OR "${${name}}" STREQUAL "OFF")
-    )
-      message(FATAL_ERROR "BOOL option ${name} must be ON or OFF")
-    elseif(DEFINED "_MAUD_VALIDATE_${name}")
-      cmake_language(EVAL CODE "${_MAUD_VALIDATE_${name}}")
-    endif()
 
     string_escape("${${name}}" quoted)
     set(quoted "\"${quoted}\"")

@@ -15,6 +15,8 @@ A low configuration convention for cmake-built C++ modules.
 Globbing
 --------
 
+.. TODO add a special target to trace globs in the project
+
 All globs are executed from the root of version control. Changes in the set of
 files yielded by any of the globs described below will cause cmake to rerun.
 
@@ -160,80 +162,38 @@ Questionable support:
 - Header units are not currently supported.
 - ``import std`` might be supported by your compiler, but maud does not guarantee it.
 
-Options
--------
+More sophisticated options
+--------------------------
 
 Maud backwards-compatibly overloads the built-in
-:cmake:`option <command/option.html>` function to provide
-support for more sophisticated configuration options. For example:
+:cmake:`option <command/option.html>` function to provide support for more sophisticated
+configuration options, including:
+
+- uniform declaration of options of any type
+- resolution of interdependent option values
+- easy access to options in C++ as predefined macros
+- clean summarization of all options, complete with multiline help strings
+- serialization of all options to a presets json file for repeatability
 
 .. code-block:: cmake
 
-  set(OPTION_GROUP "Foo-related options")
   option(
-    BOOL FOO_EMULATED
-    HELP "Emulate FOO functionality rather than requesting a real FOO endpoint."
-    REQUIRES
-      BUILD_SHARED_LIBS ON
-      # If FOO_EMULATED=ON, BUILD_SHARED_LIBS will be set to ON
-  )
-  option(
-    (LOW MED HI) FOO_LEVEL
-    HELP "What level of FOO API should be requested."
+    FOO_LEVEL
+      ENUM LOW MED HI
+    "
+    What level of FOO API should be requested.
+    LOW is primarily used for testing and is not otherwise recommended.
+    "
+    DEFAULT MED
+
     REQUIRES
     IF HI
+      # LOW or MED levels can be emulated but HI requires a physical FOO endpoint.
       FOO_EMULATED OFF
   )
   resolve_options()
 
-This declares two options which can be specified during configuration (via ``-D``
-command line arguments, environment variables, guis, etc). ``BOOL`` options as
-well as ``PATH``, ``STRING``, and enumerations may be provided. Values provided
-for ``BOOL`` and enumeration options are validated automatically to be in ``OFF;ON``
-or from their explicit set, respectively. Other options may specify a block of code
-in the ``VALIDATE`` argument which will be evaluated when the option's value is
-resolved. Groups of associated options can be specified by assigning to the
-``OPTION_GROUP`` variable.
-
-Option values are frequently interdependent; for example enabling one feature
-might be impossible without enabling its dependencies. ``option()`` supports this
-through the ``REQUIRES`` block. In this block the requirements of each option can
-be specified in terms of assignments to other options on which it depends. After
-all options are declared, ``resolve_options()`` assigns values to each option
-ensuring all requirements are met (or reporting an error if cyclic dependencies
-have been declared). Note that user provided values will always be overridden
-if necessary to satisfy option requirements. On a fresh configuration it is
-possible to detect this and a warning will be issued to facilitate avoidance of
-inconsistent user provided values.
-
-``resolve_options()`` also prints a grouped report of the final value of each
-option, along with the reason for its value and the ``HELP`` string.
-Multiline ``HELP`` strings are supported for this report. Note that
-``CMakeCache.txt`` only supports single line helpstrings so in ``ccmake`` and other
-applications which view the cache directly only the first line will appear.
-
-.. code-block::
-
-  -- FOO-related options:
-  -- 
-  -- FOO_EMULATED = OFF [constrained by FOO_LEVEL]
-  --      Emulate FOO functionality rather than requesting a real FOO endpoint.
-  -- FOO_LEVEL: (LOW MED HI) = HI [user configured]
-  --      What level of FOO API should be requested.
-
-Each call to ``resolve_option()`` also saves a cmake configure preset to
-``CMakeUserPresets.json`` for easy copy-pasting, reproduction, etc. (These are
-initially named with the timestamp of their creation.) Finally, each option
-is surfaced in every C++ source file as a predefined macro:
-
-.. code-block:: cpp
-
-  /*! Emulate FOO functionality rather than requesting a real FOO endpoint. */
-  #define FOO_ENABLED 0
-  /*! What level of FOO API should be requested. */
-  #define FOO_LOW 0
-  #define FOO_MED 0
-  #define FOO_HI 1
+Read more about :ref:`options`.
 
 Preprocessing
 -------------
@@ -381,11 +341,11 @@ rendered. For example, the filter ``if_else`` is implemented with
     endif()
   endfunction()
 
-Documentation
--------------
+Super easy documentation
+------------------------
 
-If detected, Sphinx and Doxygen will be used to build HTML documentation
-from the glob of all ``.rst`` files.
+If detected, Sphinx and Doxygen will be used to build documentation
+from the glob of all ``.rst`` files. Read more about :ref:`documentation`.
 
 Utilities
 ---------
