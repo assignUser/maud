@@ -47,15 +47,6 @@ glob benchmark:
     _maud_set(N 7)
     _maud_set(F 26)
 
-    add_custom_target(
-      benchmark ALL
-      COMMAND
-        "${CMAKE_COMMAND}"
-        [[-DMAUD_CODE="include(Time)"]]
-        -P "${MAUD_DIR}/eval.cmake"
-      WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-    )
-
     find_program(FD NAMES fd)
 
     set(files)
@@ -67,6 +58,13 @@ glob benchmark:
       endforeach()
     endforeach()
     _maud_set(files ${files})
+
+    add_custom_target(
+      benchmark ALL
+      COMMAND ${MAUD_EVAL} [["include(Time)"]]
+      COMMAND_EXPAND_LISTS
+      WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    )
 
 - write: cmake_modules/Time.cmake
   contents: |

@@ -832,6 +832,26 @@ function(_maud_load_cache build_dir)
 endfunction()
 
 
+function(_maud_eval)
+  if(DEFINED MAUD_CODE)
+    cmake_language(EVAL CODE "${MAUD_CODE}")
+    return()
+  endif()
+
+  _maud_set(_MAUD_DO_EVAL OFF)
+  foreach(i RANGE ${CMAKE_ARGC})
+    set(arg "${CMAKE_ARGV${i}}")
+    if("${arg}" STREQUAL "--")
+      _maud_set(_MAUD_DO_EVAL ON)
+      continue()
+    endif()
+    if(_MAUD_DO_EVAL)
+      cmake_language(EVAL CODE "${arg}")
+    endif()
+  endforeach()
+endfunction()
+
+
 function(_maud_setup)
   _maud_set(CMAKE_SOURCE_DIR "${CMAKE_SOURCE_DIR}")
   _maud_set(CMAKE_BINARY_DIR "${CMAKE_BINARY_DIR}")
@@ -854,15 +874,12 @@ function(_maud_setup)
     "
     include(\"${_MAUD_SELF_DIR}/Maud.cmake\")
     _maud_load_cache(\"${CMAKE_BINARY_DIR}\")
-    cmake_language(EVAL CODE \"\${MAUD_CODE}\")
+    _maud_eval()
     "
   )
+  _maud_set(MAUD_EVAL "${CMAKE_COMMAND}" -P "${MAUD_DIR}/eval.cmake" --)
 
-  foreach(dir junk;rendered)
-    if(NOT EXISTS "${MAUD_DIR}/${dir}")
-      file(MAKE_DIRECTORY "${MAUD_DIR}/${dir}")
-    endif()
-  endforeach()
+  file(MAKE_DIRECTORY "${MAUD_DIR}/junk" "${MAUD_DIR}/rendered")
   file(WRITE "${MAUD_DIR}/options.h" "")
   add_compile_options("${_MAUD_INCLUDE} \"${MAUD_DIR}/options.h\"")
 
@@ -1058,9 +1075,8 @@ function(_maud_setup_doc)
     OUTPUT "${doc}/stage/Doxyfile"
     DEPENDS "${_MAUD_SELF_DIR}/Doxyfile" ${_MAUD_CXX_SOURCES}
     WORKING_DIRECTORY "${doc}"
-    COMMAND "${CMAKE_COMMAND}"
-      [[-DMAUD_CODE="_maud_doxygen()"]]
-      -P "${MAUD_DIR}/eval.cmake"
+    COMMAND ${MAUD_EVAL} [["_maud_doxygen()"]]
+    COMMAND_EXPAND_LISTS
     COMMENT "Running Doxygen to extract apidoc"
   )
 
@@ -1068,9 +1084,8 @@ function(_maud_setup_doc)
     OUTPUT "${doc}/stage/conf.py"
     DEPENDS "${_MAUD_SELF_DIR}/sphinx_conf.py" ${all_staged}
     WORKING_DIRECTORY "${MAUD_DIR}"
-    COMMAND "${CMAKE_COMMAND}"
-      [[-DMAUD_CODE="_maud_sphinx_conf()"]]
-      -P "${MAUD_DIR}/eval.cmake"
+    COMMAND ${MAUD_EVAL} [["_maud_sphinx_conf()"]]
+    COMMAND_EXPAND_LISTS
     COMMENT "Extracting inline configuration"
   )
 
@@ -1282,10 +1297,12 @@ function(option name type)
     if(type MATCHES "PATH")
       cmake_path(NATIVE_PATH value value)
     endif()
+
     if("${dependency}" STREQUAL "IF")
       set(condition "${value}")
       continue()
     endif()
+
     _maud_set(
       _MAUD_${name}_CONSTRAINS
       ${dependency} ${_MAUD_${name}_CONSTRAINS}
@@ -1581,23 +1598,14 @@ function(_maud_options_summary)
   endforeach()
   message(STATUS)
 
-  set(configure_preset "{}")
+  set(preset "{}")
   string(TIMESTAMP timestamp)
+  string(JSON preset SET "${preset}" name "\"${timestamp}\"")
+  string(JSON preset SET "${preset}" generator "\"${CMAKE_GENERATOR}\"")
+  string(JSON preset SET "${preset}" cacheVariables "${cache_json}")
   string(
-    JSON configure_preset SET "${configure_preset}"
-    name "\"${timestamp}\""
-  )
-  string(
-    JSON configure_preset SET "${configure_preset}"
+    JSON preset SET "${preset}"
     environment "{\"MAUD_DISABLE_ENVIRONMENT_OPTIONS\": \"ON\"}"
-  )
-  string(
-    JSON configure_preset SET "${configure_preset}"
-    generator "\"${CMAKE_GENERATOR}\""
-  )
-  string(
-    JSON configure_preset SET "${configure_preset}"
-    cacheVariables "${cache_json}"
   )
 
   set(
@@ -1613,10 +1621,7 @@ function(_maud_options_summary)
   endif()
 
   string(JSON i LENGTH "${presets}" configurePresets)
-  string(
-    JSON presets SET "${presets}"
-    configurePresets ${i} "${configure_preset}"
-  )
+  string(JSON presets SET "${presets}" configurePresets ${i} "${preset}")
   file(WRITE "${CMAKE_SOURCE_DIR}/CMakeUserPresets.json" "${presets}\n")
 endfunction()
 
