@@ -45,7 +45,11 @@ glob benchmark:
 - write: benchmark.cmake
   contents: |
     _maud_set(N 7)
-    _maud_set(F 26)
+    _maud_set(F 8)
+
+    if($ENV{MAUD_APPROX_LLVM_PROJECT})
+      _maud_set(F 19)
+    endif()
 
     find_program(FD NAMES fd)
 
@@ -53,7 +57,9 @@ glob benchmark:
     foreach(i RANGE ${F})
       foreach(j RANGE ${F})
         foreach(k RANGE ${F})
-          list(APPEND files "${i}/${j}/${k}")
+          foreach(l RANGE ${F})
+            list(APPEND files "${i}/${j}/${k}/${l}")
+          endforeach()
         endforeach()
       endforeach()
     endforeach()
@@ -88,9 +94,11 @@ glob benchmark:
         endforeach()
         "
       )
-      math(EXPR mean "${sum} / 1000 / (${N} + 1)")
-      math(EXPR min "${min} / 1000")
-      set(delta_ms "(mean=${mean} min=${min})" PARENT_SCOPE)
+      math(EXPR mean "${sum} / (${N} + 1)")
+      string(REGEX REPLACE "(...)$" ".\\1" mean ${mean})
+      math(EXPR min "${min}")
+      string(REGEX REPLACE "(...)$" ".\\1" min ${min})
+      set(delta_ms "( mean=${mean}\tmin=${min}\t) " PARENT_SCOPE)
     endfunction()
 
     time([[
@@ -98,7 +106,15 @@ glob benchmark:
         file(WRITE "${f}" "")
       endforeach()
     ]])
-    message(STATUS "Writing: ${delta_ms}ms")
+    message(STATUS "\tWriting:            ${delta_ms}ms")
+
+    time([[
+      foreach(f ${files})
+        if("${f}" IS_NEWER_THAN "${f}")
+        endif()
+      endforeach()
+    ]])
+    message(STATUS "\tNew checking:       ${delta_ms}ms")
 
     time([[
       file(
@@ -109,7 +125,7 @@ glob benchmark:
       )
       list(FILTER _ EXCLUDE REGEX "(^|/)\\.")
     ]])
-    message(STATUS "Globbing: ${delta_ms}ms")
+    message(STATUS "\tGlobbing:           ${delta_ms}ms")
 
     if(FD)
       time([[
@@ -123,30 +139,22 @@ glob benchmark:
     else()
       set(delta_ms fd-NOTFOUND)
     endif()
-    message(STATUS "Globbing with fd: ${delta_ms}ms")
+    message(STATUS "\tGlobbing(fd):       ${delta_ms}ms")
 
     time([[
       list(FILTER files INCLUDE REGEX ".*")
       list(FILTER files EXCLUDE REGEX "(^|/)\\.")
     ]])
-    message(STATUS "Filtering: ${delta_ms}ms")
-
-    time([[
-      foreach(f ${files})
-        if("${f}" IS_NEWER_THAN "${f}")
-        endif()
-      endforeach()
-    ]])
-    message(STATUS "New checking: ${delta_ms}ms")
+    message(STATUS "\tFiltering:          ${delta_ms}ms")
 
     time([[
       _maud_load_cache("${CMAKE_BINARY_DIR}")
     ]])
-    message(STATUS "Loading the cache: ${delta_ms}ms")
+    message(STATUS "\tLoading the cache:  ${delta_ms}ms")
 
     list(LENGTH files count)
     math(EXPR N "${N} + 1")
-    message(STATUS "\n\n  ${N} iterations with ${count} files")
+    message(STATUS "\n    ${N} iterations with ${count} files")
 
 - maud
 

@@ -15,27 +15,17 @@ A low configuration convention for cmake-built C++ modules.
 Globbing
 --------
 
-.. TODO add a special target to trace globs in the project
-
-All globs are executed from the root of version control. Changes in the set of
-files yielded by any of the globs described below will cause cmake to rerun.
+``Maud`` extends CMake's built in globbing support with more expressive
+patterns, support for exclusion as well as inclusion, and greater performance.
+Read more about :ref:`globbing <globbing-case>`.
 
 To briefly summarize, globs are used to find:
 
 - ``cmake_modules`` directories, which are added to the module path
-- ``.cmake`` modules, which are included
+- ``.cmake`` modules, which are automatically included
 - ``.in2`` template files, which are rendered
 - ``include`` directories, which are added to the include path
-- C++ source files, which are scanned and added to targets
-
-By default the extensions used to identify C++ source files are
-``.cxx .cxxm .ixx .mxx .cpp .cppm .cc .ccm .c++ .c++m``.
-These can be customized by setting the variable ``MAUD_CXX_SOURCE_EXTENSIONS``
-at build generation time.
-
-Directories and files whose names start with ``.`` are excluded from globbing.
-Build directories *MUST* be excluded;
-if they are detected in any glob then build generation will terminate.
+- C++ source files, which are scanned for modules and added to targets accordingly
 
 CMake
 -----
