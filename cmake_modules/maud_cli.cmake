@@ -135,9 +135,13 @@ file(
   endif()
   # if any module appended to the PATH, save that to the cache
   _maud_set(CMAKE_MODULE_PATH \"\${CMAKE_MODULE_PATH}\")
+
+  # Resolve any options not yet explicitly handled
+  resolve_options()
   _maud_in2()
   _maud_finalize_generated()
   _maud_include_directories()
+
   _maud_cxx_sources()
   _maud_setup_clang_format()
   _maud_finalize_targets()

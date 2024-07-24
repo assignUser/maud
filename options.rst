@@ -28,11 +28,13 @@ Declare an option (``CACHE`` variable) with the provided ``name``.
 Access of the option is undefined before a call to
 :ref:`resolve_options <resolve_options-function>` assigns its final value.
 
-Unless environment variables include ``MAUD_DISABLE_ENVIRONMENT_OPTIONS=ON``,
-an option named ``FOO_LEVEL`` will be assigned its value from ``ENV{FOO_LEVEL}``
-if that variable is set as though from the command line.
+In fresh builds, environment variables can be used to assign to options.
+For example if an option named ``FOO_LEVEL`` is not specified on the command line
+but ``ENV{FOO_LEVEL}`` is defined, then the environment variable will be used
+instead of the default. This can be disabled by setting
+``ENV{MAUD_DISABLE_ENVIRONMENT_OPTIONS}=ON``.
 
-``<|BOOL|PATH|FILEPATH|STRING|ENUM enum_values...>``
+``<   | BOOL | PATH | FILEPATH | STRING | ENUM enum_values... >``
     The :cmake:`type <prop_cache/TYPE.html>` of the ``CACHE`` variable.
     If not specified, the variable will be of type ``BOOL``.
 

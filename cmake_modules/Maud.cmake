@@ -23,6 +23,21 @@ function(_maud_set var)
 endfunction()
 
 
+function(_maud_set_value_only var)
+  # Set a CACHE var's value but don't touch other properties
+  if(DEFINED CACHE{${var}})
+    set_property(CACHE ${var} PROPERTY VALUE "${ARGN}")
+  else()
+    # ${var} has not yet been declared, so leave its type and help in a state
+    # which will be overridden by a subsequent call to set().
+    set(
+      ${var} "${ARGN}" CACHE UNINITIALIZED
+      "No help, variable specified on the command line."
+    )
+  endif()
+endfunction()
+
+
 function(_maud_filter list)
   set(all "${${list}}")
   set(matches)
@@ -935,6 +950,11 @@ function(_maud_setup)
     MARK_AS_ADVANCED
   )
 
+  option(
+    SPHINX_BUILDERS
+    STRING "A ;-list of builders which will be used with Sphinx."
+    DEFAULT "dirhtml"
+  )
   # PATH options are always coerced to absolute, relative to the working directory
   # of the configuring cmake process. Therefore we need to have that directory correctly
   # detect changes to PATH options.
@@ -1002,11 +1022,6 @@ endfunction()
 
 
 function(_maud_setup_doc)
-  option(
-    SPHINX_BUILDERS
-    STRING "A ;-list of builders which will be used with Sphinx."
-    DEFAULT "dirhtml"
-  )
   find_program(DOXYGEN NAMES doxygen)
   find_program(SPHINX_BUILD NAMES sphinx-build)
 
@@ -1250,15 +1265,40 @@ function(option name type)
     return() # silently ignore duplicate declaration of the same option
   endif()
   _maud_set(_MAUD_OPTION_STATE_${name} ${_MAUD_OPTION_STATE_${name}} DECLARED)
+  _maud_set(_MAUD_OPTION_GROUP_${name} "${OPTION_GROUP}")
   _maud_set(_MAUD_ALL_OPTIONS ${_MAUD_ALL_OPTIONS} ${name})
 
-  if(type MATCHES "PATH" AND DEFINED _DEFAULT)
-    cmake_path(NATIVE_PATH _DEFAULT _DEFAULT)
-    # Coerce relative DEFAULT for a PATH to be absolute relative to CMAKE_SOURCE_DIR
-    cmake_path(ABSOLUTE_PATH _DEFAULT)
+  if(
+    DEFINED ENV{${name}}
+    AND NOT DEFINED CACHE{${name}}
+    AND NOT EXISTS "${CMAKE_BINARY_DIR}/CMakeCache.txt"
+    AND NOT "$ENV{MAUD_DISABLE_ENVIRONMENT_OPTIONS}"
+  )
+    # set the option's value from the environment if appropriate
+    _maud_set_value_only(${name} "$ENV{${name}}")
   endif()
 
-  _maud_set(_MAUD_OPTION_GROUP_${name} "${OPTION_GROUP}")
+  if(type MATCHES "PATH")
+    # ensure we have native, absolute paths
+    if(DEFINED _DEFAULT)
+      cmake_path(ABSOLUTE_PATH _DEFAULT)
+      cmake_path(NATIVE_PATH _DEFAULT NORMALIZE _DEFAULT)
+    endif()
+    if(DEFINED CACHE{${name}})
+      cmake_path(NATIVE_PATH ${name} NORMALIZE path)
+      cmake_path(ABSOLUTE_PATH path BASE_DIRECTORY "${_MAUD_CWD}")
+      _maud_set_value_only(${name} "${path}")
+    endif()
+  endif()
+
+  if(
+    DEFINED CACHE{${name}}
+    AND NOT EXISTS "${CMAKE_BINARY_DIR}/CMakeCache.txt"
+    AND NOT ("RESOLVED" IN_LIST "_MAUD_OPTION_STATE_${name}")
+  )
+    # this is a fresh build and the user has definitely configured this option
+    _maud_set(_MAUD_DEFINITELY_USER_${name} "$CACHE{${name}}")
+  endif()
 
   # dedent and escape HELP (set(CACHE) only allows one line)
   string(STRIP "${help}" help)
@@ -1277,12 +1317,29 @@ function(option name type)
   endif()
   _maud_set(_MAUD_DEFAULT_${name} "${_DEFAULT}")
 
+  # declare the option's cache entry
+  set(${name} "${_DEFAULT}" CACHE ${type} "${help}")
+  if(_MARK_AS_ADVANCED)
+    mark_as_advanced(${name})
+  endif()
+
+  # store the enumeration of allowed STRING values
+  if(DEFINED _ENUM)
+    set_property(CACHE ${name} PROPERTY STRINGS "${_ENUM}")
+  endif()
+
+  if(DEFINED _VALIDATE)
+    string_escape("${_VALIDATE}" _VALIDATE)
+    _maud_set(_MAUD_VALIDATE_${name} "${_VALIDATE}")
+  endif()
+
   # store requirements for this option
   set(condition ON) # as a special case, `IF ON` is implicit for BOOL options
   while(_REQUIRES)
     list(POP_FRONT _REQUIRES dependency value)
     if(type MATCHES "PATH")
-      cmake_path(NATIVE_PATH value value)
+      cmake_path(ABSOLUTE_PATH value)
+      cmake_path(NATIVE_PATH value NORMALIZE value)
     endif()
 
     if("${dependency}" STREQUAL "IF")
@@ -1297,46 +1354,6 @@ function(option name type)
     string(SHA512 req "${dependency}-${name}-${condition}")
     _maud_set(_MAUD_REQUIREMENT_${req} "${value}")
   endwhile()
-
-  if(NOT EXISTS "${CMAKE_BINARY_DIR}/CMakeCache.txt" AND DEFINED CACHE{${name}})
-    # this is a fresh build and the user has definitely configured this option
-    if(type MATCHES "PATH")
-      set(path "$CACHE{${name}}")
-      cmake_path(ABSOLUTE_PATH path BASE_DIRECTORY "${_MAUD_CWD}")
-      _maud_set(_MAUD_DEFINITELY_USER_${name} "${path}")
-    else()
-      _maud_set(_MAUD_DEFINITELY_USER_${name} "$CACHE{${name}}")
-    endif()
-  endif()
-
-  # declare the option's cache entry
-  set(${name} "${_DEFAULT}" CACHE ${type} "${help}")
-  if(_MARK_AS_ADVANCED)
-    mark_as_advanced(${name})
-  endif()
-
-  # set the option's value from the environment if appropriate
-  if(
-    "${${name}}" STREQUAL "${_DEFAULT}" AND DEFINED ENV{${name}}
-    AND NOT "$ENV{MAUD_DISABLE_ENVIRONMENT_OPTIONS}"
-  )
-    set_property(CACHE ${name} PROPERTY VALUE "$ENV{${name}}")
-  endif()
-
-  # store the enumeration of allowed STRING values
-  if(DEFINED _ENUM)
-    set_property(CACHE ${name} PROPERTY STRINGS "${_ENUM}")
-  endif()
-
-  if(DEFINED _VALIDATE)
-    string_escape("${_VALIDATE}" _VALIDATE)
-    _maud_set(_MAUD_VALIDATE_${name} "${_VALIDATE}")
-  endif()
-
-  if(type MATCHES "PATH" AND NOT "${${name}}" STREQUAL "${_DEFAULT}")
-    cmake_path(NATIVE_PATH ${name} value)
-    set(${name} "${value}" CACHE ${type} "${help}" FORCE)
-  endif()
 endfunction()
 
 
@@ -1448,16 +1465,7 @@ function(resolve_options)
         endif()
       endif()
 
-      if(DEFINED CACHE{${dep}})
-        set_property(CACHE ${dep} PROPERTY VALUE "${${req}}")
-      else()
-        # ${dep} has not yet been declared, so leave its type and help in a state
-        # which will be overridden by a subsequent call to set().
-        set(
-          ${dep} "${${req}}" CACHE UNINITIALIZED
-          "No help, variable specified on the command line."
-        )
-      endif()
+      _maud_set_value_only(${dep} "${${req}}")
       list(APPEND ${dep}_actual_constraints ${name})
     endforeach()
     _maud_set(_MAUD_OPTION_STATE_${name} ${_MAUD_OPTION_STATE_${name}} RESOLVED)
@@ -1524,14 +1532,33 @@ endfunction()
 
 
 function(_maud_options_summary)
-  # Resolve any options not yet explicitly handled
-  resolve_options()
-
   set(cache_json "{}")
 
   set(group "")
-  message(STATUS)
+  message(
+    STATUS
+    "\n"
+    "----------------\n"
+    "options summary:\n"
+    "----------------\n"
+    "--"
+  )
+  if(EXISTS "${CMAKE_BINARY_DIR}/CMakeCache.txt")
+    message(VERBOSE "(fresh build: options can be set from environment variables)")
+    message(VERBOSE "(fresh build: explicit user configuration can be detected)")
+  else()
+    message(VERBOSE "(UNfresh build: options won't be set from environment variables)")
+    message(VERBOSE "(UNfresh build: explicit user configuration cannot be detected)")
+  endif()
+
   foreach(name ${_MAUD_ALL_OPTIONS})
+    unset(user_value)
+    if(DEFINED "_MAUD_DEFINITELY_USER_${name}")
+      set(user_value "${_MAUD_DEFINITELY_USER_${name}}")
+      unset(_MAUD_DEFINITELY_USER_${name} CACHE)
+      # We can't detect user configuration on non-fresh builds so clear this flag
+    endif()
+
     if(NOT group STREQUAL "${_MAUD_OPTION_GROUP_${name}}")
       set(group "${_MAUD_OPTION_GROUP_${name}}")
       message(STATUS "${group}:")
@@ -1550,21 +1577,41 @@ function(_maud_options_summary)
       continue() # Don't display defaulted, advanced options in the summary
     endif()
 
-    list(JOIN _MAUD_ACTUAL_CONSTRAINTS_${name} ", " reason)
-    if(reason)
-      set(reason "[constrained by ${reason}]")
-    elseif(DEFINED ENV{${name}} AND NOT "$ENV{MAUD_DISABLE_ENVIRONMENT_OPTIONS}")
-      set(reason "[environment]")
-    elseif("${${name}}" STREQUAL "${_MAUD_DEFAULT_${name}}")
-      set(reason "[default]")
-    else()
-      set(reason "[user configured]")
+    set(reasons)
+    if(DEFINED user_value AND "${${name}}" STREQUAL "${user_value}")
+      list(APPEND reasons "user configured")
     endif()
+
+    if("${${name}}" STREQUAL "${_MAUD_DEFAULT_${name}}")
+      list(APPEND reasons "default")
+    endif()
+
+    list(JOIN _MAUD_ACTUAL_CONSTRAINTS_${name} " " constraints)
+    if(constraints)
+      list(APPEND reasons "constrained by ${constraints}")
+    endif()
+
+    if(
+      DEFINED ENV{${name}}
+      AND "${${name}}" STREQUAL "$ENV{${name}}"
+      AND NOT "$ENV{MAUD_DISABLE_ENVIRONMENT_OPTIONS}"
+      AND NOT EXISTS "${CMAKE_BINARY_DIR}/CMakeCache.txt"
+    )
+      list(APPEND reasons "environment")
+    endif()
+
+    if(NOT reasons)
+      # user configuration is not always detectable, so if we have not
+      # detected anything else then that is what we assume has happened
+      set(reasons "user configured")
+    endif()
+
+    set(tags "")
     if(advanced)
-      string(PREPEND reason "(advanced) ")
+      string(PREPEND tags "(advanced) ")
     endif()
     if(enum)
-      string(PREPEND reason "(of ${enum}) ")
+      string(PREPEND tags "(of ${enum}) ")
     endif()
 
     get_property(help CACHE ${name} PROPERTY HELPSTRING)
@@ -1572,9 +1619,9 @@ function(_maud_options_summary)
     string(REPLACE "\n" "\n--      " help "\n${help}")
 
     if(type STREQUAL "STRING" AND NOT enum)
-      message(STATUS "${name} = ${quoted} ${reason}${help}")
+      message(STATUS "${name} = ${quoted} ${tags}[${reasons}]${help}")
     else()
-      message(STATUS "${name} = ${${name}} ${reason}${help}")
+      message(STATUS "${name} = ${${name}} ${tags}[${reasons}]${help}")
     endif()
   endforeach()
   message(STATUS)

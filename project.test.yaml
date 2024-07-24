@@ -558,7 +558,7 @@ detect option dependency cycle:
 option dependencies resolve correctly:
 - write: options.cmake
   contents: |
-    option(A "" REQUIRES B ON)
+    option(A "" REQUIRES B ON F OFF)
     option(B "" REQUIRES C ON)
     option(C "" REQUIRES D 3)
     option(
@@ -569,6 +569,7 @@ option dependencies resolve correctly:
         IF 3 E "three"
     )
     option(E STRING "")
+    option(F "")
     resolve_options(ADD_COMPILE_DEFINITIONS)
 - write: assertions.cxx
   contents: |
@@ -580,8 +581,8 @@ option dependencies resolve correctly:
     static_assert(A and B and C);
     static_assert(D_3);
     static_assert(E == "three"sv);
-- # Note that only -DA=ON will not be overridden
-  command: maud --log-level=VERBOSE -DA=ON -DB=OFF -DE=yo -DD=1
+- # Note that only -DA=ON and -DF=OFF will not be overridden
+  command: maud --log-level=VERBOSE -DA=ON -DB=OFF -DE=yo -DD=1 -DF=OFF
 
 - write: options.cmake
   contents: |
