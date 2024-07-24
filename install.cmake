@@ -8,7 +8,6 @@ install(
   # ExternalProjects via CONFIGURE_COMMAND.
   FILES
   "${dir}/cmake_modules/Maud.cmake"
-  "${dir}/cmake_modules/MaudTemplateFilters.cmake"
   "${dir}/cmake_modules/maud_cli.cmake"
   "${dir}/cmake_modules/_executable.cxx"
   "${dir}/cmake_modules/_test_.cxx"

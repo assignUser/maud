@@ -1,11 +1,15 @@
 .. _globbing-case:
 
-The case for globbing
----------------------
+Globbing
+--------
 
 Herein globbing refers to using filesystem information (like which files have
 ``.cxx`` extension) to configure targets and other project properties,
 as opposed to explicitly listing each target's sources in ``CMakeLists.txt``.
+
+The case for globbing
+=====================
+
 Discussion of globbing in a CMake project must begin with discussion of the
 :cmake:`admonition against doing so <command/file.html#glob>` in CMake's own
 documentation (:ref:`skip to usage <glob-function>`). The main reasons cited

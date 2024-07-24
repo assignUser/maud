@@ -62,7 +62,6 @@ auto-included modules:
 - ``${MAUD_DIR}`` (aka ``${CMAKE_BINARY_DIR}/_maud``) a directory into which
   maud-specific build files will be written.
 - ``glob(out-var patterns...)`` which produces a list of matching files.
-- ``MaudTemplateFilters.cmake`` a module of filters for use in template files.
 - ``${dir}`` the directory containing the current auto-included cmake module
   (see also ``${CMAKE_CURRENT_LIST_DIR}``)
 - ``option()`` which extends cmake's built-in build option declarations.
@@ -311,7 +310,6 @@ value before rendering, pipeline syntax is also supported
 
 .. code-block:: c++.in2
 
-  @include(MaudTemplateFilters)@
   #define FOO_ENABLED @FOO_ENABLED | if_else(1 0)@
   // renders to
   #define FOO_ENABLED 1

@@ -361,7 +361,6 @@ rendered source:
     )
 - write: bar.cxx.in2
   contents: |
-    @include(MaudTemplateFilters)@
     export module bar;
     export int INTS[] = {@
       foreach(i RANGE 10)

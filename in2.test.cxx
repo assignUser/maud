@@ -29,7 +29,6 @@ TEST_(rendering, CASES) {
 
   auto compiled_path = TEST_DIR / name + ".in2.cmake"s;
   write(compiled_path) << "include(Maud)\n"
-                       << "include(MaudTemplateFilters)\n"
                        << compile_in2(std::string(in2));
 
   auto rendered_path = TEST_DIR / name;

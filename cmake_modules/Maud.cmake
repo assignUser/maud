@@ -977,8 +977,6 @@ endfunction()
 
 
 function(_maud_cmake_modules)
-  list(APPEND CMAKE_MODULE_PATH "${_MAUD_SELF_DIR}")
-
   glob(_MAUD_CMAKE_MODULE_DIRS CONFIGURE_DEPENDS EXCLUDE_RENDERED "(/|^)cmake_modules$")
   foreach(module_dir ${_MAUD_CMAKE_MODULE_DIRS})
     list(APPEND CMAKE_MODULE_PATH "${module_dir}")
@@ -1236,6 +1234,11 @@ function(string_unescape str out_var)
     message(FATAL_ERROR "Couldn't unescape `${str}`")
   endif()
 endfunction()
+
+
+################################################################################
+# options
+################################################################################
 
 
 function(option name type)
@@ -1540,8 +1543,7 @@ function(_maud_options_summary)
     "\n"
     "----------------\n"
     "options summary:\n"
-    "----------------\n"
-    "--"
+    "----------------"
   )
   if(EXISTS "${CMAKE_BINARY_DIR}/CMakeCache.txt")
     message(VERBOSE "(fresh build: options can be set from environment variables)")
@@ -1551,6 +1553,7 @@ function(_maud_options_summary)
     message(VERBOSE "(UNfresh build: explicit user configuration cannot be detected)")
   endif()
 
+  message(STATUS)
   foreach(name ${_MAUD_ALL_OPTIONS})
     unset(user_value)
     if(DEFINED "_MAUD_DEFINITELY_USER_${name}")
@@ -1651,6 +1654,45 @@ function(_maud_options_summary)
   string(JSON i LENGTH "${presets}" configurePresets)
   string(JSON presets SET "${presets}" configurePresets ${i} "${preset}")
   file(WRITE "${CMAKE_SOURCE_DIR}/CMakeUserPresets.json" "${presets}\n")
+endfunction()
+
+
+################################################################################
+# Template filters
+################################################################################
+
+function(template_filter_)
+endfunction()
+
+function(template_filter_set)
+  set(IT "${ARGN}" PARENT_SCOPE)
+endfunction()
+
+function(template_filter_if_else then otherwise)
+  if(IT)
+    set(IT "${then}" PARENT_SCOPE)
+  else()
+    set(IT "${otherwise}" PARENT_SCOPE)
+  endif()
+endfunction()
+
+function(template_filter_string)
+  if(ARGV0 STREQUAL "RAW")
+    set(tag "")
+    while(IT MATCHES "\\)(${tag}_*)\"")
+      set(tag "${CMAKE_MATCH_1}_")
+    endwhile()
+    set(IT "R\"${tag}(${IT})${tag}\"" PARENT_SCOPE)
+    return()
+  endif()
+
+  string_escape("${IT}" str)
+  set(IT "${str}" PARENT_SCOPE)
+endfunction()
+
+function(template_filter_join glue)
+  list(JOIN IT "${glue}" joined)
+  set(IT "${joined}" PARENT_SCOPE)
 endfunction()
 
 

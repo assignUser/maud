@@ -15,7 +15,7 @@ support for more sophisticated configuration options.
 .. code-block:: cmake
 
   option(
-    name <|BOOL|PATH|FILEPATH|STRING|ENUM enum_values...>
+    name    < | BOOL | PATH | FILEPATH | STRING | ENUM enum_values... >
     help_string
     [DEFAULT default_value]
     [MARK_AS_ADVANCED]
@@ -34,7 +34,7 @@ but ``ENV{FOO_LEVEL}`` is defined, then the environment variable will be used
 instead of the default. This can be disabled by setting
 ``ENV{MAUD_DISABLE_ENVIRONMENT_OPTIONS}=ON``.
 
-``<   | BOOL | PATH | FILEPATH | STRING | ENUM enum_values... >``
+``< | BOOL | PATH | FILEPATH | STRING | ENUM enum_values... >``
     The :cmake:`type <prop_cache/TYPE.html>` of the ``CACHE`` variable.
     If not specified, the variable will be of type ``BOOL``.
 
