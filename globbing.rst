@@ -117,6 +117,7 @@ variable normally.
     If this flag is specified then in addition to updating the glob's results
     the check target will trigger regeneration if the results change.
 
+.. _glob-function-exclude_rendered:
 ``EXCLUDE_RENDERED``
     Generated files will be ignored if this flag is specified.
 

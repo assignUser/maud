@@ -84,9 +84,8 @@ int main(int argc, char **argv) try {
   });
 
   std::cout << "creating patched script" << std::endl;
-  exponential_backoff([&] {
-    std::ofstream{patched, std::ios_base::app} << contents << PATCH;
-  });
+  exponential_backoff(
+      [&] { std::ofstream{patched, std::ios_base::app} << contents << PATCH; });
 
   std::cout << "getting flag's mtime" << std::endl;
   fs::file_time_type mtime;

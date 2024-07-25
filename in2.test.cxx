@@ -27,19 +27,25 @@ TEST_(rendering, CASES) {
   auto name = parameter.name();
   auto in2 = to_view(parameter["template"]);
 
+  std::string definitions;
+  if (parameter.has_child("definitions")) {
+    for (auto definition : parameter["definitions"]) {
+      auto value = to_view(definition);
+      auto name = value.substr(0, value.find_first_of('='));
+      value = value.substr(name.size() + 1);
+      definitions += "set("s + name + " [======[\n"s + value + "]======])\n"s;
+    }
+  }
   auto compiled_path = TEST_DIR / name + ".in2.cmake"s;
-  write(compiled_path) << "include(Maud)\n"
+  write(compiled_path) << definitions << "include(Maud)\n"
                        << compile_in2(std::string(in2));
 
   auto rendered_path = TEST_DIR / name;
   write(rendered_path) << "";
 
+  auto definitions_path = TEST_DIR / name + ".defs.cmake"s;
+
   auto cmd = "cmake"s;
-  if (parameter.has_child("definitions")) {
-    for (auto def : parameter["definitions"]) {
-      cmd += " -D"s + to_string(def);
-    }
-  }
   cmd += " -DRENDER_FILE=\"" + rendered_path.string() + "\"";
   cmd += " -DCMAKE_MODULE_PATH=\"" + (DIR / "cmake_modules").string() + "\"";
   cmd += " -P \"" + compiled_path.string() + "\"";

@@ -251,83 +251,28 @@ the corresponding target. As a workaround if you must have a preprocessing scan
 of an implementation unit, you can split the implementation unit into partitions
 whose primary module is exposed.
 
-Template files
---------------
+Built-in support for generated files
+------------------------------------
 
-A common source of cmake boilerplate is file configuration, preprocessor defines,
-or otherwise passing cmake variables down to source files. To alleviate this ``.in2``
-files are also globbed up and their templates rendered. The template file
-``${CMAKE_SOURCE_DIR}/dir/f.txt.in2`` will be rendered to
-``${MAUD_DIR}/rendered/dir/f.txt``. Subsequent globs (include directories,
-C++ source files, any globs executed in an auto-included cmake module) are
-additionally applied rooted at ``${MAUD_DIR}/rendered``, so rendered source files and
-headers will be included in the build automatically.
+A common source of cmake boilerplate is wiring up rendering of template files,
+running schema compilers, and otherwise generating code. ``Maud`` provides a
+single build subdirectory for these files to land in and natively supports
+including them in any file set: all globs will include matching files in 
+``${MAUD_DIR}/rendered`` as well as those in ``${CMAKE_SOURCE_DIR}``
+(unless :ref:`explicitly excluded <glob-function-exclude_rendered>`).
 
-Template files are compiled to cmake modules which render the template on inclusion.
-As such they have access to all the capabilities of a cmake module, including
-calling arbitrary commands. Rendering uses a dedicated scope, so ``set()`` will not
-affect the enclosing scope unless ``PARENT_SCOPE`` is specified (are you *sure* you
-want to do that?) In addition to everything available to cmake modules, the
-following variables are available inside a template file:
-
-- ``${RENDER_PATH}`` the path to which the template file will be rendered.
-  It is relative to ``${MAUD_DIR}/rendered``. A template file can also override
-  its output path by overwriting this variable (including to an absolute path).
-
-- ``render(args...)`` appends its arguments into the rendered file.
-
-- ``${IT}`` the current value in a pipeline, see below.
-
-Template file format is intended to evoke what's accepted by ``configure_file()``.
-In the most basic case, ``@VAR@`` gets replaced with ``${VAR}``'s value from cmake
-
-.. code-block:: cpp
-
-  #define FOO_STRING "@FOO_STRING@" // substitution of cmake variables
-  #define AT_CHAR '@@'              // if you need a literal @@
-  // renders to
-  #define FOO_STRING "foo and bar" // substitution of cmake variables
-  #define AT_CHAR '@'              // if you need a literal @
-
-However, arbitrary commands can also be inserted between pairs of ``@``
-
-.. code-block:: c++.in2
-
-  static const char* FOO_FEATURE_NAMES[] = {@
-    foreach(feature ${FOO_FEATURE_NAMES})
-      render("  \"${feature}\",\n")
-    endforeach()
-  @};
-  // renders to
-  static const char* FOO_FEATURE_NAMES[] = {
-    "FOO",
-    "BAR",
-    "BAZ",
-  };
-
-For additional syntactic sugar in the common case of modifying a
-value before rendering, pipeline syntax is also supported
+Additionally, projects using ``Maud`` can use a built-in 
+:ref:`template format <in2-templates>` inspired by ``configure_file()``
+to smoothly render configuration information into generated code.
+If the template file ``${CMAKE_SOURCE_DIR}/dir/foo.cxx.in2`` exists,
+it will automatically be rendered to ``${MAUD_DIR}/rendered/dir/foo.cxx``
+and included in compilation alongside non-generated C++:
 
 .. code-block:: c++.in2
 
   #define FOO_ENABLED @FOO_ENABLED | if_else(1 0)@
   // renders to
   #define FOO_ENABLED 1
-
-Template filters are cmake commands prefixed with ``template_filter_``.
-They are assumed to read and then overwrite the variable ``${IT}``.
-Whatever value ``${IT}`` has at the end of the pipeline is what gets
-rendered. For example, the filter ``if_else`` is implemented with
-
-.. code-block:: cmake
-
-  function(template_filter_if_else then otherwise)
-    if(IT)
-      set(IT "${then}" PARENT_SCOPE)
-    else()
-      set(IT "${otherwise}" PARENT_SCOPE)
-    endif()
-  endfunction()
 
 Super easy documentation
 ------------------------

@@ -901,7 +901,10 @@ function(_maud_setup)
   cmake_path(IS_PREFIX CMAKE_SOURCE_DIR "${CMAKE_BINARY_DIR}" is_prefix)
   cmake_path(GET CMAKE_BINARY_DIR FILENAME build)
   if(is_prefix AND NOT build MATCHES "^\\.")
-    message(FATAL_ERROR "Build directory is not excluded from CMAKE_SOURCE_DIR globs: rename to .build")
+    message(
+      FATAL_ERROR
+      "Build directory is not excluded from CMAKE_SOURCE_DIR globs: rename to .build"
+    )
   endif()
 
   set_source_files_properties(
@@ -1687,7 +1690,7 @@ function(template_filter_string)
   endif()
 
   string_escape("${IT}" str)
-  set(IT "${str}" PARENT_SCOPE)
+  set(IT "\"${str}\"" PARENT_SCOPE)
 endfunction()
 
 function(template_filter_join glue)
