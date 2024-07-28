@@ -28,6 +28,20 @@ variable substitution:
     render("${FOO}")
 
 
+# TODO test string pipeline init
+variable substitution with string:
+  definitions: [FOO=foo-val, BAR=bar-val]
+  template: '@"---${FOO}---${BAR}---"@'
+  rendered: '---foo-val---bar-val---'
+  compiled: |
+    # reference 1:2-1:25
+    ##################################################################################
+    # @"---${FOO}---${BAR}---"@
+    #  ^~~~~~~~~~~~~~~~~~~~~~^
+    ##################################################################################
+    render("---${FOO}---${BAR}---")
+
+
 variable substitution in name:
   definitions: [FOO_bar=foo-val, BAR=bar]
   template: '@FOO_${BAR}@'

@@ -221,7 +221,11 @@ auto pipeline(auto begin, auto end) {
 void reference(auto begin) {
   begin = find_first(not SPACE, begin);
   auto end = find_first(SPACE or OF<'@'>, begin);
-  *os << "\"${" << begin.view_to(end) << "}\"";
+  if (*begin == '"') {
+    *os << begin.view_to(end);
+  } else {
+    *os << "\"${" << begin.view_to(end) << "}\"";
+  }
 }
 
 auto const HASH_LINE = std::string(82, '#') + "\n";
