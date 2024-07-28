@@ -23,6 +23,13 @@ function(_maud_set var)
 endfunction()
 
 
+function(_maud_set_include var)
+  set(val ${${var}} ${ARGN})
+  list(REMOVE_DUPLICATES val)
+  _maud_set(${var} ${val})
+endfunction()
+
+
 function(_maud_set_value_only var)
   # Set a CACHE var's value but don't touch other properties
   if(DEFINED CACHE{${var}})
@@ -961,7 +968,7 @@ function(_maud_setup)
   # PATH options are always coerced to absolute, relative to the working directory
   # of the configuring cmake process. Therefore we need to have that directory correctly
   # detect changes to PATH options.
- 
+
   # define the variable with UNINITIALIZED type so that it's as-if from the CLI
   set(_MAUD_CWD "." CACHE UNINITIALIZED "")
   # the value already exists and isn't absolute, so it will be coerced by set() now
@@ -1248,7 +1255,7 @@ function(option name type)
   cmake_parse_arguments(
     PARSE_ARGV 1
     "" # prefix
-    "MARK_AS_ADVANCED" # options
+    "MARK_AS_ADVANCED;ADD_COMPILE_DEFINITIONS" # options
     "BOOL;PATH;FILEPATH;STRING;DEFAULT" # single value arguments
     "REQUIRES;VALIDATE;ENUM" # multi value arguments
   )
@@ -1267,12 +1274,12 @@ function(option name type)
     endif()
   endif()
 
-  if("DECLARED" IN_LIST "_MAUD_OPTION_STATE_${name}")
+  if(DEFINED CACHE{_MAUD_DECLARED_${name}})
     return() # silently ignore duplicate declaration of the same option
   endif()
-  _maud_set(_MAUD_OPTION_STATE_${name} ${_MAUD_OPTION_STATE_${name}} DECLARED)
+  _maud_set(_MAUD_DECLARED_${name} ON)
   _maud_set(_MAUD_OPTION_GROUP_${name} "${OPTION_GROUP}")
-  _maud_set(_MAUD_ALL_OPTIONS ${_MAUD_ALL_OPTIONS} ${name})
+  _maud_set(_MAUD_ALL_DECLARED_OPTIONS ${_MAUD_ALL_DECLARED_OPTIONS} ${name})
 
   if(
     DEFINED ENV{${name}}
@@ -1300,7 +1307,7 @@ function(option name type)
   if(
     DEFINED CACHE{${name}}
     AND NOT EXISTS "${CMAKE_BINARY_DIR}/CMakeCache.txt"
-    AND NOT ("RESOLVED" IN_LIST "_MAUD_OPTION_STATE_${name}")
+    AND "${_MAUD_CONSTRAINTS_ON_${name}}" STREQUAL ""
   )
     # this is a fresh build and the user has definitely configured this option
     _maud_set(_MAUD_DEFINITELY_USER_${name} "$CACHE{${name}}")
@@ -1339,6 +1346,10 @@ function(option name type)
     _maud_set(_MAUD_VALIDATE_${name} "${_VALIDATE}")
   endif()
 
+  if(_ADD_COMPILE_DEFINITIONS)
+    _maud_set(_MAUD_ADD_COMPILE_DEFINITIONS_${name} ON)
+  endif()
+
   # store requirements for this option
   set(condition ON) # as a special case, `IF ON` is implicit for BOOL options
   while(_REQUIRES)
@@ -1353,10 +1364,7 @@ function(option name type)
       continue()
     endif()
 
-    _maud_set(
-      _MAUD_${name}_CONSTRAINS
-      ${dependency} ${_MAUD_${name}_CONSTRAINS}
-    )
+    _maud_set_include(_MAUD_MAYBE_CONSTRAINED_BY_${name} ${dependency})
     string(SHA512 req "${dependency}-${name}-${condition}")
     _maud_set(_MAUD_REQUIREMENT_${req} "${value}")
   endwhile()
@@ -1364,19 +1372,11 @@ endfunction()
 
 
 function(resolve_options)
-  cmake_parse_arguments(
-    "" # prefix
-    "ADD_COMPILE_DEFINITIONS" # options
-    "" # single value arguments
-    "" # multi value arguments
-    ${ARGN}
-  )
-
-  if(NOT _UNPARSED_ARGUMENTS)
+  if(NOT ARGN)
     # No options were specifically named; resolve all unresolved options now
     set(all)
-    foreach(name ${_MAUD_ALL_OPTIONS})
-      if("RESOLVED" IN_LIST "_MAUD_OPTION_STATE_${name}")
+    foreach(name ${_MAUD_ALL_DECLARED_OPTIONS})
+      if(DEFINED CACHE{_MAUD_RESOLVED_${name}})
         continue()
       endif()
       list(APPEND all ${name})
@@ -1384,29 +1384,22 @@ function(resolve_options)
     message(VERBOSE "No options named for resolution; resolving all unresolved [${all}]")
   else()
     # Verify that all the options named for resolution are unresolved
-    message(VERBOSE "Resolving options [${_UNPARSED_ARGUMENTS}]")
-    set(all ${_UNPARSED_ARGUMENTS})
+    message(VERBOSE "Resolving options [${ARGN}]")
+    set(all ${ARGN})
     foreach(name ${all})
-      if("RESOLVED" IN_LIST "_MAUD_OPTION_STATE_${name}")
+      if(DEFINED CACHE{_MAUD_RESOLVED_${name}})
         message(FATAL_ERROR "Redundant resolution of ${name}")
       endif()
     endforeach()
   endif()
 
-  if(NOT _ADD_COMPILE_DEFINITIONS)
-    message(VERBOSE "    Compile definitions not enabled")
-  endif()
-
   foreach(name ${all})
     set(${name}_constraint_count 0)
-    set(${name}_actual_constraints)
   endforeach()
 
   set(constrained)
   foreach(name ${all})
-    set(${name}_constrains ${_MAUD_${name}_CONSTRAINS})
-    list(REMOVE_DUPLICATES ${name}_constrains)
-    foreach(dep ${${name}_constrains})
+    foreach(dep ${_MAUD_MAYBE_CONSTRAINED_BY_${name}})
       list(APPEND constrained ${dep})
       math_assign(${dep}_constraint_count + 1)
     endforeach()
@@ -1420,24 +1413,32 @@ function(resolve_options)
   while(unconstrained)
     list(POP_FRONT unconstrained name)
     list(APPEND resolve_ordered ${name})
-    foreach(dep ${${name}_constrains})
+    foreach(dep ${_MAUD_MAYBE_CONSTRAINED_BY_${name}})
       math_assign(${dep}_constraint_count - 1)
       if("${${dep}_constraint_count}" EQUAL 0)
         # As long as there are no circular constraints then even in the worst
         # case of one long graph A -> B -> C -> D we can always pop at least
         # one unconstrained option off per iteration. (Kahn's algorithm)
         list(REMOVE_ITEM constrained ${dep})
-        list(APPEND unconstrained ${dep})
+        if(DEFINED CACHE{_MAUD_DECLARED_${dep}})
+          list(APPEND unconstrained ${dep})
+        endif()
       endif()
     endforeach()
   endwhile()
 
   if(constrained)
-    message(FATAL_ERROR "Circular constraint between options ${constrained}")
+    message(
+      FATAL_ERROR
+      "
+    Cyclic constraint between options
+      ${constrained}
+      "
+    )
   endif()
 
   foreach(name ${resolve_ordered})
-    foreach(dep ${${name}_constrains})
+    foreach(dep ${_MAUD_MAYBE_CONSTRAINED_BY_${name}})
       string(SHA512 req "${dep}-${name}-${${name}}")
       set(req "_MAUD_REQUIREMENT_${req}")
       if(NOT DEFINED "${req}")
@@ -1445,12 +1446,12 @@ function(resolve_options)
       endif()
 
       if(NOT "${${dep}}" STREQUAL "${${req}}")
-        if(${dep}_actual_constraints)
+        if("${_MAUD_CONSTRAINTS_ON_${dep}}")
           message(
             FATAL_ERROR
             "
     Option constraint conflict: ${dep} is constrained
-    by ${${dep}_actual_constraints} to be
+    by ${_MAUD_CONSTRAINTS_ON_${dep}} to be
       \"${${dep}}\"
     but ${name} requires it to be
       \"${${req}}\"
@@ -1458,7 +1459,7 @@ function(resolve_options)
           )
         endif()
 
-        if("RESOLVED" IN_LIST "_MAUD_OPTION_STATE_${dep}")
+        if(DEFINED CACHE{_MAUD_RESOLVED_${dep}})
           message(
             FATAL_ERROR
             "
@@ -1472,13 +1473,10 @@ function(resolve_options)
       endif()
 
       _maud_set_value_only(${dep} "${${req}}")
-      list(APPEND ${dep}_actual_constraints ${name})
+      _maud_set_include(_MAUD_CONSTRAINTS_ON_${dep} ${name})
+      _maud_set_include(_MAUD_ALL_CONSTRAINED_OPTIONS ${dep})
     endforeach()
-    _maud_set(_MAUD_OPTION_STATE_${name} ${_MAUD_OPTION_STATE_${name}} RESOLVED)
-  endforeach()
-
-  foreach(name ${resolve_ordered})
-    _maud_set(_MAUD_ACTUAL_CONSTRAINTS_${name} ${${name}_actual_constraints})
+    _maud_set(_MAUD_RESOLVED_${name} ON)
   endforeach()
 
   foreach(name ${resolve_ordered})
@@ -1494,19 +1492,19 @@ function(resolve_options)
       message(FATAL_ERROR "BOOL option ${name} must be ON or OFF")
     endif()
 
-    if(DEFINED "_MAUD_VALIDATE_${name}")
+    if(DEFINED CACHE{_MAUD_VALIDATE_${name}})
       string_unescape("${_MAUD_VALIDATE_${name}}" validate)
       cmake_language(EVAL ${validate})
     endif()
 
     if(
-      DEFINED "_MAUD_DEFINITELY_USER_${name}"
+      DEFINED CACHE{_MAUD_DEFINITELY_USER_${name}}
       AND NOT "${_MAUD_DEFINITELY_USER_${name}}" STREQUAL "${${name}}"
     )
       message(WARNING "Detected override of user-provided value for ${name}")
     endif()
 
-    if(NOT _ADD_COMPILE_DEFINITIONS)
+    if(NOT DEFINED CACHE{_MAUD_ADD_COMPILE_DEFINITIONS_${name}})
       continue()
     endif()
 
@@ -1548,7 +1546,7 @@ function(_maud_options_summary)
     "options summary:\n"
     "----------------"
   )
-  if(EXISTS "${CMAKE_BINARY_DIR}/CMakeCache.txt")
+  if(NOT EXISTS "${CMAKE_BINARY_DIR}/CMakeCache.txt")
     message(VERBOSE "(fresh build: options can be set from environment variables)")
     message(VERBOSE "(fresh build: explicit user configuration can be detected)")
   else()
@@ -1557,9 +1555,9 @@ function(_maud_options_summary)
   endif()
 
   message(STATUS)
-  foreach(name ${_MAUD_ALL_OPTIONS})
+  foreach(name ${_MAUD_ALL_DECLARED_OPTIONS})
     unset(user_value)
-    if(DEFINED "_MAUD_DEFINITELY_USER_${name}")
+    if(DEFINED CACHE{_MAUD_DEFINITELY_USER_${name}})
       set(user_value "${_MAUD_DEFINITELY_USER_${name}}")
       unset(_MAUD_DEFINITELY_USER_${name} CACHE)
       # We can't detect user configuration on non-fresh builds so clear this flag
@@ -1592,7 +1590,7 @@ function(_maud_options_summary)
       list(APPEND reasons "default")
     endif()
 
-    list(JOIN _MAUD_ACTUAL_CONSTRAINTS_${name} " " constraints)
+    list(JOIN _MAUD_CONSTRAINTS_ON_${name} " " constraints)
     if(constraints)
       list(APPEND reasons "constrained by ${constraints}")
     endif()
@@ -1607,8 +1605,9 @@ function(_maud_options_summary)
     endif()
 
     if(NOT reasons)
-      # user configuration is not always detectable, so if we have not
-      # detected anything else then that is what we assume has happened
+      # User configuration is not always detectable but has low precedence,
+      # so if we have not detected anything else then that is what we assume
+      # to be responsible for this value.
       set(reasons "user configured")
     endif()
 
@@ -1657,6 +1656,36 @@ function(_maud_options_summary)
   string(JSON i LENGTH "${presets}" configurePresets)
   string(JSON presets SET "${presets}" configurePresets ${i} "${preset}")
   file(WRITE "${CMAKE_SOURCE_DIR}/CMakeUserPresets.json" "${presets}\n")
+
+  foreach(name ${_MAUD_ALL_CONSTRAINED_OPTIONS})
+    if(NOT DEFINED CACHE{_MAUD_DECLARED_${name}})
+      message(
+        WARNING
+        "
+    CACHE variable ${name} was was not declared with option() but was
+    constrained by ${_MAUD_CONSTRAINTS_ON_${name}}
+        "
+      )
+    endif()
+  endforeach()
+
+  # Clear temporaries
+  foreach(name ${_MAUD_ALL_DECLARED_OPTIONS})
+    foreach(
+      prefix
+      DECLARED
+      RESOLVED
+      DEFINITELY_USER
+      ADD_COMPILE_DEFINITIONS
+      VALIDATE
+      MAYBE_CONSTRAINED_BY
+      CONSTRAINTS_ON
+    )
+      unset(_MAUD_${prefix}_${name} CACHE)
+    endforeach()
+  endforeach()
+  unset(_MAUD_ALL_DECLARED_OPTIONS CACHE)
+  unset(_MAUD_ALL_CONSTRAINED_OPTIONS CACHE)
 endfunction()
 
 

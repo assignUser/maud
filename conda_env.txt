@@ -9,6 +9,7 @@ nlohmann_json>=3.11
 gtest
 
 sphinx
+sphinx-inline-tabs
 furo
 breathe>=4.35
 doxygen

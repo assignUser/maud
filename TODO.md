@@ -2,11 +2,13 @@ NEXT
 ----
 
 - write doc
-- glob() should *always* be CONFIGURE_DEPENDS
+  - getting_started.rst
+  - testing.rst
 - more test projects
-  - write the test project runner in cmake, the only c++ we need is `yaml_to_json_` private exe
+  - just compile each test case to a cmake script
   - use a maud based project with fetchcontent
   - verify maud works while using c++23
+  - install documentation
   - render one in2 multiple times, one for each value from a list
     ```
     @
@@ -99,22 +101,22 @@ a custom attribute for example, or a directory naming convention
 could be adoted, or you could write the module block verbatim inside
 an `#if false`- maud_scan would read it even if nothing else did.
 
-TODO: benchmark globbing
-------------------------
-
-A primary concern is that we glob efficiently. If we can't prove
-that the cost is negligible (comparable to checking every file's
-timestamp, say), then some users will not want to use Maud because
-some projects can get big and maybe globs will be too slow.
-
-Also, present both sides of the globbing argument.
-
 TODO: conversion traits
 -----------------------
 
 The current yaml solution is fine for simple test cases, but for
 less ad hoc situations it'd be neat to have easy conversion traits
-available:
+available.
+
+That'd be something we could ship, too.
+
+- scalar is always a string
+- sequence is always a vector
+- mapping is either
+  - a record
+  - a vector of records which declare the special KEY field
+    - optionally also the special VALUE field
+- union is not directly supported; use record with optional fields
 
 ```c++
 struct Case {

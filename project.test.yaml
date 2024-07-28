@@ -495,8 +495,8 @@ util_ is not installed:
 options:
 - write: options.cmake
   contents: |
-    option(LEGACY_0 "legacy signature, default off")
-    option(LEGACY_1 "legacy signature, default on" ON)
+    option(LEGACY_0 "legacy signature, default off" ADD_COMPILE_DEFINITIONS)
+    option(LEGACY_1 "legacy signature, default on" ON ADD_COMPILE_DEFINITIONS)
 
     option(
       B
@@ -504,6 +504,7 @@ options:
         Bool option
         Some help text
       "
+      ADD_COMPILE_DEFINITIONS
     )
     option(
       B4
@@ -512,10 +513,8 @@ options:
     option(
       E
       ENUM A B C ""
+      ADD_COMPILE_DEFINITIONS
     )
-
-    resolve_options(B4)
-    resolve_options(ADD_COMPILE_DEFINITIONS)
 - write: assertions.cxx
   contents: |
     module executable; int main() {}
@@ -557,19 +556,19 @@ detect option dependency cycle:
 option dependencies resolve correctly:
 - write: options.cmake
   contents: |
-    option(A "" REQUIRES B ON F OFF)
-    option(B "" REQUIRES C ON)
-    option(C "" REQUIRES D 3)
+    option(A "" REQUIRES B ON F OFF ADD_COMPILE_DEFINITIONS)
+    option(B "" REQUIRES C ON ADD_COMPILE_DEFINITIONS)
+    option(C "" REQUIRES D 3 ADD_COMPILE_DEFINITIONS)
     option(
       D ENUM 0 1 2 3 ""
       REQUIRES
         IF 1 E "one"
         IF 2 E "two"
         IF 3 E "three"
+      ADD_COMPILE_DEFINITIONS
     )
-    option(E STRING "")
-    option(F "")
-    resolve_options(ADD_COMPILE_DEFINITIONS)
+    option(E STRING "" ADD_COMPILE_DEFINITIONS)
+    option(F "" ADD_COMPILE_DEFINITIONS)
 - write: assertions.cxx
   contents: |
     module;
@@ -593,14 +592,20 @@ option dependencies resolve correctly:
     resolve_options()
 - failing command: maud --log-level=VERBOSE -DFORCE_A=ON
 
+- write: options.cmake
+  contents: |
+    option(A "" ON REQUIRES C ON)
+    option(B "" ON REQUIRES C OFF)
+    resolve_options()
+- failing command: maud --log-level=VERBOSE -DFORCE_A=ON
+
 
 resolve undeclared options correctly:
 - write: options.cmake
   contents: |
-    option(A "A help" REQUIRES B ON)
-    resolve_options(ADD_COMPILE_DEFINITIONS)
-    option(B "B help")
-    resolve_options(ADD_COMPILE_DEFINITIONS)
+    option(A "A help" REQUIRES B ON ADD_COMPILE_DEFINITIONS)
+    resolve_options()
+    option(B "B help" ADD_COMPILE_DEFINITIONS)
 - write: assertions.cxx
   contents: |
     module executable; int main() {}
@@ -616,8 +621,9 @@ path option:
       Some path option
       Some more description
       "
+      ADD_COMPILE_DEFINITIONS
     )
-    resolve_options(ADD_COMPILE_DEFINITIONS)
+    resolve_options()
 - write: assertions.cxx
   contents: |
     module;
@@ -632,7 +638,6 @@ validate bool option:
 - write: options.cmake
   contents: |
     option(B "")
-    resolve_options()
 - failing command: maud --log-level=VERBOSE -DB=NEITHER_ON_NOR_OFF
 
 
@@ -643,7 +648,6 @@ validate enum option:
       E
       ENUM A B C ""
     )
-    resolve_options()
 - command: maud --log-level=VERBOSE -DE=A
 - failing command: maud --log-level=VERBOSE -DE=D
 
@@ -660,7 +664,6 @@ validate string option with explicit code block:
         endif()
       ]]
     )
-    resolve_options()
 - failing command: maud --log-level=VERBOSE -DNONZERO=0
 
 

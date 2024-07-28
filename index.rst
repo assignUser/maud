@@ -113,6 +113,9 @@ Directories named ``include`` are globbed up and added to ``INCLUDE_DIRECTORIES`
 so ``$project_root/subtool/include/subtool/foo.hxx`` can be included with
 ``#include "subtool/foo.hxx"`` from any header or source.
 
+Module partitions:
+~~~~~~~~~~~~~~~~~~
+
 Module partitions are a useful way to compartmentalize a module interface:
 
 .. code-block:: cpp
@@ -155,14 +158,16 @@ More sophisticated options
 --------------------------
 
 Maud backwards-compatibly overloads the built-in
-:cmake:`option <command/option.html>` function to provide support for more sophisticated
-configuration options, including:
+:cmake:`option <command/option.html>` function to provide
+support for more sophisticated
+configuration options:
 
-- uniform declaration of options of any type
+- uniform declaration for all types of option
 - resolution of interdependent option values
 - easy access to options in C++ as predefined macros
 - clean summarization of all options, complete with multiline help strings
-- serialization of all options to a presets json file for repeatability
+- serialization to :cmake:`preset JSON <manual/cmake-presets.7.html#configure-preset>`
+  for repeatability
 
 .. code-block:: cmake
 
@@ -179,8 +184,9 @@ configuration options, including:
     IF HI
       # LOW or MED levels can be emulated but HI requires a physical FOO endpoint.
       FOO_EMULATED OFF
+
+    ADD_COMPILE_DEFINITIONS
   )
-  resolve_options()
 
 Read more about :ref:`options`.
 
@@ -257,11 +263,11 @@ Built-in support for generated files
 A common source of cmake boilerplate is wiring up rendering of template files,
 running schema compilers, and otherwise generating code. ``Maud`` provides a
 single build subdirectory for these files to land in and natively supports
-including them in any file set: all globs will include matching files in 
+including them in any file set: all globs will include matching files in
 ``${MAUD_DIR}/rendered`` as well as those in ``${CMAKE_SOURCE_DIR}``
 (unless :ref:`explicitly excluded <glob-function-exclude_rendered>`).
 
-Additionally, projects using ``Maud`` can use a built-in 
+Additionally, projects using ``Maud`` can use a built-in
 :ref:`template format <in2-templates>` inspired by ``configure_file()``
 to smoothly render configuration information into generated code.
 If the template file ``${CMAKE_SOURCE_DIR}/dir/foo.cxx.in2`` exists,
@@ -318,6 +324,7 @@ Table of Contents
             },
         ],
         "top_of_page_buttons": ["view", "edit"],
+        "navigation_with_keys": True,
     }
     html_context = {
         "github_user": "bkietz",
@@ -326,11 +333,15 @@ Table of Contents
         "doc_path": "",
     }
 
+    pygments_style = "default"
+    pygments_dark_style = "monokai"
+
     extensions += ["sphinx.ext.autosectionlabel"]
     autosectionlabel_maxdepth = 2
     autosectionlabel_prefix_document = True
 
     extensions += ["sphinx.ext.duration"]
+    extensions += ["sphinx_inline_tabs"]
 
     extensions += ["sphinx.ext.extlinks"]
     extlinks_detect_hardcoded_links = True

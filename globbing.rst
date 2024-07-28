@@ -53,7 +53,7 @@ the output looks like:
   --      Globbing(fd):       ( mean=299.474      min=292.794     ) ms
   --      Filtering:          ( mean=87.323       min=85.166      ) ms
   --      Loading the cache:  ( mean=24.618       min=22.662      ) ms
-  -- 
+  --
       8 iterations with 160000 files
 
 (Parameters chosen to approximate the llvm-project repository at the time of
@@ -88,8 +88,8 @@ but I'd be **more** glad of a PR to increase ``Maud``'s globbing performance.
 
 .. _glob-function:
 
-``glob()``
-==========
+``glob``
+========
 
 .. code-block:: cmake
 
@@ -118,10 +118,11 @@ variable normally.
     the check target will trigger regeneration if the results change.
 
 .. _glob-function-exclude_rendered:
+
 ``EXCLUDE_RENDERED``
     Generated files will be ignored if this flag is specified.
 
-``<inclusion_regex|!exclusion_regex>...``
+``< inclusion_regex | ! exclusion_regex >...``
     Each pattern is a :cmake:`REGEX <command/string.html#regex-specification>`
     which is applied to each candidate file's path. Patterns are applied to
     relative paths; either the component relative to ``${CMAKE_SOURCE_DIR}``
