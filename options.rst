@@ -34,8 +34,8 @@ Access of the option is undefined before a call to
 In fresh builds, environment variables can be used to assign to options.
 For example if an option named ``FOO_LEVEL`` is not otherwise defined but
 ``ENV{FOO_LEVEL}`` is defined, then the environment variable will be used
-instead of the default. This can be disabled by setting
-``$ENV{MAUD_DISABLE_ENVIRONMENT_OPTIONS} = ON``.
+instead of the default. (This can be disabled by setting
+``ENV{MAUD_DISABLE_ENVIRONMENT_OPTIONS} = ON``.)
 
 ``< | BOOL | PATH | FILEPATH | STRING | ENUM enum_values... >``
     The :cmake:`type <prop_cache/TYPE.html>` of the ``CACHE`` variable.

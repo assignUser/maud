@@ -167,7 +167,7 @@ unit testing:
     #include <string>
     module test_;
 
-    SUITE_STATE { std::string yo = "yo"; };
+    SUITE_ { std::string yo = "yo"; };
     TEST_(DISABLED_empty) {}
     TEST_(basic) {
       int three = 3, five = 5;
@@ -209,6 +209,20 @@ unit testing:
 - cmake --install .build --prefix ../usr --config Debug
 - exists: .build/Debug/test_.basics
 - does not exist: ../usr/bin/test_.basics
+
+
+disabling unit testing:
+- write: inline_python.test.cxx
+  contents: |
+    module test_;
+
+    TEST_(inline_python) {
+
+      def foo():
+          assert 1 == 0
+
+    }
+- maud -DBUILD_TESTING=OFF
 
 
 unit testing main:

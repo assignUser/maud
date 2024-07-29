@@ -407,6 +407,11 @@ function(_maud_scan source_file)
     cmake_path(GET source_file STEM target_name)
     set(source_access PRIVATE)
   elseif(module STREQUAL "test_")
+    if(NOT BUILD_TESTING)
+      message(VERBOSE "  Testing disabled, ORPHANED")
+      return()
+    endif()
+
     if(COMMAND "maud_add_test")
       maud_add_test("${source_file}" "${partition}" target_name)
     else()
@@ -1156,7 +1161,7 @@ function(_maud_sphinx_conf)
 
   file(READ "${_MAUD_SELF_DIR}/sphinx_conf.py" conf_prelude)
   file(
-    APPEND "${doc}/stage/conf.py"
+    WRITE "${doc}/stage/conf.py"
     "project = \"${CMAKE_PROJECT_NAME}\"\n"
     "${conf_prelude}\n"
     "${conf}\n"

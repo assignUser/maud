@@ -129,12 +129,14 @@ file(
     cmake_path(GET module PARENT_PATH dir)
     include(\"\${module}\")
   endforeach()
-  if(NOT COMMAND \"maud_add_test\")
+  _maud_set(CMAKE_MODULE_PATH \"\${CMAKE_MODULE_PATH}\")
+
+  resolve_options(BUILD_TESTING)
+  if(BUILD_TESTING AND NOT COMMAND \"maud_add_test\")
     # TODO fallback to FetchContent
     find_package(GTest)
   endif()
   # if any module appended to the PATH, save that to the cache
-  _maud_set(CMAKE_MODULE_PATH \"\${CMAKE_MODULE_PATH}\")
 
   # Resolve any options not yet explicitly handled
   resolve_options()

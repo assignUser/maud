@@ -22,7 +22,7 @@
         (::expect_helper::Begin{} <= __VA_ARGS__, ::expect_helper::End{#__VA_ARGS__}) \
   }
 
-#define SUITE_STATE      \
+#define SUITE_           \
   namespace SUITE_NAME { \
   struct SuiteState;     \
   }                      \

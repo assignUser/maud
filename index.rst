@@ -346,6 +346,7 @@ Table of Contents
     extensions += ["sphinx.ext.extlinks"]
     extlinks_detect_hardcoded_links = True
     extlinks = {
+        **(extlinks if 'extlinks' in globals() else {}),
         "cxx20": ("https://timsong-cpp.github.io/cppwp/n4868/%s", "CXX(20:%s)"),
         # TODO this should be intersphinx instead
         "cmake": ("https://cmake.org/cmake/help/latest/%s", None),
