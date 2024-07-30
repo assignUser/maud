@@ -3,7 +3,6 @@ NEXT
 
 - write doc
   - getting_started.rst
-  - testing.rst
 - more test projects
   - just compile each test case to a cmake script
   - use a maud based project with fetchcontent
