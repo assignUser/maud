@@ -83,17 +83,23 @@ struct Registrar {
 
     auto [file, line, suite_name, test_name] = info;
 
+    char const *type_param = nullptr;
+    char const *value_param = nullptr;
+
     std::string name = test_name;
     if (i != -1) {
       name += "/" + PrintToString(i);
     }
     if (not type_name.empty()) {
+      type_param = type_name.c_str();
       name += "/" + type_name;
     }
     if constexpr (HAS_PARAMETER) {
+      auto old_size = name.size();
       name += "/" + PrintToString(*parameter);
+      value_param = name.c_str() + old_size + 1;
     }
-    testing::RegisterTest(suite_name, name.c_str(), nullptr, nullptr, file, line,
+    testing::RegisterTest(suite_name, name.c_str(), type_param, value_param, file, line,
                           [test, parameter] {
                             if constexpr (HAS_PARAMETER) {
                               return new Fixture{test, parameter};
@@ -450,17 +456,18 @@ export using testing::AnyOfArray;
 export using testing::Not;
 export using testing::Conditional;
 
-export template <typename Condition, typename Describe>
+export template <typename Match, typename Describe, typename DescribeNegation>
 struct Matcher {
-  Condition condition;
+  Match match;
   Describe describe;
+  DescribeNegation describe_negation;
 
   using is_gtest_matcher = void;
 
   bool MatchAndExplain(auto const &arg, std::ostream *os) const {
-    return condition(arg, *os);
+    return match(arg, *os);
   }
 
-  void DescribeTo(std::ostream *os) const { describe(false, *os); }
-  void DescribeNegationTo(std::ostream *os) const { describe(true, *os); }
+  void DescribeTo(std::ostream *os) const { describe(*os); }
+  void DescribeNegationTo(std::ostream *os) const { describe_negation(*os); }
 };

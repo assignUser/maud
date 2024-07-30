@@ -185,8 +185,9 @@ unit testing:
     }
     TEST_(custom_matcher) {
       Matcher NotNull{
-        [](auto *ptr, auto &) { return ptr != nullptr; },
-        [](bool negation, auto &os) { os << (negation ? "is not NULL" : "is NULL"); },
+        .match = [](auto const &ptr, auto &) { return ptr != nullptr; },
+        .describe = [](auto &os) { os << "is not NULL"; },
+        .describe_negation = [](auto &os) { os << "is NULL"; },
       };
       int i;
       EXPECT_(&i >>= NotNull);

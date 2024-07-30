@@ -24,6 +24,11 @@ NEXT
 - strip base dirs from docs
 - harden and test the scanner
   - support this when preprocessing isn't required
+- Make `test_` an *imported* special module; that way it can be orphaned
+  if you like but can test things a module doesn't export by declaring
+  itself an implementation unit of that module. Wiring up the scanner is
+  a prerequisite because without it we don't know which non-`test_` module
+  the test belongs to (unless we use partitions...).
 
 TODO: optional dependencies
 ---------------------------
