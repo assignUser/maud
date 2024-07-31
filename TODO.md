@@ -1,6 +1,8 @@
 NEXT
 ----
 
+- extract maud_:std to tidy up
+- how should we recommend use of gtest_discover_tests? If you only have a few it's nice
 - write doc
   - getting_started.rst
 - more test projects
@@ -28,9 +30,11 @@ NEXT
   itself an implementation unit of that module. Wiring up the scanner is
   a prerequisite because without it we don't know which non-`test_` module
   the test belongs to (unless we use partitions...).
+- git ls-files starts up *quick*, so we could use it even for small projects,
+  let _maud_glob use that
 
-TODO: optional dependencies
----------------------------
+TODO: document how to do optional dependencies
+----------------------------------------------
 
 How do we deal with optional dependencies? If there is an
 option named `YAML_ENABLED` and we switch it off, then we
@@ -78,14 +82,18 @@ maud_defer_until(cpp2_sources)
 This would additionally mean we can just wait till targets for find_package:
 
 ```cmake
-maud_defer_until(targets)
-find_package(nlohmann_json REQUIRED)
-find_package(fmt REQUIRED)
-target_link_libraries(
-  use_json_fmt
-  PRIVATE
-  nlohmann_json::nlohmann_json
-  fmt::fmt-header-only
+maud_defer(
+  CODE [[
+    find_package(nlohmann_json REQUIRED)
+    find_package(fmt REQUIRED)
+    target_link_libraries(
+      use_json_fmt
+      PRIVATE
+      nlohmann_json::nlohmann_json
+      fmt::fmt-header-only
+    )
+  ]]
+  UNTIL AFTER targets
 )
 ```
 
@@ -224,7 +232,8 @@ TODO:
 -----
 
 Since we generate installed cmake, warn if `CMAKE_CXX_FLAGS` and other
-ambiguous options are set.
+ambiguous options are set. (Or just document that these options will
+implicitly be private and not part of the installed package.)
 
 Good example modules: sse4, fmt, nlohmann_json, std stand-ins
 
@@ -250,14 +259,6 @@ is just as good as whatever cmake might throw up
 
 What is `IMPORTED_CXX_MODULES_COMPILE_DEFINITIONS`? Is this a shortcut to
 the way I want to associate options?
-
-Translation Units other than module interface units are not necessarily reachable:
-https://timsong-cpp.github.io/cppwp/n4861/module.reach#1
-Therefore: do not import anything which is not an interface unit! Doing so is
-implementation defined.
-
-There are only module interface units and module implementation units
-https://timsong-cpp.github.io/cppwp/n4861/module.unit#2
 
 Notes: dep scan
 ---------------
@@ -395,120 +396,6 @@ $<
 It really ought to be possible to expand *most* generator
 expressions at configure time. Someday it'd be amusing to write
 a library to just do that.
-
-
-AAARGH: globs
--------------
-
-TODO: document the new solution somewhere, probably in maud_inject.cxx
-
-Currently the hack is to have a single target named _maud_maybe_regenerate
-on which all other targets depend. If globs/scan results differ, we
-use cmake --reconfigure-during-build. However that terminates the current
-build command, so we restart building... but we don't know if it was
-`ninja just-one-target` and so we trigger a rebuild of `all` (potentially
-even more annoying than it sounds since `just-one-target` might be excluded
-from `all`).
-
-Ideally, we could reuse built-in CONFIGURE_DEPENDS for globbing:
-append to `VerifyGlobs.cmake`. However, that script is not written
-until all user cmake finishes running:
-https://github.com/Kitware/CMake/blob/master/Source/cmake.cxx#L2602
-
-Furthermore: it's overwritten each time cmake runs so even if we
-modify it from a wrapper (preserving mtime so that we don't trigger
-immediate reconf), we would need to use the wrapper *each time* or
-reconfiguration (including reconfigure during build!) will wipe
-it out. At that point, we might as well skip modifying anything and
-just have the wrapper directly reconfigure.
-
-If we could start a background process which waits for VerifyGlobs.cmake
-to be written *then* amends it, that might work. But execute_process
-is able to detect fork() child processes somehow even if setsid() is called,
-and blocks until they complete. Linking to libuv and using
-uv_spawn(UV_PROCESS_DETACHED) instead of fork() does actually put the
-spawned process into the background, but acquiring the same libuv linked to
-cmake does not sound easy. In particular, cmake could even be statically linked
-to libuv... in which case the main uv_loop_t in my backgrounding process would
-probably not refer to the same one used by cmake.
-Maybe if I `strace` the libuv version, I'll see another syscall which will
-help the dependency-free version escape.
-
-AHA in addition to setsid, I need to redirect the output of the command to files
-or I guess cmake waits for them to close.
-
-```cmake
-cmake_minimum_required(VERSION 3.28)
-project(BgWoes)
-
-execute_process(
-  COMMAND ${CMAKE_SOURCE_DIR}/uv-do-bg
-
-  # Both of these hang (without both setsid and output redirection):
-  #COMMAND ${CMAKE_SOURCE_DIR}/do-bg
-  #COMMAND sh ${CMAKE_SOURCE_DIR}/do-bg.sh
-
-  OUTPUT_FILE ${MAUD_DIR}/junk
-  ERROR_FILE ${MAUD_DIR}/junk
-
-  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-  COMMAND_ERROR_IS_FATAL ANY
-)
-message(STATUS "do-bg")
-```
-
-```sh
-setsid
-sleep 100 &
-# OR
-# setsid --fork sleep 100
-```
-
-```c
-#include <uv.h>
-int main() {
-    uv_loop_t *loop = uv_default_loop();
-
-    char* args[] = {"sleep", "100", NULL};
-    uv_process_options_t options{
-        .exit_cb = NULL,
-        .file = "sleep",
-        .args = args,
-        /* failure to set this flag makes execute_process block */
-        .flags = UV_PROCESS_DETACHED,
-    };
-
-    uv_process_t child_req = {0};
-    int r;
-    if ((r = uv_spawn(loop, &child_req, &options))) {
-        fprintf(stderr, "%s\n", uv_strerror(r));
-        return 1;
-    }
-
-    fprintf(stderr, "Launched sleep with PID %d\n", child_req.pid);
-    uv_unref((uv_handle_t*) &child_req);
-    return uv_run(loop, UV_RUN_DEFAULT);
-}
-```
-
-```c++
-#include <iostream>
-#include <unistd.h>
-int main() {
-  auto id = fork();
-  if (id == -1) {
-    std::cerr << "fork error" << std::endl;
-    return errno;
-  }
-  if (id != 0) return 0;
-  setsid();
-  return std::system("sleep 100");
-}
-```
-
-Now what do you do for windows? https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/start
-`start /b` will run it in the background, I wonder if that'll be enough
-
 
 (not) TODO: cmake-format
 ------------------------

@@ -45,12 +45,13 @@ the output looks like:
 
 .. code-block:: shell-session
 
-  $ ./test_.project --gtest_filter=*bench* | grep -E "^BENCHMARK" -A 9 -B 0
+  $ ./test_.project --gtest_filter=*bench* | grep -E "^BENCHMARK" -A 10 -B 0
   BENCHMARK
   --      Writing:            ( mean=3602.278     min=3381.849    ) ms
   --      New checking:       ( mean=848.554      min=826.814     ) ms
   --      Globbing:           ( mean=929.903      min=909.522     ) ms
   --      Globbing(fd):       ( mean=299.474      min=292.794     ) ms
+  --      Globbing(git):      ( mean=311.838      min=305.374     ) ms
   --      Filtering:          ( mean=87.323       min=85.166      ) ms
   --      Loading the cache:  ( mean=24.618       min=22.662      ) ms
   --
@@ -66,8 +67,8 @@ a second.
 The benchmark's ``Globbing`` result shows that using
 :cmake:`file(GLOB_RECURSE) <command/file.html#glob-recurse>` to list all files
 and directories in the simulated project also takes a little less than a second.
-(Unless we delegate to a dedicated globbing utility as in ``Globbing(fd)``, which
-can reduce that time significantly.)
+(Unless we delegate to a dedicated globbing utility as in ``Globbing(*)``, which
+can reduce that time significantly for large projects.)
 ``Maud``'s globbing aggressively caches results, filtering from those cached results
 on each new glob. This means the overhead of actually listing files is only paid once
 per rebuild; each new glob incurs less than a tenth of that overhead.

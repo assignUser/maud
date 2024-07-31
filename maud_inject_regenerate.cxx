@@ -56,6 +56,19 @@ int main(int argc, char **argv) try {
   fs::path patched = build / "_maud" / "VerifyGlobs.cmake.patched";
   std::cout << "trying to inject into " << script << std::endl;
 
+  // Ideally, we could patch VerifyGlobs.cmake directly from CMakeLists.txt
+  // (or use a built in cmake_language(RECONFIGURE_CHECK CODE ...) function).
+  //
+  // However CMakeLists.txt is finished and generation is finalized...
+  //     https://github.com/Kitware/CMake/blob/159ba027b98813921b6b32227569f85f9611a05d/Source/cmake.cxx#L2561-L2564
+  // ...before VerifyGlobs.cmake is ever written.
+  //     https://github.com/Kitware/CMake/blob/159ba027b98813921b6b32227569f85f9611a05d/Source/cmake.cxx#L2618-L2619
+  //
+  // That being the case, the only way to patch VerifyGlobs.cmake is to launch
+  // a background process which patches as soon as the file exists. (We need to
+  // use `setsid` or `start /b` for this because without it execute_process()
+  // waits for all child processes to complete.)
+
   std::this_thread::sleep_for(50ms);
   while (not fs::exists(script) or not fs::exists(flag)) {
     std::cout << "didn't exist yet, retrying in 50ms" << std::endl;
@@ -84,8 +97,9 @@ int main(int argc, char **argv) try {
   });
 
   std::cout << "creating patched script" << std::endl;
-  exponential_backoff(
-      [&] { std::ofstream{patched, std::ios_base::app} << contents << PATCH; });
+  exponential_backoff([&] {
+    std::ofstream{patched, std::ios_base::app} << contents << PATCH;
+  });
 
   std::cout << "getting flag's mtime" << std::endl;
   fs::file_time_type mtime;

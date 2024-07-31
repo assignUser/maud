@@ -52,6 +52,7 @@ glob benchmark:
     endif()
 
     find_program(FD NAMES fd)
+    find_program(GIT NAMES git)
 
     set(files)
     foreach(i RANGE ${F})
@@ -85,9 +86,9 @@ glob benchmark:
         foreach(i RANGE ${N})
           string(TIMESTAMP before [[%s%f]])
           ${code}
-          string(TIMESTAMP after [[%s%f]])
-          math(EXPR d \"\${after} - \${before}\")
-          math(EXPR sum \"\${sum} + \${d}\")
+          string(TIMESTAMP d [[%s%f]])
+          math_assign(d - \${before})
+          math_assign(sum + \${d})
           if(min GREATER d)
             set(min \${d})
           endif()
@@ -140,6 +141,21 @@ glob benchmark:
       set(delta_ms fd-NOTFOUND)
     endif()
     message(STATUS "\tGlobbing(fd):       ${delta_ms}ms")
+
+    if(GIT)
+      time([[
+        execute_process(
+          COMMAND "${GIT}" -C "${CMAKE_SOURCE_DIR}"
+            ls-files --exclude-standard --ignored --others
+          OUTPUT_VARIABLE _
+        )
+        string(STRIP "${_}" _)
+        string(REGEX REPLACE "/?\n" ";" _ "${_}")
+      ]])
+    else()
+      set(delta_ms git-NOTFOUND)
+    endif()
+    message(STATUS "\tGlobbing(git):      ${delta_ms}ms")
 
     time([[
       list(FILTER files INCLUDE REGEX ".*")
