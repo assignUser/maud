@@ -31,11 +31,6 @@ import maud_;
 // TODO replace <iostream> with <format>
 
 // TODO replace char const* with Location and track lines for better error reporting
-struct Location {
-  char const *location;
-  int line;
-};
-
 template <char... CHARS>
 constexpr auto first_of = [](auto s) {
   while (*s != 0) {
