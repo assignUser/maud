@@ -28,18 +28,16 @@ variable substitution:
     render("${FOO}")
 
 
-# TODO test string pipeline init
-variable substitution with string:
-  definitions: [FOO=foo-val, BAR=bar-val]
-  template: '@"---${FOO}---${BAR}---"@'
-  rendered: '---foo-val---bar-val---'
+empty variable substitution:
+  template: 'foo@   @bar'
+  rendered: foobar
   compiled: |
-    # reference 1:2-1:25
+    # reference 1:5-1:8
     ##################################################################################
-    # @"---${FOO}---${BAR}---"@
-    #  ^~~~~~~~~~~~~~~~~~~~~~^
+    # foo@   @bar
+    #     ^~^
     ##################################################################################
-    render("---${FOO}---${BAR}---")
+    render("${}")
 
 
 variable substitution in name:
@@ -225,6 +223,38 @@ string filter:
     #                                 ^
     ##################################################################################
     render("${IT}")
+
+
+string filter with empty pipeline init:
+  template: |
+    @|set("hello
+           world") | string()@
+  rendered: |
+    "hello\n       world"
+  compiled: |
+    # pipeline init 1:2-1:2
+    ##################################################################################
+    # @|set("hello
+    #  ^
+    ##################################################################################
+    set(IT "${}")
+
+    # pipeline filter 1:3-2:16
+    ##################################################################################
+    # @|set("hello
+    #   ^~~~~~~~~~~
+    #~~~~~~~~~~~~~~~v
+    #        world") | string()@
+    ##################################################################################
+    template_filter_set("hello
+           world") 
+
+    # pipeline filter 2:18-2:26
+    ##################################################################################
+    #        world") | string()@
+    #                  ^~~~~~~^
+    ##################################################################################
+    template_filter_string()
 
 
 foreach filter:
