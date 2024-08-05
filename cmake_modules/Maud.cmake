@@ -1695,17 +1695,17 @@ endfunction()
 
 
 ################################################################################
-# Template filters
+# Pipeline filters
 ################################################################################
 
-function(template_filter_)
+function(in2_pipeline_filter_)
 endfunction()
 
-function(template_filter_set)
+function(in2_pipeline_filter_set)
   set(IT "${ARGN}" PARENT_SCOPE)
 endfunction()
 
-function(template_filter_if_else then otherwise)
+function(in2_pipeline_filter_if_else then otherwise)
   if(IT)
     set(IT "${then}" PARENT_SCOPE)
   else()
@@ -1713,7 +1713,18 @@ function(template_filter_if_else then otherwise)
   endif()
 endfunction()
 
-function(template_filter_string)
+function(in2_pipeline_filter_string)
+  if(ARGV0 MATCHES "^(TOLOWER|TOUPPER|STRIP|MAKE_C_IDENTIFIER|HEX)$")
+    string(${ARGV0} "${IT}" IT)
+    set(IT "${IT}" PARENT_SCOPE)
+    return()
+  endif()
+
+  string(${ARGV} IT "${IT}")
+  set(IT "${IT}" PARENT_SCOPE)
+endfunction()
+
+function(in2_pipeline_filter_string_literal)
   if(ARGV0 STREQUAL "RAW")
     set(tag "")
     while(IT MATCHES "\\)(${tag}_*)\"")
@@ -1727,7 +1738,7 @@ function(template_filter_string)
   set(IT "\"${str}\"" PARENT_SCOPE)
 endfunction()
 
-function(template_filter_join glue)
+function(in2_pipeline_filter_join glue)
   list(JOIN IT "${glue}" joined)
   set(IT "${joined}" PARENT_SCOPE)
 endfunction()

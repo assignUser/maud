@@ -145,7 +145,7 @@ auto pipeline(auto begin, auto end) {
       --depth;
     } else {
       debug("pipeline filter", begin, end);
-      *os << "template_filter_" << begin.view_to(end) << "\n";
+      *os << "in2_pipeline_filter_" << begin.view_to(end) << "\n";
     }
 
     if (*end != '|') break;

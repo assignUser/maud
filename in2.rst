@@ -3,8 +3,11 @@
 ``.in2`` Templates
 ------------------
 
-Template file format is intended to evoke what's accepted by ``configure_file()``.
-In the most basic case, ``@VAR@`` gets replaced with ``${VAR}``'s value from cmake
+``.in2`` templates are an efficient way to render CMake or build system
+state to generated files, and are a built-in capability of projects which
+use ``Maud``. Template file format is intended to evoke what's accepted
+by :cmake:`configure_file() <command/configure_file.html>`. In the most
+basic case, ``@VAR@`` gets replaced with ``${VAR}``'s value from cmake
 
 .. code-block:: c++.in2
 
@@ -52,13 +55,34 @@ following variables are available inside a template file:
 
 - ``${IT}`` the current value in a pipeline.
 
+Template compilation traces
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For debugging purposes, each template's compiled CMake module includes
+extensive traces from the compilation process encoded in comments:
+
+.. code-block:: cmake
+
+  # reference 1:9-1:19
+  ##################################################################################
+  # f_bar: @FOO_${BAR}@
+  #         ^~~~~~~~~^
+  ##################################################################################
+  render("${FOO_${BAR}}")
+
+If CMake raises an error while compiling or rendering a buggy template,
+hopefully that will be sufficient to diagnose the problem. If not, these
+traces can be helpful.
+
 .. _in2-pipeline-syntax:
 
 Pipeline syntax
 ===============
 
 For additional syntactic sugar in the common case of modifying a
-value before rendering, pipeline syntax is also supported
+value before rendering, pipeline syntax is also supported. Pipelines
+are a variable reference followed by one or more filters, separated
+by ``|``.
 
 .. code-block:: c++.in2
 
@@ -66,14 +90,30 @@ value before rendering, pipeline syntax is also supported
   // renders to
   bool foo_enabled = 1;
 
-Template filters are cmake commands prefixed with ``template_filter_``.
-They are assumed to read and then overwrite the variable ``${IT}``.
-Whatever value ``${IT}`` has at the end of the pipeline is what gets
-rendered. For example, the filter ``if_else`` is implemented with
+The pipeline's value is initialized from the referenced variable and
+is stores in the variable ``${IT}``. Each pipeline filter is a cmake
+command which reads and then overwrites ``${IT}``. After all filters
+have been applied, the final value of ``${IT}`` is rendered.
+
+In the example above, the pipeline is initialized with the value of
+``${FOO_ENABLED}``, which is then passed to the filter ``if_else(1 0)``.
+The filter finds the value :cmake:`truthy <command/if.html#constant>`,
+and sets the pipeline's value to its first argument (a frequently
+useful transformation since C++ doesn't recognize ``ON`` as truthy or
+``foo-NOTFOUND`` as falsy.) Since there are no further filters, the
+``1`` gets rendered.
+
+Pipeline filters
+~~~~~~~~~~~~~~~~
+
+``Maud`` provides several built in filters, but they are also easy
+to define: just prefix the new filter's name with ``in2_pipeline_filter_``
+and define a function which modifies ``IT``. For example, the filter
+``if_else`` is implemented with
 
 .. code-block:: cmake
 
-  function(template_filter_if_else then otherwise)
+  function(in2_pipeline_filter_if_else then otherwise)
     if(IT)
       set(IT "${then}" PARENT_SCOPE)
     else()
@@ -81,12 +121,27 @@ rendered. For example, the filter ``if_else`` is implemented with
     endif()
   endfunction()
 
-Built-in filters
-~~~~~~~~~~~~~~~~
+Lambda filters with arbitrary inline commands can also be written using
+the special ``|()`` pipe. For example
+
+.. code-block:: c++.in2
+
+  @SOME_JSON_FILE |()
+    execute_process(
+      COMMAND jq ${QUERY}
+      INPUT_FILE "${IT}"
+      OUTPUT_VARIABLE IT
+    )
+  @
+
+could be used to apply `jq <https://jqlang.github.io/jq/manual>`_
+as part of a pipeline.
+
+Built-in pipeline filters
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ``if_else(then otherwise)``
-    Yields ``then`` if ``IT`` is truthy or ``otherwise``
-    if ``IT`` is falsy
+    Yields ``then`` if ``IT`` is truthy or ``otherwise`` if ``IT`` is falsy.
 
     .. code-block:: c++.in2
 
@@ -94,13 +149,15 @@ Built-in filters
       // renders to
       bool foo_enabled = 1;
 
-``string([RAW])``
+    .. seealso:: CMake's criteria for :cmake:`truthiness <command/if.html#constant>`.
+
+``string_literal([RAW])``
     Wraps the value into a
     :cxx20:`string literal or raw string literal <lex.string#nt:string-literal>`
 
     .. code-block:: c++.in2
 
-      auto str = @csv | string(RAW)@;
+      auto str = @csv | string_literal(RAW)@;
       // renders to
       auto str = R"(foo,12
       bar,57)";
@@ -115,9 +172,43 @@ Built-in filters
       // renders to
       int i = +789ULL;
 
-.. TODO eval filter instead of |()
+``string([ TOLOWER | TOUPPER | STRIP | HEX | MAKE_C_IDENTIFIER | <HASH> ])``
+    Map the pipeline value using a unary signature of
+    :cmake:`string() <command/string.html>`
 
-.. TODO regex filter
+``string([ REPLACE substring | REGEX REPLACE regex ] replacement)``
+    Map the pipeline value by replacing exact or regex matching
+    substrings as with :cmake:`string(REPLACE) <command/string.html#replace>`
+    or :cmake:`string(REGEX REPLACE) <command/string.html#regex-replace>`
 
-.. TODO doc foreach filter
+``string(REGEX MATCHALL regex)``
+    Split the pipeline value into a list as with
+    :cmake:`string(REGEX MATCHALL) <command/string.html#regex-matchall>`
 
+``join(glue)``
+    Join the elements of a list pipeline value using the specified glue,
+    as with :cmake:`list(JOIN) <command/list.html#join>`
+
+    .. code-block:: c++.in2
+
+      "@FOO_FEATURE_NAMES | join(" ")@"
+      // renders to
+      "FOO BAR BAZ"
+
+
+Foreach filters
+---------------
+
+When the input to a filter is a list it is frequently desirable to
+transform each list member. Foreach filters allow pipeline syntax
+to express that member transformation inline. Filters between
+`|foreach|` and `|endforeach|` are applied to each element of
+an input list.
+
+.. code-block::
+
+  const char* foo_feature_names[] = {@
+    FOO_FEATURE_NAMES |foreach| string_literal() |endforeach| join(", ")
+  @};
+  // renders to
+  const char* foo_feature_names[] = {"FOO", "BAR", "BAZ"};
