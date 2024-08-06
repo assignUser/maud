@@ -248,7 +248,7 @@ function(_maud_cxx_sources)
   string(REPLACE " " "|" source_regex "${source_regex}")
   set(source_regex "\\.(${source_regex})$")
 
-  glob(_MAUD_CXX_SOURCES CONFIGURE_DEPENDS ${source_regex} "!(/|^)_")
+  glob(_MAUD_CXX_SOURCES CONFIGURE_DEPENDS "${source_regex}" "!(/|^)_")
   foreach(source_file ${_MAUD_CXX_SOURCES})
     _maud_scan("${source_file}")
   endforeach()
@@ -956,6 +956,13 @@ function(_maud_setup)
     MARK_AS_ADVANCED
   )
 
+  option(
+    MAUD_CXX_HEADER_EXTENSIONS
+    STRING "Files with any of these extensions will be recognized as C++ headers."
+    DEFAULT "hxx hpp h hh h++"
+    MARK_AS_ADVANCED
+  )
+
   cmake_language(GET_MESSAGE_LOG_LEVEL level)
   option(
     CMAKE_MESSAGE_LOG_LEVEL
@@ -1099,9 +1106,15 @@ function(_maud_setup_doc)
     list(APPEND all_built "${doc}/dirhtml/${html}/index.html")
   endforeach()
 
+  set(source_regex "${MAUD_CXX_SOURCE_EXTENSIONS} ${MAUD_CXX_HEADER_EXTENSIONS}")
+  string(REPLACE "+" "[+]" source_regex "${source_regex}")
+  string(REPLACE " " "|" source_regex "${source_regex}")
+  set(source_regex "\\.(${source_regex})$")
+
+  glob(_MAUD_APIDOC_SOURCES CONFIGURE_DEPENDS "${source_regex}" "!(/|^)_")
   add_custom_command(
     OUTPUT "${doc}/stage/Doxyfile"
-    DEPENDS "${_MAUD_SELF_DIR}/Doxyfile" ${_MAUD_CXX_SOURCES}
+    DEPENDS "${_MAUD_SELF_DIR}/Doxyfile" ${_MAUD_APIDOC_SOURCES}
     WORKING_DIRECTORY "${doc}"
     COMMAND ${MAUD_EVAL} "_maud_doxygen()"
     VERBATIM
@@ -1111,7 +1124,7 @@ function(_maud_setup_doc)
 
   add_custom_command(
     OUTPUT "${doc}/stage/conf.py"
-    DEPENDS "${_MAUD_SELF_DIR}/sphinx_conf.py" ${all_staged}
+    DEPENDS "${_MAUD_SELF_DIR}/sphinx_conf.py" ${all_staged} "${doc}/stage/Doxyfile"
     WORKING_DIRECTORY "${MAUD_DIR}"
     COMMAND ${MAUD_EVAL} "_maud_sphinx_conf()"
     VERBATIM
@@ -1171,7 +1184,8 @@ endfunction()
 
 function(_maud_doxygen)
   set(doc "${MAUD_DIR}/doc")
-  list(JOIN _MAUD_CXX_SOURCES " \\\n" inputs)
+
+  list(JOIN _MAUD_APIDOC_SOURCES " \\\n" inputs)
   file(COPY_FILE "${_MAUD_SELF_DIR}/Doxyfile" "${doc}/stage/Doxyfile")
   file(APPEND "${doc}/stage/Doxyfile" "\nINPUT=${inputs}\n\n")
   execute_process(

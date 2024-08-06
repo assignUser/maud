@@ -127,12 +127,9 @@ the special ``|()`` pipe. For example
 .. code-block:: c++.in2
 
   @SOME_JSON_FILE |()
-    execute_process(
-      COMMAND jq ${QUERY}
-      INPUT_FILE "${IT}"
-      OUTPUT_VARIABLE IT
-    )
-  @
+  execute_process(
+    COMMAND jq ${QUERY} INPUT_FILE "${IT}" OUTPUT_VARIABLE IT
+  )@
 
 could be used to apply `jq <https://jqlang.github.io/jq/manual>`_
 as part of a pipeline.

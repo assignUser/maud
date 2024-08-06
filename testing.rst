@@ -22,55 +22,16 @@ specify share resources across the suite.
 (These macros are included in the predefines buffer so
 an explicit ``#include`` is unnecessary.)
 
-``TEST_(case_name, parameters...) { ...test body... }``
-    Defines and registers a test case with optional parameters.
+Macros
+~~~~~~
 
-    If no parameters are provided, a single
-    :gtest:`simple test case <primer.html#simple-tests>` is defined.
-    If parameters are provided, each is wrapped into a distinct
-    test case using the same test body. In the scope of the test body,
-    the parameter is declared as ``Parameter const &parameter``.
+.. doxygendefine:: TEST_
 
-    If parameters are read from
-    an initializer list or other range then this is analogous to a
-    :gtest:`value parametrized test<advanced.html#value-parameterized-tests>`.
-    Parameters may also differ in type if they are read from a
-    tuple, analogous to a
-    :gtest:`type parametrized test<advanced.html#typed-tests>`.
+.. doxygendefine:: EXPECT_
 
-    Each parameter is
-    :gtest:`printed <advanced.html#teaching-googletest-how-to-print-your-values>`
-    and incorporated into the test case's total name along with
-    ``case_name`` and the suite's name to make it accessible to
-    :gtest:`filtering <advanced.html#running-a-subset-of-the-tests>`.
+.. doxygendefine:: SUITE_
 
-``EXPECT_(condition); EXPECT_(l <=> r); EXPECT_(e >>= matcher);``
-    Checks its condition, producing a failure if it is falsy.
-    To provide more information about a failed expectation, the
-    condition will be printed as part of the failure. If the
-    condition is a comparison, each argument will be printed.
-
-    ``operator>>=`` is overloaded for use with
-    :gtest:`matchers <reference/matchers.html>`. (All matchers
-    provided by GMock are exported by ``test_`` and so are
-    available in a test suite without an explicit ``#include``.)
-
-``SUITE_ { ...shared suite state... };``
-    Defines a ``struct`` which will be constructed once before
-    any cases in the suite are run and destroyed when no more
-    cases from the suite will run.
-
-    (Constructed/destroyed in
-    :gtest:`SetUpTestSuite/TearDownTestSuite <advanced.html#sharing-resources-between-tests-in-the-same-test-suite>`,
-    respectively.)
-
-    This may be omitted, in which case no state will be shared.
-    If it is provided it must precede all ``TEST_`` definitions
-    (this is checked at runtime).
-
-    A pointer to the constructed state ``struct`` is accessible
-    in test bodies by calling ``suite_state()``.
-
+.. doxygenstruct:: Matcher
 
 .. FIXME GTest is not easily includable yet
 
@@ -112,12 +73,12 @@ Example
       EXPECT_("hello world" >>= HasSubstr("llo"));
     }
 
-    // To check a test body against multiple values, parametrize with a range.
+    // To check a test body against multiple values, parameterize with a range.
     TEST_(parameterized, {111, 234}) {
       EXPECT_(parameter > 0);
     }
 
-    // To instantiate the test body with multiple types, parametrize with a tuple.
+    // To instantiate the test body with multiple types, parameterize with a tuple.
     TEST_(typed, 0, std::string("")) {
       EXPECT_(parameter + parameter == parameter);
     }

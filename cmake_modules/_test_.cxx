@@ -321,6 +321,18 @@ std::string operator,(MatchCondition<C> c, End e) {
 
 }  // namespace expect_helper
 
+/// \brief Wrap a coroutine into a range.
+///
+/// This can be useful in setting up parameters for tests.
+///
+/// ```cxx
+/// TEST_(parameterized_gen, []() -> Generator<int> {
+///   for (int i = 0; i < 10; ++i) co_yield i;
+/// }) {
+///   EXPECT_(0 <= parameter);
+///   EXPECT_(parameter < 10);
+/// }
+/// ```
 export template <typename T>
 struct Generator {
   struct promise_type {
@@ -456,6 +468,15 @@ export using testing::AnyOfArray;
 export using testing::Not;
 export using testing::Conditional;
 
+/// \brief Helper for constructing matchers from lambdas
+///
+/// ```cxx
+/// Matcher constexpr NotNull{
+///   .match = [](auto const &ptr, auto &) { return ptr != nullptr; },
+///   .describe = [](auto &os) { os << "is not NULL"; },
+///   .describe_negation = [](auto &os) { os << "is NULL"; },
+/// };
+/// ```
 export template <typename Match, typename Describe, typename DescribeNegation>
 struct Matcher {
   Match match;
@@ -470,4 +491,8 @@ struct Matcher {
 
   void DescribeTo(std::ostream *os) const { describe(*os); }
   void DescribeNegationTo(std::ostream *os) const { describe_negation(*os); }
+};
+
+export struct DontTerminateIfDestructionThrows {
+  ~DontTerminateIfDestructionThrows() noexcept(false) {}
 };
