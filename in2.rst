@@ -173,6 +173,21 @@ Built-in pipeline filters
     Map the pipeline value using a unary signature of
     :cmake:`string() <command/string.html>`
 
+``string(JSON [ GET | TYPE | MEMBER | LENGTH | LIST ] path...)``
+    Map the pipeline value using :cmake:`string(JSON) <command/string.html>`.
+
+    ``JSON LIST`` maps a json array to a cmake ;-list
+
+    .. code-block:: c++.in2
+
+      @set(OBJ [[ {"arr": [{"num": 42}, {"num": 77}]} ]])@
+      @OBJ | string(JSON LIST arr [] num)@
+      // renders to
+      42;77
+
+    ... which is probably most useful in conjunction with
+    :ref:`foreach filters <foreach-filters>`.
+
 ``string([ REPLACE substring | REGEX REPLACE regex ] replacement)``
     Map the pipeline value by replacing exact or regex matching
     substrings as with :cmake:`string(REPLACE) <command/string.html#replace>`
@@ -192,6 +207,7 @@ Built-in pipeline filters
       // renders to
       "FOO BAR BAZ"
 
+.. _foreach-filters:
 
 Foreach filters
 ---------------

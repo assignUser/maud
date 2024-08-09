@@ -1,7 +1,6 @@
 NEXT
 ----
 
-- extract maud_:std to tidy up
 - how should we recommend use of gtest_discover_tests? If you only have a few it's nice
 - write doc
   - getting_started.rst

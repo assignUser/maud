@@ -28,7 +28,7 @@ variable substitution:
     render("${FOO}")
 
 
-empty variable substitution:
+empty at-range means empty variable substitution:
   template: 'foo@   @bar'
   rendered: foobar
   compiled: |
@@ -174,7 +174,7 @@ if_else filter:
     render("${IT}")
 
 
-string filter:
+string_literal filter:
   definitions: [ "HI=hello\nworld\\" ]
   template: |
     @HI | string_literal()@@HI | string_literal(RAW)@
@@ -223,6 +223,57 @@ string filter:
     #                                                 ^
     ##################################################################################
     render("${IT}")
+
+
+string JSON filter:
+  definitions:
+  - |
+      OBJ={"a": {"b": [ {"d": 77} ]}}
+  template: |
+    @OBJ | string(JSON GET a b 0 d)@
+    @OBJ | string(JSON TYPE a b 0 d)@
+    @OBJ | string(JSON LENGTH a b)@
+  rendered: |
+    77
+    NUMBER
+    1
+  compiled: |
+    # pipeline init 1:2-1:6
+    ##################################################################################
+    # @OBJ | string(JSON GET a b 0 d)@
+    #  ^~~^
+    ##################################################################################
+    set(IT "${OBJ}")
+
+    # pipeline filter 1:8-1:32
+    ##################################################################################
+    # @OBJ | string(JSON GET a b 0 d)@
+    #        ^~~~~~~~~~~~~~~~~~~~~~~^
+    ##################################################################################
+    in2_pipeline_filter_string(JSON GET a b 0 d)
+
+
+string JSON LIST filter:
+  definitions:
+  - |
+      ARR=[{"a": 1}, {}, {"a": 3}, "not an object"]
+  template: |
+    @ARR | string(JSON LIST [] a)@
+    @ARR | string(JSON LIST [] a) |foreach| if_else(${IT} two) |endforeach| join(" ")@
+  rendered: |
+    1;1-a-NOTFOUND;3;3-a-NOTFOUND
+    1 two 3 two
+  compiled: ''
+
+
+string REGEX REPLACE filter:
+  definitions:
+  - HI=hello world
+  template: |
+    @HI | string(REGEX REPLACE "([a-z]+) ([a-z]+)" [[\2, \1]])@
+  rendered: |
+    world, hello
+  compiled: ''
 
 
 string filter with empty pipeline init:
@@ -313,3 +364,14 @@ foreach filter nesting error:
   template: '@BOOLY |foreach|foreach| if_else(1 0) |endforeach| join("-")@'
   render error: |
     Flow control statements are not properly nested.
+
+
+zipped lists pipeline filter:
+  definitions: [BOOLY=ON;OFF;OFF;ON, STRINGY=a;b;c]
+  template: |
+    @
+    foreach(b s IN ZIP_LISTS BOOLY STRINGY)
+      @@s | string_literal()@: @b | if_else(1 0)@, @
+    endforeach()
+  rendered: '"a": 1, "b": 0, "c": 0, "": 1, '
+  compiled: ''
