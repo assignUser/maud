@@ -130,6 +130,77 @@ That'd be something we could ship, too.
 - union is not directly supported; use record with optional fields
 
 ```c++
+/// Basic entrypoint which does the parsing
+/// holds the parsed-in-place string and the Tree
+/// as private members.
+///
+/// Ideally Nodes should be private too.
+class Document {
+public:
+  /// construct doc from repr
+  Document(std::string);
+
+  /// simple accessors for repr
+  std::string yaml() const;
+  std::string json() const;
+
+  /// populate a nicer object
+  /// (actually a method of Node)
+  template <typename T>
+  constexpr bool set(T &object) const {
+    if constexpr (is_same_v<T, string>) {
+      assert(_is_scalar());
+
+      // string scalar
+      object = _scalar_string();
+      return true;
+    } else if constexpr (has<T, VALUE>) {
+      assert(_is_scalar());
+
+      // record scalar
+      _get_field<VALUE>(object) = _scalar_string();
+      return true;
+    } else if constexpr (is_instantiation_v<T, vector>) {
+      assert(!_is_scalar());
+
+      object.clear();
+
+      if (_is_sequence()) {
+        // vector sequence
+        for (auto node : _sequence_nodes()) {
+          if (not node.set(object.emplace_back())) return false;
+        }
+      }
+
+      if (_is_sequence()) {
+        // vector mapping
+        for (auto [key_node, value_node] : _mapping_nodes()) {
+          auto &item = object.emplace_back();
+          auto &key = _get_field<KEY>(item);
+          if (not key_node.set(key)) return false;
+          if (not value_node.set(item)) return false;
+        }
+      }
+
+      return true;
+    } else {
+      assert(_is_mapping());
+
+      // record mapping
+      return Fields<T>(object, [&](auto name, auto &value) {
+        return _mapping_node(name).set(value);
+      });
+    }
+  }
+
+  /// construct from a nicer object
+  template <typename T>
+  static Document from(T);
+};
+```
+
+example:
+```c++
 struct Case {
   Scalar name, in2, expected_compiled, rendered, render_error;
   std::vector<Scalar> definitions;

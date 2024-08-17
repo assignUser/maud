@@ -70,7 +70,7 @@ and directories in the simulated project also takes a little less than a second.
 (Unless we delegate to a dedicated globbing utility as in ``Globbing(*)``, which
 can reduce that time significantly for large projects.)
 ``Maud``'s globbing aggressively caches results, filtering from those cached results
-on each new glob. This means the overhead of actually listing files is only paid once
+on each new glob. This means the overhead of actual filesystem access is only paid once
 per rebuild; each new glob incurs less than a tenth of that overhead.
 
 ``Loading the cache`` is also once-per-build overhead. ``Maud`` stores glob results

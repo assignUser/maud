@@ -1,0 +1,17 @@
+name: maud-development
+channels:
+- conda-forge
+dependencies:
+- cmake>=3.28
+- ninja
+- git
+- clangxx>=18
+- clang-tools>=18
+- fmt>=10.2
+- nlohmann_json>=3.11
+- gtest
+- sphinx
+- sphinx-inline-tabs
+- furo
+- breathe>=4.35
+- doxygen
