@@ -1111,7 +1111,7 @@ function(_maud_setup_doc)
   string(REPLACE " " "|" source_regex "${source_regex}")
   set(source_regex "\\.(${source_regex})$")
 
-  glob(_MAUD_APIDOC_SOURCES CONFIGURE_DEPENDS "${source_regex}" "!(/|^)_")
+  glob(_MAUD_APIDOC_SOURCES CONFIGURE_DEPENDS "${source_regex}")
   add_custom_command(
     OUTPUT "${doc}/stage/Doxyfile"
     DEPENDS "${_MAUD_SELF_DIR}/Doxyfile" ${_MAUD_APIDOC_SOURCES}
