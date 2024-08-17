@@ -55,6 +55,27 @@ import a dependency then it must be available for linking to any
 configuration. In the example above, the import will still be
 linked in release but not used.
 
+TODO: screw doxygen
+-------------------
+
+Even with breathe, doxygen is super annoying to deal with.
+The sphinx cpp domain is fine, and we can extract apidoc using
+clang-doc and regular expressions `^ *///.*$`, leaving them in
+a format sphinx can just import with a few directives.
+
+#### apidoc:
+
+- doc comments are all rst which will be passed as content to
+  a cpp domain directive. The decl used is drawn from code
+- point clang-doc at each scanned source file individually so
+  that rebuilds are maximally incremental
+- scan headers manually for documented macros (macros anywhere
+  else aren't going to be public so ignore them)
+- scan modules manually for documented `module foo;` (clang-doc
+  doesn't pick these up yet)
+- provide autodoc style directives to insert synthesized
+  cpp domain directives
+
 TODO: stages
 ------------
 

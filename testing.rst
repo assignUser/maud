@@ -2,7 +2,7 @@ Unit tests
 ----------
 
 While scanning modules, ``Maud`` will detect and
-:cmake:`add <command/add_test.html>` unit tests.
+:cmake:`add_test <command/add_test.html>` unit tests.
 (This can be disabled by setting ``BUILD_TESTING = OFF``.)
 Unit testing is based on :gtest:`GTest </>`, and many basic
 concepts like suites of test cases are inherited whole.
