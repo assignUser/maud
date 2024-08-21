@@ -38,15 +38,13 @@ export struct Parameter : c4::yml::ConstNodeRef {
     struct : std::vector<Parameter> {
       Padded<> yaml;
       c4::yml::Tree tree;
-      c4::yml::ConstNodeRef rootref;
     } set;
 
     set.yaml = read(path);
     set.tree = parse_in_place(set.yaml.data());
-    set.rootref = set.tree.rootref();
-    set.resize(set.rootref.num_children());
+    set.resize(set.tree.rootref().num_children());
 
-    for (auto parameter = set.begin(); auto n : set.rootref) {
+    for (auto parameter = set.begin(); auto n : set.tree.rootref()) {
       *parameter++ = {n};
     }
     return set;
