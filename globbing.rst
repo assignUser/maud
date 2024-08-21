@@ -32,10 +32,10 @@ In ``Maud``'s case the C++20 modular structure is central and every generator wh
 also supports glob-dependent reconfiguration, so avoiding globs would not expand
 ``Maud``'s generator support.
 
-As for tools which touch the source tree: even in projects where globbing is not
-used I frequently have multiple clones of the repository to isolate those tools
-from (for example) a build which I don't want to invalidate. Perhaps some would
-find this unacceptably inelegant.
+As for tools which touch the source tree: even in projects where globbing is not used
+I frequently have multiple `worktrees <https://git-scm.com/docs/git-worktree>`_
+associated with the repository to isolate those tools from (for example) a build
+which I don't want to invalidate. Perhaps some would find this unacceptably inelegant.
 
 Globbing Performance
 ====================
