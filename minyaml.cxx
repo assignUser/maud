@@ -1,19 +1,53 @@
 module;
+#include <iostream>
 #include <memory>
 #include <sstream>
 #include <string>
 #include <string_view>
 #include <type_traits>
-#include <vector>
 #define RYML_ID_TYPE int
 #define RYML_SINGLE_HDR_DEFINE_NOW
 #include "rapidyaml.hxx"
-export module minyaml;
 
-export decltype(auto) set_map(c4::yml::NodeRef node, auto key) {
-  node[key] |= c4::yml::MAP;
-  return node[key];
-}
+// export module minyaml;
+#define export
+module test_;
+
+export class Document {
+ public:
+  explicit Document(std::string yaml, std::string_view filename = "");
+
+  template <typename T>
+  bool set(T &object) const;
+
+  template <typename T>
+  static Document from(T const &object);
+
+  std::string yaml() const;
+  std::string json() const;
+
+  struct Storage;
+
+ private:
+  Document();
+  std::shared_ptr<Storage> _storage;
+};
+
+export class Node {
+ public:
+  std::string yaml() const;
+  std::string json() const;
+
+  template <typename T>
+  bool set(T &object) const;
+
+ private:
+  std::shared_ptr<Document::Storage> _storage;
+  int _id;
+  friend bool _set(void *tree, int id, Node &node);
+};
+
+void *_tree(Document::Storage &);
 
 export template <typename T>
 constexpr auto Fields = nullptr;
@@ -24,202 +58,357 @@ constexpr auto Fields<T &> = Fields<T>;
 export template <typename T>
 constexpr auto Fields<T const> = Fields<T>;
 
-export template <typename R>
-concept Record = requires(R &record) {
-  {
-    Fields<R>(record, [](auto field, auto &value) { return true; })
-  } -> std::same_as<bool>;
-};
+template <typename R>
+concept Record = not std::is_same_v<decltype(Fields<R>), decltype(Fields<void>)>;
 
-template <typename F, typename T>
-constexpr bool has(F field, T const &object) {
-  if constexpr (Record<T>) {
-    bool none = Fields<T>(object, [&](auto f, auto &) {
-      if constexpr (std::is_same_v<F, decltype(f)>) {
-        return f != field;
-      } else {
-        return std::true_type{};
-      }
-    });
-    return not none;
-  } else {
-    return std::false_type{};
-  }
-}
-
-export template <typename E>
-constexpr auto Enumeration = nullptr;
-
-export enum { SCALAR, SEQUENCE, MAPPING, KEY };
-
-export template <typename R>
-concept Range = requires(R &range) {
+template <typename R>
+concept ResizableRange = requires(R &range) {
   { range.resize(16) };
   { range.begin() != range.end() };
 };
 
+int _count(void *tree, int id);
+
+int _child_by_key(void *tree, int id, std::string_view key);
+int _child(void *tree, int id, int i);
+
+std::string_view _key(void *tree, int id);
+std::string_view _scalar(void *tree, int id);
+
+bool _is_scalar(void *tree, int id);
+bool _is_sequence(void *tree, int id);
+bool _is_mapping(void *tree, int id);
+
+void _set_scalar(void *tree, int id, std::string_view value);
+void _set_sequence(void *tree, int id);
+void _set_mapping(void *tree, int id);
+void _set_scalar(void *tree, int id, std::string_view value, std::string_view key);
+void _set_sequence(void *tree, int id, std::string_view key);
+void _set_mapping(void *tree, int id, std::string_view key);
+int _append_child(void *tree, int id);
+
+[[noreturn]] void _unreachable() { throw 0; }
+
 template <typename T>
-constexpr void set_string(T &object, std::string_view v) {
-  object = T(v);
-}
+bool _set(void *tree, int id, T &object) {
+  static_assert(not std::is_same_v<T, T const>);
 
-export struct Node {
-  // enough to reconstruct a ConstNodeRef
-  void *_tree;
-  int _id;
+  constexpr bool IS_STRING = std::is_same_v<T, std::string>;
+  static_assert(IS_STRING or ResizableRange<T> or Record<T>);
+  // TODO add FromString/ToString etc
 
-  std::string yaml() const {
-    return (std::stringstream{}
-            << c4::yml::ConstNodeRef{static_cast<c4::yml::Tree const *>(_tree), _id})
-        .str();
-  }
-  std::string json() const {
-    return (std::stringstream{} << c4::yml::as_json(
-                c4::yml::ConstNodeRef{static_cast<c4::yml::Tree const *>(_tree), _id}))
-        .str();
+  if constexpr (IS_STRING) {
+    assert(_is_scalar(tree, id));
+    object = std::string{_scalar(tree, id)};
+    return true;
   }
 
-  template <typename T>
-  constexpr bool set(T &object) const {
-    constexpr bool STRING_OR_VIEW =
-        std::is_same_v<T, std::string> or std::is_same_v<T, std::string_view>;
-    // make this an overload set instead
+  if constexpr (ResizableRange<T> and not IS_STRING) {
+    assert(_is_sequence(tree, id) or _is_mapping(tree, id));
 
-    static_assert(std::is_same_v<T, Node> or STRING_OR_VIEW or Range<T> or Record<T>);
+    object.resize(_count(tree, id));
 
-    if constexpr (std::is_same_v<T, Node>) {
-      object = *this;
+    if (_is_sequence(tree, id)) {
+      // range sequence
+      for (int i = 0; auto &element : object) {
+        if (not _set(tree, _child(tree, id, i++), element)) return false;
+      }
       return true;
     }
 
-    if constexpr (STRING_OR_VIEW) {
-      assert(_is_scalar());
+    for (int i = 0; auto &element : object) {
+      int child = _child(tree, id, i++);
 
-      // string scalar
-      set_string(object, _scalar());
-      return true;
+      if (not _set(tree, child, element)) return false;
+      // TODO add special fields
+      // _set_field<KEY>(element, [&](auto &value) {
+      //   // set the KEY field if there is one
+      //   // TODO FromString trait or something
+      //   value = std::string(_key(tree, child));
+      //   return std::true_type{};
+      // });
     }
+    return true;
+  }
 
-    if constexpr (Range<T>) {
-      assert(not _is_scalar());
-
-      object.resize(_count());
-      int i = 0;
-
-      if (_is_sequence()) {
-        // vector sequence
-        for (auto &element : object) {
-          if (not _child(i++).set(element)) return false;
+  if constexpr (Record<T>) {
+    if (_is_mapping(tree, id)) {
+      return Fields<T>(object, [&](std::string_view name, auto &value) {
+        // record mapping
+        if (int child = _child_by_key(tree, id, name); child != c4::yml::NONE) {
+          return _set(tree, child, value);
         }
-      }
-
-      if (_is_mapping()) {
-        // vector mapping
-        for (auto &element : object) {
-          if (not _child(i).set(element)) return false;
-
-          Fields<T>(object, [&](auto field, auto &value) {
-            if constexpr (field == KEY) {
-              set_string(value, _child(i)._key());
-            }
-            return std::true_type{};
-          });
-
-          ++i;
-        }
-      }
-
-      return true;
-    }
-
-    if constexpr (Record<T>) {
-      if constexpr (has(SCALAR, object)) {
-        if (_is_scalar()) {
-          // record with scalar field
-          return _set_field<SCALAR>(object);
-        }
-      }
-
-      if constexpr (has(SEQUENCE, object)) {
-        if (_is_sequence()) {
-          // record with sequence field
-          return _set_field<SEQUENCE>(object);
-        }
-      }
-
-      assert(_is_mapping());
-      if constexpr (has(MAPPING, object)) {
-        // record with mapping field
-        return _set_field<MAPPING>(object);
-      }
-
-      // record mapping
-      return Fields<T>(object, [&](auto name, auto &value) {  //
-        if constexpr (std::is_constructible_v<std::string_view, decltype(name)>) {
-          return _child(name).set(value);
-        } else {
-          // ignore special fields
-          return std::true_type{};
-        }
+        return true;
       });
     }
   }
 
- private:
-  template <auto FIELD, typename T>
-  constexpr bool _set_field(T &object) const {
-    return Fields<T>(object, [&](auto field, auto &value) {
-      if constexpr (field == FIELD) {
-        return set(value);
-      }
+  _unreachable();
+}
+
+template <typename T>
+void _from(void *tree, int id, T const &object, auto... key) {
+  constexpr bool IS_STRING =
+      std::is_same_v<T, std::string> or std::is_same_v<T, std::string_view>;
+  static_assert(IS_STRING or ResizableRange<T> or Record<T>);
+  // TODO add FromString/ToString etc
+
+  if constexpr (IS_STRING) {
+    return _set_scalar(tree, id, object, key...);
+  }
+
+  if constexpr (ResizableRange<T> and not IS_STRING) {
+    // range sequence
+    _set_sequence(tree, id, key...);
+    for (auto const &element : object) {
+      _from(tree, _append_child(tree, id), element);
+    }
+    return;
+  }
+
+  if constexpr (Record<T>) {
+    _set_mapping(tree, id, key...);
+    Fields<T>(object, [&](std::string_view name, auto const &value) {
+      // record mapping
+      int child = _append_child(tree, id);
+      _from(tree, child, value, name);
       return true;
     });
   }
+}
 
-  Node _child(std::string_view key) const {
-    return {_tree, static_cast<c4::yml::Tree const *>(_tree)->find_child(
-                       _id, {key.data(), key.size()})};
-  }
-  Node _child(int i) const {
-    return {_tree, static_cast<c4::yml::Tree const *>(_tree)->child(_id, i)};
-  }
-  int _count() const {
-    return static_cast<c4::yml::Tree const *>(_tree)->num_children(_id);
-  }
-  std::string_view _key() const {
-    auto key = static_cast<c4::yml::Tree const *>(_tree)->key(_id);
-    return {key.data(), key.size()};
-  }
+template <typename T>
+bool Document::set(T &object) const {
+  return _set(_tree(*_storage), 0, object);
+}
 
-  std::string_view _scalar() const {
-    auto s = static_cast<c4::yml::Tree const *>(_tree)->val(_id);
-    return {s.data(), s.size()};
-  }
+template <typename T>
+bool Node::set(T &object) const {
+  return _set(_tree(*_storage), _id, object);
+}
 
-  bool _is_scalar() const {
-    return static_cast<c4::yml::Tree const *>(_tree)->is_val(_id);
+template <typename T>
+Document Document::from(T const &object) {
+  Document doc;
+  _from(_tree(*doc._storage), 0, object);
+  return doc;
+}
+
+// module:private;
+
+int _count(void *tree, int id) {
+  return static_cast<c4::yml::Tree const *>(tree)->num_children(id);
+}
+
+int _child_by_key(void *tree, int id, std::string_view key) {
+  return static_cast<c4::yml::Tree const *>(tree)->find_child(id,
+                                                              {key.data(), key.size()});
+}
+int _child(void *tree, int id, int i) {
+  return static_cast<c4::yml::Tree const *>(tree)->child(id, i);
+}
+
+std::string_view _key(void *tree, int id) {
+  auto key = static_cast<c4::yml::Tree const *>(tree)->key(id);
+  return {key.data(), key.size()};
+}
+std::string_view _scalar(void *tree, int id) {
+  auto scalar = static_cast<c4::yml::Tree const *>(tree)->val(id);
+  return {scalar.data(), scalar.size()};
+}
+
+bool _is_scalar(void *tree, int id) {
+  return static_cast<c4::yml::Tree const *>(tree)->has_val(id);
+}
+bool _is_sequence(void *tree, int id) {
+  return static_cast<c4::yml::Tree const *>(tree)->is_seq(id);
+}
+bool _is_mapping(void *tree, int id) {
+  return static_cast<c4::yml::Tree const *>(tree)->is_map(id);
+}
+
+void _set_scalar(void *tree, int id, std::string_view value) {
+  static_cast<c4::yml::Tree *>(tree)->to_val(id, {value.data(), value.size()});
+}
+void _set_sequence(void *tree, int id) {
+  if (id == 0) {
+    // TODO if it's root, make a stream instead of a sequence
+    // return static_cast<c4::yml::Tree *>(tree)->set_root_as_stream();
   }
-  bool _is_sequence() const {
-    return static_cast<c4::yml::Tree const *>(_tree)->is_seq(_id);
-  }
-  bool _is_mapping() const {
-    return static_cast<c4::yml::Tree const *>(_tree)->is_map(_id);
-  }
+  static_cast<c4::yml::Tree *>(tree)->to_seq(id);
+}
+void _set_mapping(void *tree, int id) { static_cast<c4::yml::Tree *>(tree)->to_map(id); }
+
+void _set_scalar(void *tree, int id, std::string_view value, std::string_view key) {
+  static_cast<c4::yml::Tree *>(tree)->to_keyval(id, {key.data(), key.size()},
+                                                {value.data(), value.size()});
+}
+void _set_sequence(void *tree, int id, std::string_view key) {
+  static_cast<c4::yml::Tree *>(tree)->to_seq(id, {key.data(), key.size()});
+}
+void _set_mapping(void *tree, int id, std::string_view key) {
+  static_cast<c4::yml::Tree *>(tree)->to_map(id, {key.data(), key.size()});
+}
+
+int _append_child(void *tree, int id) {
+  return static_cast<c4::yml::Tree *>(tree)->append_child(id);
+}
+
+struct Document::Storage {
+  c4::yml::Tree tree;
+  std::weak_ptr<Storage> weak_this;
 };
 
-export struct Document : Node {
-  Document(std::string yaml) : Node{nullptr, 0}, _data{std::move(yaml)} {
-    auto size = _data.size();
-    _data.append(sizeof(c4::yml::Tree) * 2, '\0');
-    char *data = _data.data();
-    _tree = data + size;
-    size = sizeof(c4::yml::Tree) * 2;
-    std::align(alignof(c4::yml::Tree), sizeof(c4::yml::Tree), _tree, size);
-    new (_tree) c4::yml::Tree{c4::yml::parse_in_place(data)};
-  }
-  Document(Document &&) = default;
-  Document &operator=(Document &&) = default;
-  ~Document() { static_cast<c4::yml::Tree *>(_tree)->~Tree(); }
+void *_tree(Document::Storage &storage) { return &storage.tree; }
 
-  std::string _data;
+static_assert(sizeof(Document::Storage) >= sizeof(std::string));
+
+Document::Document(std::string yaml, std::string_view filename) {
+  // Minor hackery: the string *probably* already has extra capacity,
+  // so save ourselves a small allocation and store the Tree past all the
+  // chars. This also guarantees that the string is on the heap instead of
+  // short/inline so moving it won't invalidate pointers to its data.
+  size_t size = alignof(Storage) + sizeof(Storage);
+  yaml.append(size, '\0');
+  c4::substr data{yaml.data(), yaml.size() - size};
+
+  void *ptr = yaml.data() + yaml.size() - size;
+  void *aligned = std::align(alignof(Storage), sizeof(Storage), ptr, size);
+
+  _storage = {
+      new (ptr) Storage,
+      [yaml = std::move(yaml)](void *storage) {
+        // No need to free; that'll be handled when the closure is destroyed.
+        static_cast<Storage *>(storage)->~Storage();
+      },
+  };
+  c4::yml::parse_in_place({filename.data(), filename.size()}, data, &_storage->tree);
+  _storage->weak_this = _storage;
+}
+
+Document::Document() {
+  _storage = {
+      new Storage,
+      [](void *storage) { delete static_cast<Storage *>(storage); },
+  };
+  _storage->weak_this = _storage;
+  // Make sure the root id is initialized
+  int root_id = _storage->tree.root_id();
+  assert(root_id == 0);
+}
+
+bool _set(void *tree, int id, Node &node) {
+  node._storage =
+      reinterpret_cast<Document::Storage *>(static_cast<c4::yml::Tree *>(tree))
+          ->weak_this.lock();
+  node._id = id;
+  return true;
+}
+
+std::string Document::yaml() const {
+  return (std::stringstream{} << c4::yml::ConstNodeRef{&_storage->tree, 0}).str();
+}
+
+std::string Document::json() const {
+  return (std::stringstream{} << c4::yml::as_json(
+              c4::yml::ConstNodeRef{&_storage->tree, 0}))
+      .str();
+}
+
+std::string Node::yaml() const {
+  return (std::stringstream{} << c4::yml::ConstNodeRef{&_storage->tree, _id}).str();
+}
+
+std::string Node::json() const {
+  return (std::stringstream{} << c4::yml::as_json(
+              c4::yml::ConstNodeRef{&_storage->tree, _id}))
+      .str();
+}
+
+struct Foo {
+  std::string bar, baz;
+  bool operator==(Foo const &) const = default;
 };
+
+template <>
+constexpr auto Fields<Foo> = [](auto &foo, auto field) {
+  return field("bar", foo.bar)  //
+     and field("baz", foo.baz);
+};
+
+static_assert(std::is_move_constructible_v<Document>);
+static_assert(std::is_move_assignable_v<Document>);
+static_assert(std::is_copy_constructible_v<Document>);
+static_assert(std::is_copy_assignable_v<Document>);
+
+TEST_(usage) {
+  Document doc(R"(
+bar: 1
+baz: 2
+)");
+
+  Foo foo;
+  EXPECT_(doc.set(foo));
+  EXPECT_(foo == Foo{"1", "2"});
+}
+
+TEST_(usage2) {
+  Document doc(R"(
+- hello
+- world
+)");
+
+  std::vector<std::string> vec;
+  assert(doc.set(vec));
+  EXPECT_(vec == std::vector<std::string>{"hello", "world"});
+}
+
+TEST_(usage3) {
+  Document doc(R"(hello world)");
+
+  std::string str;
+  assert(doc.set(str));
+  EXPECT_(str == "hello world");
+}
+
+TEST_(usage4) {
+  Document doc(R"(
+---
+bar: 1
+baz: 2
+---
+bar: 3
+baz: 4
+...
+)");
+
+  std::vector<Foo> foos;
+  EXPECT_(doc.set(foos));
+  EXPECT_(foos
+          == std::vector<Foo>{
+              {"1", "2"},
+              {"3", "4"},
+  });
+}
+
+TEST_(from_string) {
+  std::string s = "hello";
+  auto doc = Document::from(s);
+  EXPECT_(doc.yaml() == "hello\n");
+}
+
+TEST_(from_vector) {
+  std::vector<std::string> vec{"hello", "world"};
+  auto doc = Document::from(vec);
+  EXPECT_(doc.yaml() == R"(- hello
+- world
+)");
+}
+
+TEST_(from_foo) {
+  Foo foo{"1", "2"};
+  auto doc = Document::from(foo);
+  EXPECT_(doc.yaml() == R"(bar: 1
+baz: 2
+)");
+}
