@@ -1,7 +1,6 @@
 module;
-#include <cassert>
+#include <filesystem>
 #include <string>
-#include <string_view>
 #include <vector>
 module test_;
 import minyaml;
@@ -177,4 +176,36 @@ baz: 4
               R"({"bar": 1,"baz": 2})",
               R"({"bar": 3,"baz": 4})",
           });
+}
+
+auto const DIR = std::filesystem::path{__FILE__}.parent_path();
+
+struct Case {
+  std::string name, in2, compiled, rendered, render_error;
+  struct Definition : std::string {
+    std::string name;
+  };
+  std::vector<Definition> definitions;
+};
+
+template <>
+constexpr auto minyaml::Fields<Case> = [](auto &c, auto field) {
+  return field("template", c.in2)       //
+     and field("compiled", c.compiled)  //
+     and field("rendered", c.rendered)  //
+     and field("render error", c.render_error);
+};
+
+template <>
+constexpr auto minyaml::Key<Case> = &Case::name;
+
+template <>
+constexpr auto minyaml::Key<Case::Definition> = &Case::Definition::name;
+
+TEST_(new_cases) {
+  auto doc = minyaml::Document::from_file(DIR / "in2.test.yaml");
+  std::vector<Case> cases;
+  EXPECT_(doc.set(cases));
+
+  EXPECT_(cases[0].name == "empty");
 }

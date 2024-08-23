@@ -66,4 +66,3 @@ export struct Location {
 
   bool operator==(Location const &) const = default;
 };
-

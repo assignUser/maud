@@ -1,10 +1,10 @@
 module;
-#include <iostream>
+#include <filesystem>
+#include <fstream>
 #include <memory>
 #include <sstream>
 #include <string>
 #include <string_view>
-#include <type_traits>
 #define RYML_ID_TYPE int
 #define RYML_SINGLE_HDR_DEFINE_NOW
 #include "rapidyaml.hxx"
@@ -46,8 +46,9 @@ bool _is_mapping(void *tree, int id) {
 }
 
 c4::csubstr _to_arena(void *tree, std::string_view view) {
-  return static_cast<c4::yml::Tree *>(tree)->to_arena(
+  auto stored = static_cast<c4::yml::Tree *>(tree)->copy_to_arena(
       c4::csubstr{view.data(), view.size()});
+  return stored;
 }
 
 void _set_scalar(void *tree, int id, std::string_view value) {
@@ -63,8 +64,12 @@ void _set_sequence(void *tree, int id) {
 void _set_mapping(void *tree, int id) { static_cast<c4::yml::Tree *>(tree)->to_map(id); }
 
 void _set_scalar(void *tree, int id, std::string_view value, std::string_view key) {
-  static_cast<c4::yml::Tree *>(tree)->to_keyval(id, _to_arena(tree, key),
-                                                _to_arena(tree, value));
+  auto *t = static_cast<c4::yml::Tree *>(tree);
+  t->reserve_arena(t->arena_size() + key.size() + value.size());
+  // NOTE we need to explicitly reserve or the second copy-to-arena might cause a
+  // relocation... at which point the first copy isn't attached to any node and therefore
+  // won't *be* relocated.
+  t->to_keyval(id, _to_arena(tree, key), _to_arena(tree, value));
 }
 void _set_sequence(void *tree, int id, std::string_view key) {
   static_cast<c4::yml::Tree *>(tree)->to_seq(id, _to_arena(tree, key));
@@ -111,6 +116,14 @@ Document::Document(std::string yaml, std::string_view filename) {
   _storage->weak_this = _storage;
 }
 
+Document Document::from_file(std::filesystem::path const &filename) {
+  std::ifstream stream{filename};
+  std::string contents;
+  contents.resize(stream.seekg(0, std::ios_base::end).tellg());
+  stream.seekg(0).read(contents.data(), contents.size());
+  return Document(contents, filename.string());
+}
+
 Document::Document() {
   _storage = {
       new Storage,
@@ -118,6 +131,7 @@ Document::Document() {
   };
   _storage->weak_this = _storage;
   _id = _storage->tree.root_id();
+  //_storage->tree.reserve_arena(4096);
   assert(_id == 0);
 }
 

@@ -1,5 +1,5 @@
 module;
-#include <cassert>
+#include <filesystem>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -26,6 +26,8 @@ export class Node {
 export class Document : public Node {
  public:
   explicit Document(std::string yaml, std::string_view filename = "");
+
+  static Document from_file(std::filesystem::path const &filename);
 
   template <typename T>
   static Document from(T const &object);
@@ -157,7 +159,8 @@ void _from(void *tree, int id, T const &object, auto... key) {
 
     for (auto const &element : object) {
       if constexpr (is_defined_v<Key<Element>>) {
-        _from(tree, _append_child(tree, id), element, element.*Key<Element>);
+        std::string_view key{element.*Key<Element>};
+        _from(tree, _append_child(tree, id), element, key);
       } else {
         _from(tree, _append_child(tree, id), element);
       }
@@ -168,8 +171,7 @@ void _from(void *tree, int id, T const &object, auto... key) {
   if constexpr (is_defined_v<Fields<T>>) {
     _set_mapping(tree, id, key...);
     Fields<T>(object, [&](std::string_view name, auto const &value) {
-      int child = _append_child(tree, id);
-      _from(tree, child, value, name);
+      _from(tree, _append_child(tree, id), value, name);
       return std::true_type{};
     });
   }
@@ -201,28 +203,24 @@ export template <typename T>
 constexpr auto ToString<T> =
     [](T const &object, std::string &string) { string = std::string_view{object}; };
 
-bool _double_from_string(double&, std::string_view);
-void _double_to_string(double, std::string&);
+bool _double_from_string(double &, std::string_view);
+void _double_to_string(double, std::string &);
 
 export template <>
-constexpr auto FromString<double> = [](double &f, std::string_view string) {
-  return _double_from_string(f, string);
-};
+constexpr auto FromString<double> =
+    [](double &f, std::string_view string) { return _double_from_string(f, string); };
 export template <>
-constexpr auto ToString<double> = [](double f, std::string &string) {
-  return _double_to_string(f, string);
-};
+constexpr auto ToString<double> =
+    [](double f, std::string &string) { return _double_to_string(f, string); };
 
-bool _int_from_string(int&, std::string_view);
-void _int_to_string(int, std::string&);
+bool _int_from_string(int &, std::string_view);
+void _int_to_string(int, std::string &);
 
 export template <>
-constexpr auto FromString<int> = [](int &f, std::string_view string) {
-  return _int_from_string(f, string);
-};
+constexpr auto FromString<int> =
+    [](int &f, std::string_view string) { return _int_from_string(f, string); };
 export template <>
-constexpr auto ToString<int> = [](int f, std::string &string) {
-  return _int_to_string(f, string);
-};
+constexpr auto ToString<int> =
+    [](int f, std::string &string) { return _int_to_string(f, string); };
 
 }  // namespace minyaml
