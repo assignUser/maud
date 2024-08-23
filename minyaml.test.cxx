@@ -23,9 +23,6 @@ constexpr auto minyaml::Fields<Foo> = [](auto &foo, auto field) {
 template <>
 constexpr auto minyaml::Key<Foo> = &Foo::bar;
 
-template <>
-constexpr auto minyaml::Scalar<Foo> = &Foo::baz;
-
 namespace minyaml {
 
 static_assert(std::is_move_constructible_v<Document>);
@@ -97,21 +94,6 @@ key2:
           == std::vector<Foo>{
               {"key1", "1"},
               {"key2", "2"},
-  });
-}
-
-TEST_(usage6) {
-  Document doc(R"(
-key1: val1
-key2: val2
-)");
-
-  std::vector<Foo> foos;
-  EXPECT_(doc.set(foos));
-  EXPECT_(foos
-          == std::vector<Foo>{
-              {"key1", "val1"},
-              {"key2", "val2"},
   });
 }
 

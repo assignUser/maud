@@ -5,8 +5,6 @@ module;
 #include <string_view>
 #include <type_traits>
 export module minyaml:interface;
-// #define export
-// module test_;
 
 namespace minyaml {
 struct Storage;
@@ -38,15 +36,6 @@ export class Document : public Node {
 
 export template <typename T>
 constexpr void *Key = nullptr;
-
-export template <typename T>
-constexpr void *Scalar = nullptr;
-
-export template <typename T>
-constexpr void *Sequence = nullptr;
-
-export template <typename T>
-constexpr void *Mapping = nullptr;
 
 export template <typename T>
 constexpr void *Fields = nullptr;
@@ -81,93 +70,71 @@ void _set_sequence(void *tree, int id, std::string_view key);
 void _set_mapping(void *tree, int id, std::string_view key);
 int _append_child(void *tree, int id);
 
-[[noreturn]] void _unreachable() { throw 0; }
-
 template <typename T>
+requires (not std::is_const_v<T>)
 bool _set(void *tree, int id, T &object) {
   static_assert(not std::is_same_v<T, T const>);
 
   constexpr bool IS_STRING = std::is_assignable_v<T, std::string_view>;
-  static_assert(IS_STRING or ResizableRange<T> or Record<T> or Scalar<T> or Sequence<T>
-                or Mapping<T>);
+  static_assert(IS_STRING or ResizableRange<T> or Record<T>);
   // TODO add FromString/ToString etc
 
-  if constexpr (IS_STRING) {
-    assert(_is_scalar(tree, id));
-    object = _scalar(tree, id);
-    return true;
-  }
-
-  // ... FIXME but how do we decide what to write?
-  if constexpr (Scalar<T>) {
-    if (_is_scalar(tree, id)) {
-      return _set(tree, id, object.*Scalar<T>);
+  if (_is_scalar(tree, id)) {
+    if constexpr (IS_STRING) {
+      object = _scalar(tree, id);
+      return true;
     }
+    return false;
   }
 
-  if constexpr (Sequence<T>) {
-    if (_is_sequence(tree, id)) {
-      return _set(tree, id, object.*Sequence<T>);
-    }
-  }
-
-  if constexpr (Mapping<T>) {
-    if (_is_mapping(tree, id)) {
-      return _set(tree, id, object.*Mapping<T>);
-    }
-  }
-
-  if constexpr (ResizableRange<T> and not IS_STRING) {
-    using Element = std::decay_t<decltype(*object.begin())>;
-    assert(_is_sequence(tree, id) or _is_mapping(tree, id));
-
-    object.resize(_count(tree, id));
-
-    if (_is_sequence(tree, id) or not Key<Element>) {
+  if (_is_sequence(tree, id)) {
+    if constexpr (ResizableRange<T> and not IS_STRING) {
+      object.resize(_count(tree, id));
       bool result = true;
       for (int i = 0; auto &element : object) {
         result &= _set(tree, _child(tree, id, i++), element);
       }
       return result;
     }
-
-    if constexpr (Key<Element>) {
-      bool result = true;
-      for (int i = 0; auto &element : object) {
-        int child = _child(tree, id, i++);
-        element.*Key<Element> = _key(tree, child);
-        result &= _set(tree, child, element);
-      }
-      return result;
-    }
-
     return false;
+  }
+
+  [[assume(_is_mapping(tree, id))]];
+
+  if constexpr (ResizableRange<T> and not IS_STRING) {
+    object.resize(_count(tree, id));
+    bool result = true;
+    for (int i = 0; auto &element : object) {
+      int child = _child(tree, id, i++);
+      using Element = std::decay_t<decltype(element)>;
+      if constexpr (Key<Element>) {
+        element.*Key<Element> = _key(tree, child);
+      }
+      result &= _set(tree, child, element);
+    }
+    return result;
   }
 
   if constexpr (Record<T>) {
-    if (_is_mapping(tree, id)) {
-      return Fields<T>(object, [&](std::string_view name, auto &value) {
-        if (int child = _child_by_key(tree, id, name); child != -1) {
-          return _set(tree, child, value);
-        }
-        return true;
-      });
-    }
-    return false;
+    return Fields<T>(object, [&](std::string_view name, auto &value) {
+      if (int child = _child_by_key(tree, id, name); child != -1) {
+        return _set(tree, child, value);
+      }
+      return true;
+    });
   }
 
-  _unreachable();
+  return false;
 }
 
 template <typename T>
 void _from(void *tree, int id, T const &object, auto... key) {
-  constexpr bool IS_STRING =
-      std::is_same_v<T, std::string> or std::is_same_v<T, std::string_view>;
+  constexpr bool IS_STRING = std::is_constructible_v<std::string_view, T const &>;
   static_assert(IS_STRING or ResizableRange<T> or Record<T>);
   // TODO add FromString/ToString etc
 
   if constexpr (IS_STRING) {
-    return _set_scalar(tree, id, object, key...);
+    _set_scalar(tree, id, std::string_view{object}, key...);
   }
 
   if constexpr (ResizableRange<T> and not IS_STRING) {
