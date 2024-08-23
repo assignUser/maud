@@ -19,8 +19,8 @@ int _count(void *tree, int id) {
 }
 
 int _child_by_key(void *tree, int id, std::string_view key) {
-  return static_cast<c4::yml::Tree const *>(tree)->find_child(id,
-                                                              {key.data(), key.size()});
+  return static_cast<c4::yml::Tree const *>(tree)->find_child(
+      id, c4::csubstr{key.data(), key.size()});
 }
 int _child(void *tree, int id, int i) {
   return static_cast<c4::yml::Tree const *>(tree)->child(id, i);
@@ -45,8 +45,13 @@ bool _is_mapping(void *tree, int id) {
   return static_cast<c4::yml::Tree const *>(tree)->is_map(id);
 }
 
+c4::csubstr _to_arena(void *tree, std::string_view view) {
+  return static_cast<c4::yml::Tree *>(tree)->to_arena(
+      c4::csubstr{view.data(), view.size()});
+}
+
 void _set_scalar(void *tree, int id, std::string_view value) {
-  static_cast<c4::yml::Tree *>(tree)->to_val(id, {value.data(), value.size()});
+  static_cast<c4::yml::Tree *>(tree)->to_val(id, _to_arena(tree, value));
 }
 void _set_sequence(void *tree, int id) {
   if (id == 0) {
@@ -58,14 +63,14 @@ void _set_sequence(void *tree, int id) {
 void _set_mapping(void *tree, int id) { static_cast<c4::yml::Tree *>(tree)->to_map(id); }
 
 void _set_scalar(void *tree, int id, std::string_view value, std::string_view key) {
-  static_cast<c4::yml::Tree *>(tree)->to_keyval(id, {key.data(), key.size()},
-                                                {value.data(), value.size()});
+  static_cast<c4::yml::Tree *>(tree)->to_keyval(id, _to_arena(tree, key),
+                                                _to_arena(tree, value));
 }
 void _set_sequence(void *tree, int id, std::string_view key) {
-  static_cast<c4::yml::Tree *>(tree)->to_seq(id, {key.data(), key.size()});
+  static_cast<c4::yml::Tree *>(tree)->to_seq(id, _to_arena(tree, key));
 }
 void _set_mapping(void *tree, int id, std::string_view key) {
-  static_cast<c4::yml::Tree *>(tree)->to_map(id, {key.data(), key.size()});
+  static_cast<c4::yml::Tree *>(tree)->to_map(id, _to_arena(tree, key));
 }
 
 int _append_child(void *tree, int id) {
@@ -124,7 +129,8 @@ bool _set(void *tree, int id, Node &node) {
 }
 
 std::string Node::yaml() const {
-  // TODO use a more efficient emitter, maybe we can even get an estimate of the output's size
+  // TODO use a more efficient emitter, maybe we can even get an estimate of the output's
+  // size
   return (std::stringstream{} << c4::yml::ConstNodeRef{&_storage->tree, _id}).str();
 }
 
@@ -133,4 +139,21 @@ std::string Node::json() const {
               c4::yml::ConstNodeRef{&_storage->tree, _id}))
       .str();
 }
+
+bool _double_from_string(double &f, std::string_view s) {
+  return c4::from_chars(c4::csubstr{s.data(), s.size()}, &f);
+}
+void _double_to_string(double f, std::string &s) {
+  s.resize(std::numeric_limits<double>::max_digits10);
+  s.resize(c4::to_chars(c4::substr{s.data(), s.size()}, f));
+}
+
+bool _int_from_string(int &i, std::string_view s) {
+  return c4::atoi(c4::csubstr{s.data(), s.size()}, &i);
+}
+void _int_to_string(int i, std::string &s) {
+  s.resize(16);
+  s.resize(c4::itoa(c4::substr{s.data(), s.size()}, i, 10));
+}
+
 }  // namespace minyaml
