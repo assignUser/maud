@@ -135,138 +135,6 @@ a custom attribute for example, or a directory naming convention
 could be adoted, or you could write the module block verbatim inside
 an `#if false`- maud_scan would read it even if nothing else did.
 
-TODO: conversion traits
------------------------
-
-The current yaml solution is fine for simple test cases, but for
-less ad hoc situations it'd be neat to have easy conversion traits
-available.
-
-That'd be something we could ship, too.
-
-- scalar is always a string
-- sequence is always a vector
-- mapping is either
-  - a record
-  - a vector of records which declare the special KEY field
-    - optionally also the special VALUE field
-- union is not directly supported; use record with optional fields
-
-```c++
-/// Basic entrypoint which does the parsing
-/// holds the parsed-in-place string and the Tree
-/// as private members.
-///
-/// Ideally Nodes should be private too.
-class Document {
-public:
-  /// construct doc from repr
-  Document(std::string);
-
-  /// simple accessors for repr
-  std::string yaml() const;
-  std::string json() const;
-
-  /// populate a nicer object
-  /// (actually a method of Node)
-  template <typename T>
-  constexpr bool set(T &object) const {
-    if constexpr (is_same_v<T, string>) {
-      assert(_is_scalar());
-
-      // string scalar
-      object = _scalar_string();
-      return true;
-    } else if constexpr (has<T, VALUE>) {
-      assert(_is_scalar());
-
-      // record scalar
-      _get_field<VALUE>(object) = _scalar_string();
-      return true;
-    } else if constexpr (is_instantiation_v<T, vector>) {
-      assert(!_is_scalar());
-
-      object.clear();
-
-      if (_is_sequence()) {
-        // vector sequence
-        for (auto node : _sequence_nodes()) {
-          if (not node.set(object.emplace_back())) return false;
-        }
-      }
-
-      if (_is_sequence()) {
-        // vector mapping
-        for (auto [key_node, value_node] : _mapping_nodes()) {
-          auto &item = object.emplace_back();
-          auto &key = _get_field<KEY>(item);
-          if (not key_node.set(key)) return false;
-          if (not value_node.set(item)) return false;
-        }
-      }
-
-      return true;
-    } else {
-      assert(_is_mapping());
-
-      // record mapping
-      return Fields<T>(object, [&](auto name, auto &value) {
-        return _mapping_node(name).set(value);
-      });
-    }
-  }
-
-  /// construct from a nicer object
-  template <typename T>
-  static Document from(T);
-};
-```
-
-example:
-```c++
-struct Case {
-  Scalar name, in2, expected_compiled, rendered, render_error;
-  std::vector<Scalar> definitions;
-};
-template <>
-constexpr auto Fields<Case> = [](auto &c, auto field) {
-  return field(KEY, c.name)                      //
-     and field("template", c.in2)                //
-     and field("compiled", c.expected_compiled)  //
-     and field("rendered", c.rendered)           //
-     and field("render error", c.render_error)   //
-     and field("definitions", c.definitions);
-};
-auto CASES = read_as<std::vector<Case>>(DIR / "in2.test.yaml");
-auto const TEST_DIR = std::filesystem::path{BUILD_DIR} / "_maud/in2_tests";
-//
-TEST_(compilation, CASES) {
-  auto [name, in2, expected_compiled, _ren, _err, _def] = parameter;
-  EXPECT_(compile_in2(std::string(in2)) >>= HasSubstr(expected_compiled));
-  write(TEST_DIR / name + ".e.in2.cmake"s) << expected_compiled;
-}
-//
-struct Command {
-  Scalar write, command, expect, working_directory, content;
-};
-template <>
-constexpr auto Fields<Command> = [](auto &c, auto field) {
-  return field("write", c.write)                          //
-     and field("command", c.command)                      //
-     and field("expect", c.expect)                        //
-     and field("working_directory", c.working_directory)  //
-     and field("content", c.content);
-};
-struct Case {
-  Scalar name;
-  std::vector<Command> commands;
-};
-template <>
-constexpr auto Fields<Case> = [](auto &c, auto field) {
-  return field(KEY, c.name) and field(VALUE, c.commands);
-};
-auto CASES = read_as<std::vector<Case>>(DIR / "in2.test.yaml");
-```
 
 TODO: consolidate tests
 -----------------------
@@ -497,3 +365,10 @@ it would be nice to use cmake format to get consistent formatting, however:
 
 1. cmake is not too much of a pain to format by hand
 2. it does not support the kind of nested commands which I like to write
+
+(not) TODO: conversion traits
+-----------------------------
+
+Having tried this out, it's not as dead simple as I would want
+it to be. Using rapidyaml with minimal wrapping will be fine for
+maud and I'll save these traits for a downstream package later.
