@@ -1,6 +1,8 @@
 NEXT
 ----
 
+- provide a hook for missing imports; then we can have others drop in
+  "not only link but also do package management with $mine"
 - how should we recommend use of gtest_discover_tests? If you only have a few it's nice
 - write doc
   - getting_started.rst
