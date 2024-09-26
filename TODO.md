@@ -1,6 +1,13 @@
 NEXT
 ----
 
+- use variable_watch to hook option access and auto-resolve values
+  - first make sure this doesn't pessimize globbing just by existing
+  - `{decl depend}(FOO)` come first in whatever order and don't modify FOO
+  - access to FOO resolves FOO (and all its dependencies)
+  - as before, added constraints which don't conflict are fine (but
+    once resolved or accessed values are fixed)
+  - log all accesses to an option, report them alongside dependencies at level DEBUG
 - provide a hook for missing imports; then we can have others drop in
   "not only link but also do package management with $mine"
 - how should we recommend use of gtest_discover_tests? If you only have a few it's nice
