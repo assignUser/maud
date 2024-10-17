@@ -565,6 +565,7 @@ options:
         E: A
         LEGACY_0: OFF
         LEGACY_1: ON
+        MAUD_CXX_HEADER_EXTENSIONS: hxx hpp h hh h++
         MAUD_CXX_SOURCE_EXTENSIONS: cxx cxxm ixx mxx cpp cppm cc ccm c++ c++m
         SPHINX_BUILDERS: dirhtml
 
@@ -574,7 +575,6 @@ detect option dependency cycle:
   contents: |
     option(A "" REQUIRES B ON)
     option(B "" REQUIRES A ON)
-    resolve_options()
 - failing command: maud --log-level=VERBOSE
 
 
@@ -610,18 +610,15 @@ option dependencies resolve correctly:
 - write: options.cmake
   contents: |
     option(A "A help")
-    resolve_options()
     # If A were not already resolved, it could've been mutated here. However,
     # since it was already resolved it cannot be constrained to a new value.
     option(FORCE_A "" REQUIRES A ON)
-    resolve_options()
 - failing command: maud --log-level=VERBOSE -DFORCE_A=ON
 
 - write: options.cmake
   contents: |
     option(A "" ON REQUIRES C ON)
     option(B "" ON REQUIRES C OFF)
-    resolve_options()
 - failing command: maud --log-level=VERBOSE -DFORCE_A=ON
 
 
@@ -629,7 +626,6 @@ resolve undeclared options correctly:
 - write: options.cmake
   contents: |
     option(A "A help" REQUIRES B ON ADD_COMPILE_DEFINITIONS)
-    resolve_options()
     option(B "B help" ADD_COMPILE_DEFINITIONS)
 - write: assertions.cxx
   contents: |
@@ -648,7 +644,6 @@ path option:
       "
       ADD_COMPILE_DEFINITIONS
     )
-    resolve_options()
 - write: assertions.cxx
   contents: |
     module;

@@ -888,6 +888,7 @@ function(_maud_setup)
   _maud_set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
   _maud_load_cache(CONFIGURING)
+  unset(_MAUD_ALL_OPTIONS_RESOLVED CACHE)
 
   if(NOT DEFINED _MAUD_ALL)
     _maud_glob(_MAUD_ALL "${CMAKE_SOURCE_DIR}")
@@ -1298,7 +1299,7 @@ function(option name type)
   endif()
   _maud_set(_MAUD_DECLARED_${name} ON)
   _maud_set(_MAUD_OPTION_GROUP_${name} "${OPTION_GROUP}")
-  _maud_set(_MAUD_ALL_DECLARED_OPTIONS ${_MAUD_ALL_DECLARED_OPTIONS} ${name})
+  _maud_set_include(_MAUD_ALL_OPTIONS ${name})
 
   if(
     DEFINED ENV{${name}}
@@ -1351,6 +1352,8 @@ function(option name type)
 
   # declare the option's cache entry
   set(${name} "${_DEFAULT}" CACHE ${type} "${help}")
+  _maud_type_check_option(${name} "${_DEFAULT}")
+
   if(_MARK_AS_ADVANCED)
     mark_as_advanced(${name})
   endif()
@@ -1372,185 +1375,200 @@ function(option name type)
   # store requirements for this option
   set(condition ON) # as a special case, `IF ON` is implicit for BOOL options
   while(_REQUIRES)
-    list(POP_FRONT _REQUIRES dependency value)
+    list(POP_FRONT _REQUIRES dependency required_value)
     if(type MATCHES "PATH")
-      cmake_path(ABSOLUTE_PATH value)
-      cmake_path(NATIVE_PATH value NORMALIZE value)
+      cmake_path(ABSOLUTE_PATH required_value)
+      cmake_path(NATIVE_PATH required_value NORMALIZE required_value)
     endif()
 
     if("${dependency}" STREQUAL "IF")
-      set(condition "${value}")
+      # this isn't a requirement, it's the start of a new requirement block
+      set(condition "${required_value}")
       continue()
     endif()
 
-    _maud_set_include(_MAUD_MAYBE_CONSTRAINED_BY_${name} ${dependency})
-    string(SHA512 req "${dependency}-${name}-${condition}")
-    _maud_set(_MAUD_REQUIREMENT_${req} "${value}")
+    _maud_assert_or_store_requirement(
+      ${name} ${condition}
+      ${dependency} ${required_value}
+    )
   endwhile()
+  _maud_watch_option(${name})
 endfunction()
 
 
-function(resolve_options)
-  if(NOT ARGN)
-    # No options were specifically named; resolve all unresolved options now
-    set(all)
-    foreach(name ${_MAUD_ALL_DECLARED_OPTIONS})
-      if(DEFINED CACHE{_MAUD_RESOLVED_${name}})
-        continue()
-      endif()
-      list(APPEND all ${name})
-    endforeach()
-    message(VERBOSE "No options named for resolution; resolving all unresolved [${all}]")
-  else()
-    # Verify that all the options named for resolution are unresolved
-    message(VERBOSE "Resolving options [${ARGN}]")
-    set(all ${ARGN})
-    foreach(name ${all})
-      if(DEFINED CACHE{_MAUD_RESOLVED_${name}})
-        message(FATAL_ERROR "Redundant resolution of ${name}")
-      endif()
-    endforeach()
+function(_maud_assert_or_store_requirement name condition dependency required_value)
+  _maud_set_include(_MAUD_MAYBE_CONSTRAINED_BY_${dependency} ${name})
+  _maud_set_include(_MAUD_ALL_OPTIONS ${dependency})
+  string(SHA512 hash "${dependency}-${name}-${condition}")
+
+  if(NOT DEFINED CACHE{_MAUD_RESOLVED_${name}})
+    # Just store the requirement for later;
+    # we can't do anything until ${name} is resolved
+    _maud_type_check_option(${dependency} "${required_value}")
+    _maud_set(_MAUD_REQUIREMENT_${hash} "${required_value}")
+    _maud_set_include(_MAUD_RESOLVE_BEFORE_${dependency} ${name})
+    _maud_watch_option(${dependency})
+    return()
   endif()
 
-  foreach(name ${all})
-    set(${name}_constraint_count 0)
-  endforeach()
+  string(SHA512 hash "${dependency}-${name}-$CACHE{${name}}")
+  if(NOT DEFINED CACHE{_MAUD_REQUIREMENT_${hash}})
+    # ${name} does not place a requirement on ${dependency}
+    return()
+  endif()
+  set(required_value "${_MAUD_REQUIREMENT_${hash}}")
+  _maud_type_check_option(${dependency} "${required_value}")
 
-  set(constrained)
-  foreach(name ${all})
-    foreach(dep ${_MAUD_MAYBE_CONSTRAINED_BY_${name}})
-      list(APPEND constrained ${dep})
-      math_assign(${dep}_constraint_count + 1)
-    endforeach()
-  endforeach()
+  _maud_set_include(_MAUD_CONSTRAINTS_ON_${dependency} ${name})
 
-  list(REMOVE_DUPLICATES constrained)
-  set(unconstrained ${all})
-  list(REMOVE_ITEM unconstrained ${constrained})
+  if(NOT DEFINED CACHE{_MAUD_RESOLVED_${dependency}})
+    # ${name} is resolved but ${dependency} isn't; apply the requirement
+    _maud_set_value_only(${dependency} "${required_value}")
+    _maud_set(_MAUD_RESOLVED_${dependency} ON)
+    return()
+  endif()
 
-  set(resolve_ordered)
-  while(unconstrained)
-    list(POP_FRONT unconstrained name)
-    list(APPEND resolve_ordered ${name})
-    foreach(dep ${_MAUD_MAYBE_CONSTRAINED_BY_${name}})
-      math_assign(${dep}_constraint_count - 1)
-      if("${${dep}_constraint_count}" EQUAL 0)
-        # As long as there are no circular constraints then even in the worst
-        # case of one long graph A -> B -> C -> D we can always pop at least
-        # one unconstrained option off per iteration. (Kahn's algorithm)
-        list(REMOVE_ITEM constrained ${dep})
-        if(DEFINED CACHE{_MAUD_DECLARED_${dep}})
-          list(APPEND unconstrained ${dep})
-        endif()
-      endif()
-    endforeach()
-  endwhile()
+  # Both are resolved; assert the requirement
+  if("$CACHE{${dependency}}" STREQUAL "${required_value}")
+    return()
+  endif()
 
-  if(constrained)
+  # ${dependency} did not have the required value; why?
+  list(REMOVE_ITEM _MAUD_CONSTRAINTS_ON_${dependency} ${name})
+  if("${_MAUD_CONSTRAINTS_ON_${dependency}}" STREQUAL "")
+    message(
+      FATAL_ERROR
+      "
+    Option constraint conflict: ${dependency} is constrained
+    by ${_MAUD_CONSTRAINTS_ON_${dependency}} to be
+      \"$CACHE{${dependency}}\"
+    but ${name} requires it to be
+      \"${required_value}\"
+      "
+    )
+  else()
+    message(
+      FATAL_ERROR
+      "
+    Option constraint conflict: ${dependency} was already resolved to
+      \"$CACHE{${dependency}}\"
+    but ${name} requires it to be
+      \"${required_value}\"
+      "
+    )
+  endif()
+endfunction()
+
+
+function(_maud_type_check_option name value)
+  get_property(type CACHE ${name} PROPERTY TYPE)
+  get_property(enum CACHE ${name} PROPERTY STRINGS)
+
+  if(enum AND NOT "${value}" IN_LIST enum)
+    message(FATAL_ERROR "ENUM option ${name} must be one of ${enum}")
+  elseif(
+    type STREQUAL "BOOL"
+    AND NOT ("${value}" STREQUAL "ON" OR "${value}" STREQUAL "OFF")
+  )
+    message(FATAL_ERROR "BOOL option ${name} must be ON or OFF")
+  endif()
+endfunction()
+
+
+function(_maud_ensure_option_resolved name path)
+  if(DEFINED CACHE{_MAUD_RESOLVED_${name}})
+    return()
+  endif()
+
+  if(name IN_LIST path)
     message(
       FATAL_ERROR
       "
     Cyclic constraint between options
-      ${constrained}
+      ${path}
       "
     )
   endif()
 
-  foreach(name ${resolve_ordered})
-    foreach(dep ${_MAUD_MAYBE_CONSTRAINED_BY_${name}})
-      string(SHA512 req "${dep}-${name}-${${name}}")
-      set(req "_MAUD_REQUIREMENT_${req}")
-      if(NOT DEFINED "${req}")
-        continue()
-      endif()
-
-      if(NOT "${${dep}}" STREQUAL "${${req}}")
-        if("${_MAUD_CONSTRAINTS_ON_${dep}}")
-          message(
-            FATAL_ERROR
-            "
-    Option constraint conflict: ${dep} is constrained
-    by ${_MAUD_CONSTRAINTS_ON_${dep}} to be
-      \"${${dep}}\"
-    but ${name} requires it to be
-      \"${${req}}\"
-            "
-          )
-        endif()
-
-        if(DEFINED CACHE{_MAUD_RESOLVED_${dep}})
-          message(
-            FATAL_ERROR
-            "
-    Option constraint conflict: ${dep} was already resolved to
-      \"${${dep}}\"
-    but ${name} requires it to be
-      \"${${req}}\"
-            "
-          )
-        endif()
-      endif()
-
-      _maud_set_value_only(${dep} "${${req}}")
-      _maud_set_include(_MAUD_CONSTRAINTS_ON_${dep} ${name})
-      _maud_set_include(_MAUD_ALL_CONSTRAINED_OPTIONS ${dep})
-    endforeach()
-    _maud_set(_MAUD_RESOLVED_${name} ON)
+  foreach(dependent ${_MAUD_RESOLVE_BEFORE_${name}})
+    _maud_ensure_option_resolved(${dependent} "${path};${name}")
+    _maud_assert_or_store_requirement(
+      ${dependent} $CACHE{${dependent}}
+      ${name} ""
+    )
   endforeach()
+  # whether it was required or not, we consider ${name}'s value resolved now
+  _maud_type_check_option(${name} "$CACHE{${name}}")
+  _maud_set(_MAUD_RESOLVED_${name} ON)
 
-  foreach(name ${resolve_ordered})
-    get_property(type CACHE ${name} PROPERTY TYPE)
-    get_property(enum CACHE ${name} PROPERTY STRINGS)
+  get_property(type CACHE ${name} PROPERTY TYPE)
+  get_property(enum CACHE ${name} PROPERTY STRINGS)
 
-    if(enum AND NOT "${${name}}" IN_LIST enum)
-      message(FATAL_ERROR "ENUM option ${name} must be one of ${enum}")
-    elseif(
-      type STREQUAL "BOOL"
-      AND NOT ("${${name}}" STREQUAL "ON" OR "${${name}}" STREQUAL "OFF")
-    )
-      message(FATAL_ERROR "BOOL option ${name} must be ON or OFF")
-    endif()
+  if(DEFINED CACHE{_MAUD_VALIDATE_${name}})
+    string_unescape("${_MAUD_VALIDATE_${name}}" validate)
+    cmake_language(EVAL ${validate})
+  endif()
 
-    if(DEFINED CACHE{_MAUD_VALIDATE_${name}})
-      string_unescape("${_MAUD_VALIDATE_${name}}" validate)
-      cmake_language(EVAL ${validate})
-    endif()
+  if(
+    DEFINED CACHE{_MAUD_DEFINITELY_USER_${name}}
+    AND NOT "${_MAUD_DEFINITELY_USER_${name}}" STREQUAL "$CACHE{${name}}"
+  )
+    message(WARNING "Detected override of user-provided value for ${name}")
+  endif()
 
-    if(
-      DEFINED CACHE{_MAUD_DEFINITELY_USER_${name}}
-      AND NOT "${_MAUD_DEFINITELY_USER_${name}}" STREQUAL "${${name}}"
-    )
-      message(WARNING "Detected override of user-provided value for ${name}")
-    endif()
+  if(NOT DEFINED CACHE{_MAUD_ADD_COMPILE_DEFINITIONS_${name}})
+    return()
+  endif()
 
-    if(NOT DEFINED CACHE{_MAUD_ADD_COMPILE_DEFINITIONS_${name}})
-      continue()
-    endif()
+  get_property(help CACHE ${name} PROPERTY HELPSTRING)
+  string_unescape("${help}" help)
+  string(REPLACE "\n" "\n/// " help "\n${help}")
 
-    get_property(help CACHE ${name} PROPERTY HELPSTRING)
-    string_unescape("${help}" help)
-    string(REPLACE "\n" "\n/// " help "\n${help}")
-
-    if(type STREQUAL "BOOL")
-      if(${${name}})
-        file(APPEND "${MAUD_DIR}/options.h" "${help}\n#define ${name} 1\n")
-      else()
-        file(APPEND "${MAUD_DIR}/options.h" "${help}\n#define ${name} 0\n")
-      endif()
-    elseif(enum)
-      foreach(e ${enum})
-        file(APPEND "${MAUD_DIR}/options.h" "${help}\n/// (${${name}} of ${enum})")
-        if("${${name}}" STREQUAL "${e}")
-          file(APPEND "${MAUD_DIR}/options.h" "\n#define ${name}_${e} 1\n")
-        else()
-          file(APPEND "${MAUD_DIR}/options.h" "\n#define ${name}_${e} 0\n")
-        endif()
-      endforeach()
+  if(type STREQUAL "BOOL")
+    if($CACHE{${name}})
+      file(APPEND "${MAUD_DIR}/options.h" "${help}\n#define ${name} 1\n")
     else()
-      string_escape("${${name}}" esc)
-      file(APPEND "${MAUD_DIR}/options.h" "${help}\n#define ${name} \"${esc}\"\n")
+      file(APPEND "${MAUD_DIR}/options.h" "${help}\n#define ${name} 0\n")
     endif()
-  endforeach()
+  elseif(enum)
+    foreach(e ${enum})
+      file(APPEND "${MAUD_DIR}/options.h" "${help}\n/// ($CACHE{${name}} of ${enum})")
+      if("$CACHE{${name}}" STREQUAL "${e}")
+        file(APPEND "${MAUD_DIR}/options.h" "\n#define ${name}_${e} 1\n")
+      else()
+        file(APPEND "${MAUD_DIR}/options.h" "\n#define ${name}_${e} 0\n")
+      endif()
+    endforeach()
+  else()
+    string_escape("$CACHE{${name}}" esc)
+    file(APPEND "${MAUD_DIR}/options.h" "${help}\n#define ${name} \"${esc}\"\n")
+  endif()
+endfunction()
+
+
+function(_maud_watch_option name)
+  if(DEFINED CACHE{_MAUD_WATCHED_${name}})
+    return()
+  endif()
+
+  function(_maud_option_watcher name access value current_list_file stack)
+    if(DEFINED CACHE{_MAUD_ALL_OPTIONS_RESOLVED})
+      # Without this global cutoff for variable_watch(), CMake can get caught in an infinite
+      # loop. AFAICT, _maud_set() somehow touches a file Ninja is watching, so we generate
+      # again... that seems insane, but anyway this cutoff seems to work.
+      return()
+    endif()
+    if(access MATCHES "MODIFIED" AND DEFINED CACHE{_MAUD_RESOLVED_${name}})
+      message(
+        FATAL_ERROR
+        "Manually setting option ${name} whose value is already resolved"
+      )
+    endif()
+    _maud_ensure_option_resolved(${name} "")
+  endfunction()
+
+  variable_watch(${name} _maud_option_watcher)
+  _maud_set(_MAUD_WATCHED_${name} ON)
 endfunction()
 
 
@@ -1574,7 +1592,9 @@ function(_maud_options_summary)
   endif()
 
   message(STATUS)
-  foreach(name ${_MAUD_ALL_DECLARED_OPTIONS})
+  foreach(name ${_MAUD_ALL_OPTIONS})
+    _maud_ensure_option_resolved(${name} "")
+
     unset(user_value)
     if(DEFINED CACHE{_MAUD_DEFINITELY_USER_${name}})
       set(user_value "${_MAUD_DEFINITELY_USER_${name}}")
@@ -1591,21 +1611,21 @@ function(_maud_options_summary)
     get_property(type CACHE ${name} PROPERTY TYPE)
     get_property(enum CACHE ${name} PROPERTY STRINGS)
 
-    string_escape("${${name}}" quoted)
+    string_escape("$CACHE{${name}}" quoted)
     set(quoted "\"${quoted}\"")
     string(JSON cache_json SET "${cache_json}" ${name} "${quoted}")
 
     get_property(advanced CACHE ${name} PROPERTY ADVANCED)
-    if(advanced AND "${${name}}" STREQUAL "${_MAUD_DEFAULT_${name}}")
+    if(advanced AND "$CACHE{${name}}" STREQUAL "${_MAUD_DEFAULT_${name}}")
       continue() # Don't display defaulted, advanced options in the summary
     endif()
 
     set(reasons)
-    if(DEFINED user_value AND "${${name}}" STREQUAL "${user_value}")
+    if(DEFINED user_value AND "$CACHE{${name}}" STREQUAL "${user_value}")
       list(APPEND reasons "user configured")
     endif()
 
-    if("${${name}}" STREQUAL "${_MAUD_DEFAULT_${name}}")
+    if("$CACHE{${name}}" STREQUAL "${_MAUD_DEFAULT_${name}}")
       list(APPEND reasons "default")
     endif()
 
@@ -1616,7 +1636,7 @@ function(_maud_options_summary)
 
     if(
       DEFINED ENV{${name}}
-      AND "${${name}}" STREQUAL "$ENV{${name}}"
+      AND "$CACHE{${name}}" STREQUAL "$ENV{${name}}"
       AND NOT "$ENV{MAUD_DISABLE_ENVIRONMENT_OPTIONS}"
       AND NOT EXISTS "${CMAKE_BINARY_DIR}/CMakeCache.txt"
     )
@@ -1645,7 +1665,7 @@ function(_maud_options_summary)
     if(type STREQUAL "STRING" AND NOT enum)
       message(STATUS "${name} = ${quoted} ${tags}[${reasons}]${help}")
     else()
-      message(STATUS "${name} = ${${name}} ${tags}[${reasons}]${help}")
+      message(STATUS "${name} = $CACHE{${name}} ${tags}[${reasons}]${help}")
     endif()
   endforeach()
   message(STATUS)
@@ -1676,7 +1696,7 @@ function(_maud_options_summary)
   string(JSON presets SET "${presets}" configurePresets ${i} "${preset}")
   file(WRITE "${CMAKE_SOURCE_DIR}/CMakeUserPresets.json" "${presets}\n")
 
-  foreach(name ${_MAUD_ALL_CONSTRAINED_OPTIONS})
+  foreach(name ${_MAUD_ALL_OPTIONS})
     if(NOT DEFINED CACHE{_MAUD_DECLARED_${name}})
       message(
         WARNING
@@ -1688,12 +1708,15 @@ function(_maud_options_summary)
     endif()
   endforeach()
 
+  _maud_set(_MAUD_ALL_OPTIONS_RESOLVED TRUE)
   # Clear temporaries
-  foreach(name ${_MAUD_ALL_DECLARED_OPTIONS})
+  # TODO clean up _MAUD_REQUIREMENT_${hash...} too
+  foreach(name ${_MAUD_ALL_OPTIONS})
     foreach(
       prefix
       DECLARED
       RESOLVED
+      WATCHED
       DEFINITELY_USER
       ADD_COMPILE_DEFINITIONS
       VALIDATE
@@ -1703,8 +1726,7 @@ function(_maud_options_summary)
       unset(_MAUD_${prefix}_${name} CACHE)
     endforeach()
   endforeach()
-  unset(_MAUD_ALL_DECLARED_OPTIONS CACHE)
-  unset(_MAUD_ALL_CONSTRAINED_OPTIONS CACHE)
+  unset(_MAUD_ALL_OPTIONS CACHE)
 endfunction()
 
 

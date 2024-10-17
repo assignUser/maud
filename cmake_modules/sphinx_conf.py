@@ -11,7 +11,8 @@ warnings.filterwarnings(
     category=DeprecationWarning,
     message=".*will drop support for representing paths as strings.*",
 )
-extensions = ["breathe"]
+extensions = []
+#extensions += ["breathe"]
 breathe_projects = {project: pathlib.Path(__file__).parent.parent / "xml"}
 breathe_default_project = project
 

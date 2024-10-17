@@ -131,7 +131,6 @@ file(
   endforeach()
   _maud_set(CMAKE_MODULE_PATH \"\${CMAKE_MODULE_PATH}\")
 
-  resolve_options(BUILD_TESTING)
   if(BUILD_TESTING AND NOT COMMAND \"maud_add_test\")
     # TODO fallback to FetchContent
     find_package(GTest)
@@ -139,7 +138,6 @@ file(
   # if any module appended to the PATH, save that to the cache
 
   # Resolve any options not yet explicitly handled
-  resolve_options()
   _maud_in2()
   _maud_finalize_generated()
   _maud_include_directories()

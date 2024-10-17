@@ -9,8 +9,8 @@ Option declarations are a standard interface for tuning builds;
 if a feature may be configured then an option declaration is the
 most accessible way to express it.
 
-``option`` and ``resolve_options``
-==================================
+``option``
+==========
 
 .. _option-function:
 
@@ -27,15 +27,6 @@ most accessible way to express it.
   )
 
 Declare an option with the provided ``name``.
-
-Access of the option is undefined before a call to
-:ref:`resolve_options <resolve_options-function>` assigns its final value.
-
-In fresh builds, environment variables can be used to assign to options.
-For example if an option named ``FOO_LEVEL`` is not otherwise defined but
-``ENV{FOO_LEVEL}`` is defined, then the environment variable will be used
-instead of the default. (This can be disabled by setting
-``ENV{MAUD_DISABLE_ENVIRONMENT_OPTIONS} = ON``.)
 
 ``< | BOOL | PATH | FILEPATH | STRING | ENUM enum_values... >``
     The :cmake:`type <prop_cache/TYPE.html>` of the ``CACHE`` variable.
@@ -65,6 +56,14 @@ instead of the default. (This can be disabled by setting
 
     .. note::
 
+      In fresh builds, environment variables can be used to assign to options.
+      For example if an option named ``FOO_LEVEL`` is not otherwise defined but
+      ``ENV{FOO_LEVEL}`` is defined, then the environment variable will be used
+      instead of the default. (This can be disabled by setting
+      ``ENV{MAUD_DISABLE_ENVIRONMENT_OPTIONS} = ON``.)
+
+    .. note::
+
       ``CACHE`` variables' values may be defined before their declaration as an
       option (for example if the option is defined on the command line via
       ``-DFOO_LEVEL=HI``) in which case the declaration will initialize other
@@ -90,7 +89,7 @@ instead of the default. (This can be disabled by setting
 .. _requirement-block-syntax:
 
 ``REQUIRES``
-    Begin a set of :ref:`requirement <option-requirements>` blocks. Each block
+    Begin a set of :ref:`requirement <option-resolution>` blocks. Each block
     begins with ``IF condition`` where ``condition`` is a possible value of the
     option. The block continues with a sequence of ``dependency required_value``
     pairs where each ``dependency`` names another option. If the option's
@@ -100,8 +99,7 @@ instead of the default. (This can be disabled by setting
     .. note::
 
       A ``dependency`` need not be declared with ``option()`` before it is
-      referenced in a requirement block, nor even before ``resolve_option()``
-      would assign its value.
+      referenced in a requirement block.
 
     .. note::
 
@@ -115,8 +113,8 @@ instead of the default. (This can be disabled by setting
     example this could be used to assert that a ``FILEPATH`` option specifies a
     readable file.
 
-    ``BOOL`` options are automatically validated to be either ``ON`` or ``OFF``.
-    ``ENUM`` options are automatically checked against their value set.
+    ``BOOL`` options are always validated to be either ``ON`` or ``OFF``.
+    ``ENUM`` options are always checked against their value set.
 
 .. _option-compile-definitions:
 
@@ -153,66 +151,13 @@ instead of the default. (This can be disabled by setting
             // FOO_SOCKET_PATH: FILEPATH
             #define FOO_SOCKET_PATH "/var/run/foo"
 
-.. _resolve_options-function:
-
-.. code-block:: cmake
-
-  resolve_options(option_names...)
-
-Resolve option interdependencies and assign final values. If ``option_names...``
-is non-empty only those options will be resolved, otherwise all unresolved
-options will be resolved.
-
-If specified, each option's custom validation code will also be evaluated.
-
-
-.. _option-requirements:
-
-Option Requirements
-===================
-
-Project options are frequently interdependent; for example enabling one feature
-might be impossible without enabling its dependencies. Resolving these
-interdependencies to a consistent state across all options in the project is
-frequently messy and error prone.
-
-:ref:`option() <option-function>` integrates a solution to this problem in
-the :ref:`REQUIRES <requirement-block-syntax>` argument. The requirements of
-each option can be specified in terms of assignments to other options on which
-it depends. After options are declared,
-:ref:`resolve_options() <resolve_options-function>` assigns values to declared
-options and their dependencies, ensuring all requirements are met (or reporting
-an error if unsatisfiable dependencies are encountered).
-
-Options are considered to form a directed acyclic graph: each option may
-declare a requirement on any other option as long as no cycles are formed.
-Options with no requirements placed on them will have their default or
-user configured value. Otherwise requirements determine the option's value
-(even if it the dependency's default is required). Conflicting requirements
-will result in failed configuration.
-
-.. note::
-
-  User provided values (via ``-DFOO=0`` on the command line, through preset
-  JSON, from an environment variable, ...) are not considered a hard constraint
-  and will always be overridden if necessary to satisfy declared requirements.
-  On a fresh configuration it is possible to detect such an override and a
-  warning will be issued to facilitate avoidance of inconsistent user provided
-  values.
-
-Subsets of options can be resolved before other options have been declared.
-Options to be resolved can even depend on options which have not yet been declared.
-New requirements can be placed on a resolved option but they will only raise
-an error instead of assigning to the resolved option's value, even if the
-resolved option was not constrained by a requirement block at resolution time.
-
 .. _options-summary:
 
 Options summary
 ===============
 
 After configuration is complete, a summary of option values is printed.
-The final value of each option is printed, along with the reason for that
+The resolved value of each option is printed, along with the reason for that
 value and the option's help string.
 
 Groups of associated options can be declared by writing
@@ -235,72 +180,48 @@ This adds a heading in the summary.
 
 As part of the options summary, a cmake
 :cmake:`configure preset <manual/cmake-presets.7.html#configure-preset>`
-is appended to ``CMakeUserPresets.json`` for easy copy-pasting, reproduction,
-etc. (These are initially named with the timestamp of their creation.)
+is appended to ``CMakeUserPresets.json`` for easy copy-pasting, reproduction, etc.
 
-Options examples
-================
+.. _option-resolution:
+
+Option Requirements and Resolution
+==================================
+
+Project options are frequently interdependent; for example enabling one feature
+might be impossible without enabling its dependencies. Manually resolving these
+interdependencies to a consistent state across all options in the project is
+frequently messy and error prone.
+:ref:`option() <option-function>` integrates a solution to this problem in
+the :ref:`REQUIRES <requirement-block-syntax>` argument. The requirements of
+each option can be specified in terms of assignments to other options on which
+it depends. The first time an option is accessed, its value and the values of
+its dependencies are resolved. This ensures all requirements are met (or reports
+an error if unsatisfiable requirements are encountered).
 
 .. tab:: ✅ Valid
 
   .. code-block:: cmake
 
-    # -Dalpha=ON
-    option(alpha "" REQUIRES beta 3)
-    option(
-      beta ENUM 1 2 3 ""
-      REQUIRES
-        IF 1 gamma ON
-        IF 3 gamma OFF
-    )
+    option(alpha BOOL DEFAULT ON REQUIRES beta 3)
+    option(beta ENUM 1 2 3)
 
-    resolve_options()
-    # no requirements on alpha, alpha resolved to ON
-    # alpha=ON requires beta=3, beta resolved to 3
-    # beta=3 requires gamma=OFF, gamma resolved to OFF
-    #       (gamma will be declared later)
-
-.. tab:: ❌ Unresolved
-
-  .. code-block:: cmake
-    :emphasize-lines: 10
-
-    # -Dalpha=ON
-    option(alpha "" REQUIRES beta 3)
-    option(
-      beta ENUM 1 2 3 ""
-      REQUIRES
-        IF 1 gamma ON
-        IF 3 gamma OFF
-    )
-
-    if(beta EQUAL 1) # ACCESS TO UNRESOLVED OPTION
-      # will not be reached; beta has not yet been resolved to 3
-      setup_beta_feature()
+    # beta accessed; triggers resolution of alpha
+    #   no requirements on alpha; alpha resolved to ON
+    # alpha=ON requires beta=3; beta resolved to 3
+    if(beta EQUAL 1)
+      # ...
     endif()
-
-.. tab:: ❌ Cycle
-
-  .. code-block:: cmake
-
-    # -Dalpha=ON
-    option(alpha "" REQUIRES beta ON)
-    option(beta "" REQUIRES alpha OFF)
-
-    resolve_options()
-    # CMake Error at /tmp/usr/lib/cmake/Maud/Maud.cmake:1436 (message):
-    #
-    #       Circular constraint between options
-    #         beta;alpha
 
 .. tab:: ❌ Conflict
 
   .. code-block:: cmake
 
-    # -Dalpha=ON -Domega=ON
-    option(omega "" REQUIRES beta 1)
-    option(alpha "" REQUIRES beta 3)
-    option(beta ENUM 1 2 3 "")
+    option(alpha BOOL DEFAULT ON REQUIRES beta 3)
+    option(beta ENUM 1 2 3)
+    option(omega BOOL DEFAULT ON REQUIRES beta 1)
+
+    # beta accessed; triggers resolution of alpha and omega
+    #   no requirements on alpha or omega; both are resolved to ON
 
     # CMake Error at /tmp/usr/lib/cmake/Maud/Maud.cmake:1455 (message):
     #
@@ -309,20 +230,108 @@ Options examples
     #         "3"
     #       but omega requires it to be
     #         "1"
+    if(beta EQUAL 1)
+      # ...
+    endif()
+
+.. warning::
+
+  Since option resolution is implemented using
+  :cmake:`variable_watch <command/variable_watch.html>`, accessing an option's
+  value through ``$CACHE{FOO}`` or ``get_property(... CACHE FOO PROPERTY VALUE)``
+  will circumvent resolution.
+
+Options are considered to form a directed acyclic graph: each option may
+declare a requirement on any other option as long as no cycles are formed.
+Options with no requirements placed on them will have their default or
+user configured value. Otherwise requirements determine the option's value
+(even if the dependency's default is required).
+
+.. tab:: ✅ Valid
+
+  .. code-block:: cmake
+
+    option(foo0 BOOL DEFAULT ON REQUIRES foo1 ON)
+    option(foo1 BOOL DEFAULT ON REQUIRES foo2 ON)
+    option(foo2 BOOL DEFAULT ON REQUIRES foo3 ON)
+    option(foo3 BOOL DEFAULT ON)
+
+    # foo3 accessed; triggers resolution of foo2
+    #   ... triggers resolution of foo1
+    #     ... triggers resolution of foo0
+    #       no requirements on foo0; foo0 resolved to ON
+    #     foo0=ON requires foo1=ON; foo1 resolved to ON
+    #   foo1=ON requires foo2=ON; foo2 resolved to ON
+    # foo2=ON requires foo3=ON; foo3 resolved to ON
+    if(foo3)
+      # ...
+    endif()
+
+.. tab:: ❌ Cyclic dependency
+
+  .. code-block:: cmake
+
+    option(foo0 BOOL DEFAULT ON REQUIRES foo1 ON)
+    option(foo1 BOOL DEFAULT ON REQUIRES foo2 ON)
+    option(foo2 BOOL DEFAULT ON REQUIRES foo3 ON)
+    option(foo3 BOOL DEFAULT ON REQUIRES foo0 ON)
+
+    # foo3 accessed; triggers resolution of foo2
+    #   ... triggers resolution of foo1
+    #     ... triggers resolution of foo0
+    #       ... re-enters resolution of foo3
+
+    # CMake Error at /tmp/usr/lib/cmake/Maud/Maud.cmake:1436 (message):
+    #
+    #       Circular constraint between options
+    #         foo3;foo2;foo1;foo0
+    if(foo3)
+      # ...
+    endif()
+
+.. note::
+
+  User provided values (via ``-DFOO=0`` on the command line, through preset
+  JSON, from an environment variable, ...) are not considered a hard constraint
+  and will always be overridden if necessary to satisfy declared requirements.
+  On a fresh configuration it is possible to detect such an override and a
+  warning will be issued to facilitate avoidance of inconsistent user provided
+  values.
+
+Conflicting requirements will result in a ``FATAL_ERROR``. Likewise if a
+requirement is placed on an option which has been accessed, that requirement can
+only check for consistency with the option's already resolved value. Whenever
+possible I recommend grouping declarations of interdependent options, which
+makes it easier to avoid this error.
+
+.. tab:: ✅ Valid
+
+  .. code-block:: cmake
+
+    option(alpha BOOL DEFAULT ON REQUIRES beta 3)
+    option(beta ENUM 1 2 3)
+
+    # beta accessed; triggers resolution of alpha
+    #   no requirements on alpha; alpha resolved to ON
+    # alpha=ON requires beta=3; beta resolved to 3
+    if(beta EQUAL 1)
+      # ...
+    endif()
 
 .. tab:: ❌ Constraining resolved
 
   .. code-block:: cmake
 
-    # -Dalpha=ON
-    option(beta ENUM 1 2 3 "")
-    resolve_options()
+    # alpha is declared later
+    option(beta ENUM 1 2 3)
 
-    if(beta EQUAL 1) # safe
-      setup_beta_feature()
+    # beta accessed; no requirements on beta; beta resolved to 1
+    if(beta EQUAL 1)
+      setup_beta_feature(1)
     endif()
 
-    option(alpha "" REQUIRES beta 3)
+    # beta's value is already resolved by the access above
+    option(alpha BOOL DEFAULT ON REQUIRES beta 3)
 
     # CMake Error at /tmp/usr/lib/cmake/Maud/Maud.cmake:1468 (message):
     #

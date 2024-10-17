@@ -113,9 +113,11 @@ int main(int argc, char **argv) try {
 
   std::cout << "swapping in patched script" << std::endl;
   exponential_backoff([&] {
-    // A renamed separate patch is used to be more like an atomic operation (it is on some
-    // platforms), then we set the mtime again just in case rename changed it.
+    // Modifying the script in place leaves a wider window for detecting the change;
+    // writing a separate patched script then renaming it is closer to an atomic operation
+    // (it is actually atomic on some platforms).
     fs::rename(patched, script);
+    // Set mtime once more, just in case rename chaned it.
     fs::last_write_time(script, mtime);
   });
 } catch (std::exception const &e) {
