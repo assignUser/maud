@@ -1407,6 +1407,7 @@ function(_maud_assert_or_store_requirement name condition dependency required_va
     _maud_type_check_option(${dependency} "${required_value}")
     _maud_set(_MAUD_REQUIREMENT_${hash} "${required_value}")
     _maud_set_include(_MAUD_RESOLVE_BEFORE_${dependency} ${name})
+    _maud_set_include(_MAUD_REQUIREMENTS ${hash})
     _maud_watch_option(${dependency})
     return()
   endif()
@@ -1572,6 +1573,30 @@ function(_maud_watch_option name)
 endfunction()
 
 
+function(_maud_resolve_options)
+  foreach(name ${_MAUD_ALL_OPTIONS})
+    if(NOT DEFINED CACHE{_MAUD_DECLARED_${name}})
+      message(
+        WARNING
+        "
+    CACHE variable ${name} was was not declared with option() but was
+    constrained by ${_MAUD_CONSTRAINTS_ON_${name}}
+        "
+      )
+    endif()
+
+    _maud_ensure_option_resolved(${name} "")
+  endforeach()
+
+  foreach(hash ${_MAUD_REQUIREMENTS})
+    unset(_MAUD_REQUIREMENT_${hash} CACHE)
+  endforeach()
+  unset(_MAUD_REQUIREMENTS CACHE)
+
+  _maud_set(_MAUD_ALL_OPTIONS_RESOLVED TRUE)
+endfunction()
+
+
 function(_maud_options_summary)
   set(cache_json "{}")
 
@@ -1593,8 +1618,6 @@ function(_maud_options_summary)
 
   message(STATUS)
   foreach(name ${_MAUD_ALL_OPTIONS})
-    _maud_ensure_option_resolved(${name} "")
-
     unset(user_value)
     if(DEFINED CACHE{_MAUD_DEFINITELY_USER_${name}})
       set(user_value "${_MAUD_DEFINITELY_USER_${name}}")
@@ -1607,9 +1630,6 @@ function(_maud_options_summary)
       message(STATUS "${group}:")
       message(STATUS)
     endif()
-
-    get_property(type CACHE ${name} PROPERTY TYPE)
-    get_property(enum CACHE ${name} PROPERTY STRINGS)
 
     string_escape("$CACHE{${name}}" quoted)
     set(quoted "\"${quoted}\"")
@@ -1654,6 +1674,8 @@ function(_maud_options_summary)
     if(advanced)
       string(PREPEND tags "(advanced) ")
     endif()
+
+    get_property(enum CACHE ${name} PROPERTY STRINGS)
     if(enum)
       string(PREPEND tags "(of ${enum}) ")
     endif()
@@ -1662,6 +1684,7 @@ function(_maud_options_summary)
     string_unescape("${help}" help)
     string(REPLACE "\n" "\n--      " help "\n${help}")
 
+    get_property(type CACHE ${name} PROPERTY TYPE)
     if(type STREQUAL "STRING" AND NOT enum)
       message(STATUS "${name} = ${quoted} ${tags}[${reasons}]${help}")
     else()
@@ -1696,24 +1719,11 @@ function(_maud_options_summary)
   string(JSON presets SET "${presets}" configurePresets ${i} "${preset}")
   file(WRITE "${CMAKE_SOURCE_DIR}/CMakeUserPresets.json" "${presets}\n")
 
-  foreach(name ${_MAUD_ALL_OPTIONS})
-    if(NOT DEFINED CACHE{_MAUD_DECLARED_${name}})
-      message(
-        WARNING
-        "
-    CACHE variable ${name} was was not declared with option() but was
-    constrained by ${_MAUD_CONSTRAINTS_ON_${name}}
-        "
-      )
-    endif()
-  endforeach()
-
-  _maud_set(_MAUD_ALL_OPTIONS_RESOLVED TRUE)
   # Clear temporaries
-  # TODO clean up _MAUD_REQUIREMENT_${hash...} too
   foreach(name ${_MAUD_ALL_OPTIONS})
     foreach(
       prefix
+      DEFAULT
       DECLARED
       RESOLVED
       WATCHED

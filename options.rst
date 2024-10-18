@@ -4,10 +4,10 @@ Options
 -------
 
 Options are CMake ``CACHE`` variables which parameterize a project,
-augmented with optional properties to present them to users.
-Option declarations are a standard interface for tuning builds;
-if a feature may be configured then an option declaration is the
-most accessible way to express it.
+augmented for :ref:`presentation to users <options-summary>` and
+:ref:`consistency checking <option-resolution>`.
+If an aspect of your project might need to be tuned by users, an
+option declaration is probably the most accessible way to expose it.
 
 ``option``
 ==========
@@ -34,6 +34,17 @@ Declare an option with the provided ``name``.
 
     ``ENUM`` is an alias for ``STRING`` which additionally specifies allowed values
     by setting the :cmake:`STRINGS property <prop_cache/STRINGS.html>`.
+
+    Every value (default, required values, ...) associated with options of
+    ``PATH`` or ``FILEPATH`` type are converted to
+    :cmake:`normalized, native paths <command/cmake_path.html#native-path>`.
+    Additionally, if such a value is a relative path then it is assumed to be
+    relative to ``CMAKE_SOURCE_DIR`` and will be converted to an
+    :cmake:`absolute path <command/cmake_path.html#absolute-path>`.
+
+    ``BOOL`` options are always validated to be either ``ON`` or ``OFF``.
+    ``ENUM`` options are always checked against their value set. Additional
+    validation can be specified using :ref:`VALIDATE CODE <option-custom-validation>`.
 
 ``help_string``
     The :cmake:`help string <prop_cache/HELPSTRING.html>` of the ``CACHE`` variable.
@@ -107,14 +118,13 @@ Declare an option with the provided ``name``.
       requirements when it is ``ON``, ``REQUIRES IF ON`` may be shortened to
       just ``REQUIRES``.
 
+.. _option-custom-validation:
+
 ``VALIDATE CODE validation_code``
     Provide code to validate the option. The code block will be evaluated after
     requirements have been resolved and the option's final value is known. For
     example this could be used to assert that a ``FILEPATH`` option specifies a
     readable file.
-
-    ``BOOL`` options are always validated to be either ``ON`` or ``OFF``.
-    ``ENUM`` options are always checked against their value set.
 
 .. _option-compile-definitions:
 

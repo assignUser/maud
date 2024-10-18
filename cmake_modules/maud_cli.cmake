@@ -124,20 +124,24 @@ file(
   include(CTest)
 
   _maud_setup()
+
   _maud_cmake_modules()
   foreach(module \${_MAUD_CMAKE_MODULES})
     cmake_path(GET module PARENT_PATH dir)
     include(\"\${module}\")
   endforeach()
+
+  # if any module appended to the PATH, save that to the cache
   _maud_set(CMAKE_MODULE_PATH \"\${CMAKE_MODULE_PATH}\")
+
+  # resolve any remaining options
+  _maud_resolve_options()
 
   if(BUILD_TESTING AND NOT COMMAND \"maud_add_test\")
     # TODO fallback to FetchContent
     find_package(GTest)
   endif()
-  # if any module appended to the PATH, save that to the cache
 
-  # Resolve any options not yet explicitly handled
   _maud_in2()
   _maud_finalize_generated()
   _maud_include_directories()
