@@ -1,6 +1,8 @@
 NEXT
 ----
 
+- add a GH action which builds/uploads docs as a GH page
+  https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site#creating-a-custom-github-actions-workflow-to-publish-your-site
 - provide a hook for missing imports; then we can have others drop in
   "not only link but also do package management with $mine"
 - how should we recommend use of gtest_discover_tests? If you only have a few it's nice

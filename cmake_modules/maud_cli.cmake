@@ -121,9 +121,9 @@ file(
 
   include(\"${maud_path}\")
 
-  include(CTest)
-
   _maud_setup()
+
+  include(CTest)
 
   _maud_cmake_modules()
   foreach(module \${_MAUD_CMAKE_MODULES})
