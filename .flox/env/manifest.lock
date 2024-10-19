@@ -1,0 +1,1022 @@
+{
+  "lockfile-version": 1,
+  "manifest": {
+    "version": 1,
+    "install": {
+      "clang-tools_18": {
+        "pkg-path": "clang-tools_18"
+      },
+      "clang_19": {
+        "pkg-path": "clang_19"
+      },
+      "compiler-rt": {
+        "pkg-path": "llvmPackages.compiler-rt"
+      },
+      "fmt": {
+        "pkg-path": "fmt"
+      },
+      "gtest": {
+        "pkg-path": "gtest"
+      },
+      "ninja": {
+        "pkg-path": "ninja"
+      },
+      "nlohmann_json": {
+        "pkg-path": "nlohmann_json"
+      },
+      "python312Full": {
+        "pkg-path": "python312Full"
+      }
+    },
+    "hook": {},
+    "profile": {},
+    "options": {
+      "systems": [
+        "aarch64-darwin",
+        "aarch64-linux",
+        "x86_64-darwin",
+        "x86_64-linux"
+      ],
+      "allow": {
+        "licenses": []
+      },
+      "semver": {}
+    }
+  },
+  "packages": [
+    {
+      "attr_path": "clang-tools_18",
+      "broken": false,
+      "derivation": "/nix/store/z2cybk1y5y0k05pcg7qga90bhxq469lw-clang-tools-18.1.8.drv",
+      "description": "Standalone command line tools for C++ development",
+      "install_id": "clang-tools_18",
+      "license": "NCSA",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "clang-tools-18.1.8",
+      "pname": "clang-tools_18",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "clang-tools-18.1.8",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/as5vhwdzgnimh0k773xqgc4jrafj3xjk-clang-tools-18.1.8"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "clang-tools_18",
+      "broken": false,
+      "derivation": "/nix/store/5861dwymvzh5qn2grv7cmms8017c4f4g-clang-tools-18.1.8.drv",
+      "description": "Standalone command line tools for C++ development",
+      "install_id": "clang-tools_18",
+      "license": "NCSA",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "clang-tools-18.1.8",
+      "pname": "clang-tools_18",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "clang-tools-18.1.8",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/9czrdrnr8b55hc5ys2qxmlb0n1hbglwx-clang-tools-18.1.8"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "clang-tools_18",
+      "broken": false,
+      "derivation": "/nix/store/41464qk9zpg90vr1zz01995kkzvz66gd-clang-tools-18.1.8.drv",
+      "description": "Standalone command line tools for C++ development",
+      "install_id": "clang-tools_18",
+      "license": "NCSA",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "clang-tools-18.1.8",
+      "pname": "clang-tools_18",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "clang-tools-18.1.8",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/7ymshxd63hzwfrfggqf05bsmsdpzxj67-clang-tools-18.1.8"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "clang-tools_18",
+      "broken": false,
+      "derivation": "/nix/store/i3ja0n48bq8bjfbnvsg78ahfhbkwr0b1-clang-tools-18.1.8.drv",
+      "description": "Standalone command line tools for C++ development",
+      "install_id": "clang-tools_18",
+      "license": "NCSA",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "clang-tools-18.1.8",
+      "pname": "clang-tools_18",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "clang-tools-18.1.8",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/6z74d6fyqjh9rb0f0z9nihf0vjdd0iz7-clang-tools-18.1.8"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "clang_19",
+      "broken": false,
+      "derivation": "/nix/store/lpf8n959hvhqzn1r2lpvpj78by2vfhmi-clang-wrapper-19.1.1.drv",
+      "description": "C language family frontend for LLVM (wrapper script)",
+      "install_id": "clang_19",
+      "license": "NCSA",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "clang-wrapper-19.1.1",
+      "pname": "clang_19",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "clang-wrapper-19.1.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/g89cp2s5hidllvyinipidf47cia3lkqc-clang-wrapper-19.1.1"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "clang_19",
+      "broken": false,
+      "derivation": "/nix/store/v45jzqj7m227ciiwhlmiwqb6m6gpxk7x-clang-wrapper-19.1.1.drv",
+      "description": "C language family frontend for LLVM (wrapper script)",
+      "install_id": "clang_19",
+      "license": "NCSA",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "clang-wrapper-19.1.1",
+      "pname": "clang_19",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "clang-wrapper-19.1.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/j43qlfbrms4zyd1x88x7pv5vwmzipd0c-clang-wrapper-19.1.1"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "clang_19",
+      "broken": false,
+      "derivation": "/nix/store/rksnhkyb2blnc3nvnjppfa8bp8wrpxfk-clang-wrapper-19.1.1.drv",
+      "description": "C language family frontend for LLVM (wrapper script)",
+      "install_id": "clang_19",
+      "license": "NCSA",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "clang-wrapper-19.1.1",
+      "pname": "clang_19",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "clang-wrapper-19.1.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/kvxifyw7pd8n16qrjznqdxy08ibx76y0-clang-wrapper-19.1.1"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "clang_19",
+      "broken": false,
+      "derivation": "/nix/store/lm89xw1n64q5g88wlh42ypdx7ncsz601-clang-wrapper-19.1.1.drv",
+      "description": "C language family frontend for LLVM (wrapper script)",
+      "install_id": "clang_19",
+      "license": "NCSA",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "clang-wrapper-19.1.1",
+      "pname": "clang_19",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "clang-wrapper-19.1.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/ykv9x1iirnkxfdnyzwhfzhz23csqvqn9-clang-wrapper-19.1.1"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "llvmPackages.compiler-rt",
+      "broken": false,
+      "derivation": "/nix/store/vlqsx6w998c1a1bcvd90yxcw2hd0ibd1-compiler-rt-libc-16.0.6.drv",
+      "description": "Compiler runtime libraries",
+      "install_id": "compiler-rt",
+      "license": "[ MIT, NCSA ]",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "compiler-rt-libc-16.0.6",
+      "pname": "compiler-rt",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "libc-16.0.6",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dev": "/nix/store/yqwr0ayx9d9108l52gaff3pjsk7yidi9-compiler-rt-libc-16.0.6-dev",
+        "out": "/nix/store/zwmiwn4lqxs1wx5qhhvjkan7hqd75bcp-compiler-rt-libc-16.0.6"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "llvmPackages.compiler-rt",
+      "broken": false,
+      "derivation": "/nix/store/278l8gpi470x4v30wr8arqip2af74zc0-compiler-rt-libc-18.1.8.drv",
+      "description": "Compiler runtime libraries",
+      "install_id": "compiler-rt",
+      "license": "[ MIT, NCSA ]",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "compiler-rt-libc-18.1.8",
+      "pname": "compiler-rt",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "libc-18.1.8",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dev": "/nix/store/hyc390ai73bzqwnc7dkkxrys0vnxr47m-compiler-rt-libc-18.1.8-dev",
+        "out": "/nix/store/60grc982rrgb7b0131k1jylwnqkxiy2l-compiler-rt-libc-18.1.8"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "llvmPackages.compiler-rt",
+      "broken": false,
+      "derivation": "/nix/store/0xya4bia48dsp50r4kx334sh6n5gjx95-compiler-rt-libc-16.0.6.drv",
+      "description": "Compiler runtime libraries",
+      "install_id": "compiler-rt",
+      "license": "[ MIT, NCSA ]",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "compiler-rt-libc-16.0.6",
+      "pname": "compiler-rt",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "libc-16.0.6",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dev": "/nix/store/6s8ibpqaachhx9w0n1wm88zpbvkhhnkz-compiler-rt-libc-16.0.6-dev",
+        "out": "/nix/store/g23biwhzy7pci4g9ds7fjzyj495v7g6h-compiler-rt-libc-16.0.6"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "llvmPackages.compiler-rt",
+      "broken": false,
+      "derivation": "/nix/store/bgbcc5y41d3afv1xm1xrjdbbz4nkrz5p-compiler-rt-libc-18.1.8.drv",
+      "description": "Compiler runtime libraries",
+      "install_id": "compiler-rt",
+      "license": "[ MIT, NCSA ]",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "compiler-rt-libc-18.1.8",
+      "pname": "compiler-rt",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "libc-18.1.8",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dev": "/nix/store/vzfjgxs10idzlk3v8fv5pqyjvgl10d7p-compiler-rt-libc-18.1.8-dev",
+        "out": "/nix/store/6h5p6qv3xw2im10mrnlc3n0pg9rbrrfs-compiler-rt-libc-18.1.8"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "fmt",
+      "broken": false,
+      "derivation": "/nix/store/lwk9b70rhbn088l7qi3lf163bhxgfgaq-fmt-10.2.1.drv",
+      "description": "Small, safe and fast formatting library",
+      "install_id": "fmt",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "fmt-10.2.1",
+      "pname": "fmt",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "10.2.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dev": "/nix/store/y6qikr4dcyyk9qz90zjc9wz8plg0iw0j-fmt-10.2.1-dev",
+        "out": "/nix/store/0x6mfdsxmsp2pybvp9bgj2pim8wmh8jd-fmt-10.2.1"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "fmt",
+      "broken": false,
+      "derivation": "/nix/store/9gm3j8hf7z8qjsmh4gvbnf276a4gjv6m-fmt-10.2.1.drv",
+      "description": "Small, safe and fast formatting library",
+      "install_id": "fmt",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "fmt-10.2.1",
+      "pname": "fmt",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "10.2.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dev": "/nix/store/f8lcwwlzy60rgg9bmw5p9b4z8irpk95p-fmt-10.2.1-dev",
+        "out": "/nix/store/i3sggpdiq1b5swrrr0xhacfhxykf4hd1-fmt-10.2.1"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "fmt",
+      "broken": false,
+      "derivation": "/nix/store/daw07ngfyk7xh0pnpz6c50ymjfxif0ks-fmt-10.2.1.drv",
+      "description": "Small, safe and fast formatting library",
+      "install_id": "fmt",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "fmt-10.2.1",
+      "pname": "fmt",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "10.2.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dev": "/nix/store/lm76wjwrxkylpdq002ddb1wx0y4lbhi8-fmt-10.2.1-dev",
+        "out": "/nix/store/xz6gn0px27hqk09l9a8mpr1i1n482yxg-fmt-10.2.1"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "fmt",
+      "broken": false,
+      "derivation": "/nix/store/c9bjv4z7nmg7hg02v0822r0agmi2ss6j-fmt-10.2.1.drv",
+      "description": "Small, safe and fast formatting library",
+      "install_id": "fmt",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "fmt-10.2.1",
+      "pname": "fmt",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "10.2.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dev": "/nix/store/pv26kp7ai2b60qh7zdqva9j46vnpjl51-fmt-10.2.1-dev",
+        "out": "/nix/store/c96cxzz4zhiwwgnn7q98l3mqd71436h4-fmt-10.2.1"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "gtest",
+      "broken": false,
+      "derivation": "/nix/store/8vaa6djq62yjvalz4xba3957jxjlm91k-gtest-1.14.0.drv",
+      "description": "Google's framework for writing C++ tests",
+      "install_id": "gtest",
+      "license": "BSD-3-Clause",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "gtest-1.14.0",
+      "pname": "gtest",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.14.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dev": "/nix/store/369drgwnj7di3z03k0f9slldjpmg67dm-gtest-1.14.0-dev",
+        "out": "/nix/store/3i9z1qr1ak5w2jg285ddgmki5d1xhk5h-gtest-1.14.0"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "gtest",
+      "broken": false,
+      "derivation": "/nix/store/v8yr0v830bdg9yx66qrpmsaiqcxz3xl7-gtest-1.14.0.drv",
+      "description": "Google's framework for writing C++ tests",
+      "install_id": "gtest",
+      "license": "BSD-3-Clause",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "gtest-1.14.0",
+      "pname": "gtest",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.14.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dev": "/nix/store/m7j1pz0ibxh04s14ynsynyrnsqb5aq4j-gtest-1.14.0-dev",
+        "out": "/nix/store/5ilw8bzjv1awbncxzqvhvaaxhi2vkrb4-gtest-1.14.0"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "gtest",
+      "broken": false,
+      "derivation": "/nix/store/l2hmmfna3cnajfy9n4mlh516n1h47i7w-gtest-1.14.0.drv",
+      "description": "Google's framework for writing C++ tests",
+      "install_id": "gtest",
+      "license": "BSD-3-Clause",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "gtest-1.14.0",
+      "pname": "gtest",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.14.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dev": "/nix/store/wdj8zdnzvgkjl4k7zcvhs7dpqv4n3jv9-gtest-1.14.0-dev",
+        "out": "/nix/store/25pwrdjm3cgxysd76myr6sxms3j7cwkx-gtest-1.14.0"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "gtest",
+      "broken": false,
+      "derivation": "/nix/store/l7xx60pf64iz8k2jx7lmbnbnkn2yxfyz-gtest-1.14.0.drv",
+      "description": "Google's framework for writing C++ tests",
+      "install_id": "gtest",
+      "license": "BSD-3-Clause",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "gtest-1.14.0",
+      "pname": "gtest",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.14.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dev": "/nix/store/lfqxgrwhsl5ifasw58xc5f5xb5d99zv7-gtest-1.14.0-dev",
+        "out": "/nix/store/hdwkfimyyawj5w990ihpar827w43pmpg-gtest-1.14.0"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "ninja",
+      "broken": false,
+      "derivation": "/nix/store/nzhs02ci0j4a8addlpvkz2cmw2wbvcdn-ninja-1.12.1.drv",
+      "description": "Small build system with a focus on speed",
+      "install_id": "ninja",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "ninja-1.12.1",
+      "pname": "ninja",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.12.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/s1z911x3lzbblaflglqrgb9nplvsfzmz-ninja-1.12.1"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "ninja",
+      "broken": false,
+      "derivation": "/nix/store/lc5ymprljxphz1ildc7dsr5xp9r5fazv-ninja-1.12.1.drv",
+      "description": "Small build system with a focus on speed",
+      "install_id": "ninja",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "ninja-1.12.1",
+      "pname": "ninja",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.12.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/0fh3p839z4r28nvj7j3w1ffbr8dmdckq-ninja-1.12.1"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "ninja",
+      "broken": false,
+      "derivation": "/nix/store/rmhngc76zbdpr10bvzdsqhmbjgzpjmgw-ninja-1.12.1.drv",
+      "description": "Small build system with a focus on speed",
+      "install_id": "ninja",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "ninja-1.12.1",
+      "pname": "ninja",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.12.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/a6znq41y8qcinj72fk12in9740vk1i1z-ninja-1.12.1"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "ninja",
+      "broken": false,
+      "derivation": "/nix/store/bifkp3byg4zmc2j8j061l5b8q3zbs1mp-ninja-1.12.1.drv",
+      "description": "Small build system with a focus on speed",
+      "install_id": "ninja",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "ninja-1.12.1",
+      "pname": "ninja",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.12.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/m0g218hn4rbq2wj7szzg8a112alq1qvc-ninja-1.12.1"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "nlohmann_json",
+      "broken": false,
+      "derivation": "/nix/store/z9fvzymww78w6sg8ssmyqnbvrfm97bk1-nlohmann_json-3.11.3.drv",
+      "description": "JSON for Modern C++",
+      "install_id": "nlohmann_json",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "nlohmann_json-3.11.3",
+      "pname": "nlohmann_json",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "3.11.3",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/7rjkj7c3h6v5zfjkbkiwxnqqy7wyipnp-nlohmann_json-3.11.3"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "nlohmann_json",
+      "broken": false,
+      "derivation": "/nix/store/nagzss9pslyb2f1m65rkgh2r837g28sr-nlohmann_json-3.11.3.drv",
+      "description": "JSON for Modern C++",
+      "install_id": "nlohmann_json",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "nlohmann_json-3.11.3",
+      "pname": "nlohmann_json",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "3.11.3",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/f6z0hccbfrv3zx3564a8b330jd1sw3w4-nlohmann_json-3.11.3"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "nlohmann_json",
+      "broken": false,
+      "derivation": "/nix/store/hdwjplgx7hh4pqb1akssyygxgdlvlr34-nlohmann_json-3.11.3.drv",
+      "description": "JSON for Modern C++",
+      "install_id": "nlohmann_json",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "nlohmann_json-3.11.3",
+      "pname": "nlohmann_json",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "3.11.3",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/lfdlfarvm34iy86ifpa1xx44vrrlc52k-nlohmann_json-3.11.3"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "nlohmann_json",
+      "broken": false,
+      "derivation": "/nix/store/fpqrqi38vm3fq42xi44z96l9y1s255gb-nlohmann_json-3.11.3.drv",
+      "description": "JSON for Modern C++",
+      "install_id": "nlohmann_json",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "nlohmann_json-3.11.3",
+      "pname": "nlohmann_json",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "3.11.3",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/xarikg128sw8fvw8wppnnj0b2s6f1bd2-nlohmann_json-3.11.3"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "python312Full",
+      "broken": false,
+      "derivation": "/nix/store/c2qzk8l6q9dhc8wbj46vmr1wnxzdxvsw-python3-3.12.5.drv",
+      "description": "High-level dynamically-typed programming language",
+      "install_id": "python312Full",
+      "license": "Python-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "python3-3.12.5",
+      "pname": "python312Full",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "python3-3.12.5",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/h1k5a6k5vzr9sd61ml8kzikc9xiafy3s-python3-3.12.5"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "python312Full",
+      "broken": false,
+      "derivation": "/nix/store/hgaiy05s53l8sxlfjngrvvmaw188np76-python3-3.12.5.drv",
+      "description": "High-level dynamically-typed programming language",
+      "install_id": "python312Full",
+      "license": "Python-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "python3-3.12.5",
+      "pname": "python312Full",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "python3-3.12.5",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "debug": "/nix/store/a9hvvsq21h7jr2s23bfbwnzgrd7n2far-python3-3.12.5-debug",
+        "out": "/nix/store/jsah1yvz9rj9rm0518634ahd0x7z7hav-python3-3.12.5"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "python312Full",
+      "broken": false,
+      "derivation": "/nix/store/qrip63ffc7bxgxzngh1r0q4x23ab2sm8-python3-3.12.5.drv",
+      "description": "High-level dynamically-typed programming language",
+      "install_id": "python312Full",
+      "license": "Python-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "python3-3.12.5",
+      "pname": "python312Full",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "python3-3.12.5",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/gfvmzxm1agfl16jlfjz6zqdf3wrq92vd-python3-3.12.5"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "python312Full",
+      "broken": false,
+      "derivation": "/nix/store/a4md9szgd2j390lql6xvifkpw1vchgvi-python3-3.12.5.drv",
+      "description": "High-level dynamically-typed programming language",
+      "install_id": "python312Full",
+      "license": "Python-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "python3-3.12.5",
+      "pname": "python312Full",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "python3-3.12.5",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "debug": "/nix/store/gp33qwj6v7l8chh1wni2pj58g7c3g1yj-python3-3.12.5-debug",
+        "out": "/nix/store/a0m1lsjascqi2sr5x4m1ps131c72zwb3-python3-3.12.5"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    }
+  ]
+}

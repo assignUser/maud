@@ -17,6 +17,9 @@ Maud is itself a Maud-based project. Build with:
 ```shell-session
 $ git clone https://github.com/bkietz/maud.git && cd maud
 
+# get dependencies with flox
+$ flox activate
+
 $ maud --log-level=VERBOSE # Pass cmake -D options etc here
 
 # optionally, install:
