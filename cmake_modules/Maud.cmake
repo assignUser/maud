@@ -1044,10 +1044,17 @@ endfunction()
 
 function(_maud_setup_doc)
   find_package(Python3 3.12)
+  find_program(CLANG_DOC NAMES clang-doc)
 
   if(NOT TARGET Python3::Interpreter)
     # TODO instead, error here (but include instructions to disable doc)
     message(VERBOSE "Could not find Python3, abandoning doc")
+    return()
+  endif()
+
+  if(NOT CLANG_DOC)
+    # TODO instead, error here (but include instructions to disable doc)
+    message(VERBOSE "Could not find clang-doc, abandoning doc")
     return()
   endif()
 
@@ -1089,6 +1096,66 @@ function(_maud_setup_doc)
   )
   set(SPHINX_BUILD "${doc}/venv/bin/sphinx-build")
 
+  set(source_regex "${MAUD_CXX_SOURCE_EXTENSIONS} ${MAUD_CXX_HEADER_EXTENSIONS}")
+  string(REPLACE "+" "[+]" source_regex "${source_regex}")
+  string(REPLACE " " "|" source_regex "${source_regex}")
+  set(source_regex "\\.(${source_regex})$")
+
+  glob(_MAUD_APIDOC_SOURCES CONFIGURE_DEPENDS "${source_regex}")
+  add_custom_command(
+    OUTPUT "${doc}/clang-docs/index.yaml"
+    DEPENDS ${_MAUD_APIDOC_SOURCES}
+    WORKING_DIRECTORY "${doc}"
+    COMMAND
+      "${CLANG_DOC}"
+      ${_MAUD_APIDOC_SOURCES}
+      --ignore-map-errors
+      --output="${doc}/clang-docs"
+      --format=yaml
+      # This is failing. It appears that although the clang compiler accepts
+      # @file flags like @CMakeFiles/.../thing.cxx.o.modmap, clang tools like
+      # clang-doc and clangd do not pick them up. (probably a bug in
+      # GlobalCompilationDatabase, submit a repro with compile_commands.json)
+      # In the meantime, patching compile_commands.json to inline @files
+      # *should* fix the issue.
+      #
+      #   Error while processing /home/bkietz/maud/in2.test.cxx.
+      #   [41/16] Processing file /home/bkietz/maud/maud_in2.cxx.
+      #   /home/bkietz/maud/maud_in2.cxx:3:1: error: PCH file uses a newer PCH format that cannot be read
+      #       3 | module executable;
+      #         | ^
+      #   /home/bkietz/maud/maud_in2.cxx:3:1: error: definition of module 'executable' is not available; use -fmodule-file= to specify path to precompiled module interface
+      #   2 errors generated.
+      #   Error while processing /home/bkietz/maud/maud_in2.cxx.
+      #   [42/16] Processing file /home/bkietz/maud/maud_in2.cxx.
+      #   error: no such file or directory: '@CMakeFiles/maud_in2.dir/Release/maud_in2.cxx.o.modmap'
+      #   /home/bkietz/maud/maud_in2.cxx:3:8: fatal error: module 'executable' not found
+      #       3 | module executable;
+      #         | ~~~~~~~^~~~~~~~~~
+      #   1 error generated.
+      #   Error while processing /home/bkietz/maud/maud_in2.cxx.
+      #   [43/16] Processing file /home/bkietz/maud/maud_in2.cxx.
+      #   error: no such file or directory: '@CMakeFiles/maud_in2.dir/RelWithDebInfo/maud_in2.cxx.o.modmap'
+      #   /home/bkietz/maud/maud_in2.cxx:3:8: fatal error: module 'executable' not found
+      #       3 | module executable;
+      #         | ~~~~~~~^~~~~~~~~~
+      #   1 error generated.
+      #   Error while processing /home/bkietz/maud/maud_in2.cxx.
+      #
+      #
+      # Nope, manual editing of compile_commands.json didn't fix the issue:
+      # clang: PCH file built from a different branch () than the compiler
+      #     ((https://github.com/llvm/llvm-project a4bf6cd7cfb1a1421ba92bca9d017b49936c55e4)) [pch_different_branch]
+      # clang: Definition of module 'test_' is not available;
+      #     use -fmodule-file= to specify path to precompiled module interface [module_not_defined]
+      #
+      # Check the compilation database unit tests for @file, write a ClangPlugin since clang-doc
+      # can't be relied on. https://clang.llvm.org/docs/ClangPlugins.html
+    VERBATIM
+    COMMAND_EXPAND_LISTS
+    COMMENT "Running Doxygen to extract apidoc"
+  )
+
   set(all_staged)
   set(all_built)
   foreach(file ${_MAUD_RST})
@@ -1128,25 +1195,12 @@ function(_maud_setup_doc)
     list(APPEND all_built "${doc}/dirhtml/${html}/index.html")
   endforeach()
 
-  set(source_regex "${MAUD_CXX_SOURCE_EXTENSIONS} ${MAUD_CXX_HEADER_EXTENSIONS}")
-  string(REPLACE "+" "[+]" source_regex "${source_regex}")
-  string(REPLACE " " "|" source_regex "${source_regex}")
-  set(source_regex "\\.(${source_regex})$")
-
-  glob(_MAUD_APIDOC_SOURCES CONFIGURE_DEPENDS "${source_regex}")
-  # add_custom_command(
-  #   OUTPUT "${doc}/stage/Doxyfile"
-  #   DEPENDS "${_MAUD_SELF_DIR}/Doxyfile" ${_MAUD_APIDOC_SOURCES}
-  #   WORKING_DIRECTORY "${doc}"
-  #   COMMAND ${MAUD_EVAL} "_maud_doxygen()"
-  #   VERBATIM
-  #   COMMAND_EXPAND_LISTS
-  #   COMMENT "Running Doxygen to extract apidoc"
-  # )
-
   add_custom_command(
     OUTPUT "${doc}/stage/conf.py"
-    DEPENDS "${_MAUD_SELF_DIR}/sphinx_conf.py" ${all_staged}
+    DEPENDS
+      ${all_staged}
+      "${_MAUD_SELF_DIR}/sphinx_conf.py"
+      "${doc}/clang-docs/index.yaml"
     WORKING_DIRECTORY "${MAUD_DIR}"
     COMMAND ${MAUD_EVAL} "_maud_sphinx_conf()"
     VERBATIM
