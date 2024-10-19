@@ -8,6 +8,8 @@ NEXT
 - how should we recommend use of gtest_discover_tests? If you only have a few it's nice
 - write doc
   - getting_started.rst
+- we need an "introduction to C++20 modules" page too; there won't just be C++
+  experts needing to build stuff
 - more test projects
   - just compile each test case to a cmake script
   - use a maud based project with fetchcontent

@@ -25,13 +25,7 @@ an explicit ``#include`` is unnecessary.)
 Macros
 ~~~~~~
 
-.. doxygendefine:: TEST_
-
-.. doxygendefine:: EXPECT_
-
-.. doxygendefine:: SUITE_
-
-.. doxygenstruct:: Matcher
+.. TODO wire up clangdoc and then dump TEST_, EXPECT_, SUITE_, Matcher here
 
 .. FIXME GTest is not easily includable yet
 

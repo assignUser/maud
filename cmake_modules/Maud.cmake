@@ -1043,11 +1043,11 @@ endfunction()
 
 
 function(_maud_setup_doc)
-  find_program(DOXYGEN NAMES doxygen)
-  find_program(SPHINX_BUILD NAMES sphinx-build)
+  find_package(Python3 3.12)
 
-  if(NOT DOXYGEN OR NOT SPHINX_BUILD)
-    message(VERBOSE "Could not find doxygen and sphinx, abandoning doc")
+  if(NOT TARGET Python3::Interpreter)
+    # TODO instead, error here (but include instructions to disable doc)
+    message(VERBOSE "Could not find Python3, abandoning doc")
     return()
   endif()
 
@@ -1059,6 +1059,7 @@ function(_maud_setup_doc)
     "!(/|^)_"
   )
   if(NOT _MAUD_RST)
+    message(VERBOSE "Not one doc file was detected 😞")
     return()
   endif()
 
@@ -1067,6 +1068,26 @@ function(_maud_setup_doc)
   file(REMOVE_RECURSE "${doc}")
   file(MAKE_DIRECTORY "${doc}/stage")
   file(CREATE_LINK "${CMAKE_SOURCE_DIR}" "${doc}/stage/CMAKE_SOURCE_DIR" SYMBOLIC)
+
+  add_custom_command(
+    OUTPUT "${doc}/venv/pip.report.json"
+    DEPENDS "${_MAUD_SELF_DIR}/sphinx_requirements.txt"
+    COMMAND
+      Python3::Interpreter -m venv --clear "${doc}/venv"
+    COMMAND
+      "${doc}/venv/bin/pip" install 
+      --requirement "${_MAUD_SELF_DIR}/sphinx_requirements.txt"
+      --isolated
+      --require-virtualenv
+      --ignore-installed
+      --disable-pip-version-check
+      --no-input
+      --quiet
+      --log "${doc}/venv/pip.log"
+      --report "${doc}/venv/pip.report.json"
+    COMMENT "Building virtual env ${doc}/venv for Sphinx"
+  )
+  set(SPHINX_BUILD "${doc}/venv/bin/sphinx-build")
 
   set(all_staged)
   set(all_built)
@@ -1095,7 +1116,7 @@ function(_maud_setup_doc)
     # rely on sphinx to update only stale outputs
     add_custom_command(
       OUTPUT "${doc}/dirhtml/${html}/index.html"
-      DEPENDS "${staged}" "${doc}/stage/conf.py"
+      DEPENDS "${staged}" "${doc}/stage/conf.py" "${doc}/venv/pip.report.json"
       WORKING_DIRECTORY "${doc}"
       COMMAND "${SPHINX_BUILD}" --builder dirhtml
         stage
@@ -1113,19 +1134,19 @@ function(_maud_setup_doc)
   set(source_regex "\\.(${source_regex})$")
 
   glob(_MAUD_APIDOC_SOURCES CONFIGURE_DEPENDS "${source_regex}")
-  add_custom_command(
-    OUTPUT "${doc}/stage/Doxyfile"
-    DEPENDS "${_MAUD_SELF_DIR}/Doxyfile" ${_MAUD_APIDOC_SOURCES}
-    WORKING_DIRECTORY "${doc}"
-    COMMAND ${MAUD_EVAL} "_maud_doxygen()"
-    VERBATIM
-    COMMAND_EXPAND_LISTS
-    COMMENT "Running Doxygen to extract apidoc"
-  )
+  # add_custom_command(
+  #   OUTPUT "${doc}/stage/Doxyfile"
+  #   DEPENDS "${_MAUD_SELF_DIR}/Doxyfile" ${_MAUD_APIDOC_SOURCES}
+  #   WORKING_DIRECTORY "${doc}"
+  #   COMMAND ${MAUD_EVAL} "_maud_doxygen()"
+  #   VERBATIM
+  #   COMMAND_EXPAND_LISTS
+  #   COMMENT "Running Doxygen to extract apidoc"
+  # )
 
   add_custom_command(
     OUTPUT "${doc}/stage/conf.py"
-    DEPENDS "${_MAUD_SELF_DIR}/sphinx_conf.py" ${all_staged} "${doc}/stage/Doxyfile"
+    DEPENDS "${_MAUD_SELF_DIR}/sphinx_conf.py" ${all_staged}
     WORKING_DIRECTORY "${MAUD_DIR}"
     COMMAND ${MAUD_EVAL} "_maud_sphinx_conf()"
     VERBATIM
@@ -1133,7 +1154,7 @@ function(_maud_setup_doc)
     COMMENT "Extracting inline configuration"
   )
 
-  add_custom_target(documentation ALL DEPENDS ${all_built} "${doc}/stage/Doxyfile")
+  add_custom_target(documentation ALL DEPENDS ${all_built})
 endfunction()
 
 
@@ -1272,6 +1293,13 @@ endfunction()
 
 
 function(option name type)
+  if(DEFINED CACHE{_MAUD_ALL_OPTIONS_RESOLVED})
+    message(
+      FATAL_ERROR
+      "Option declaration for ${name} after all options have been resolved"
+    )
+  endif()
+
   cmake_parse_arguments(
     PARSE_ARGV 1
     "" # prefix
