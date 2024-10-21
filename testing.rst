@@ -98,6 +98,7 @@ added to the target it names. (See project test
 ``custom unit testing`` for an example.)
 
 .. configuration::
+
     # FIXME what if index.rst's configuration doesn't go first?
     extlinks = {
         **(extlinks if 'extlinks' in globals() else {}),

@@ -8,8 +8,8 @@ NEXT
 - how should we recommend use of gtest_discover_tests? If you only have a few it's nice
 - write doc
   - getting_started.rst
-- we need an "introduction to C++20 modules" page too; there won't just be C++
-  experts needing to build stuff
+  - we need an "introduction to C++20 modules" page too; there won't just be C++
+    experts needing to build stuff
 - more test projects
   - just compile each test case to a cmake script
   - use a maud based project with fetchcontent
@@ -27,7 +27,11 @@ NEXT
       @
     endforeach()
     ```
-- strip base dirs from docs
+- break up Maud.cmake; it'd be friendlier to folks who just want `option()` if there's
+  one or two files to copy (and it's not tangled up with modules etc)
+- strip common base dirs from docs; somebody won't be able to resist stuffing all the
+  .rsts into a docs/ subdirectory and then docs/ should be considered the root of
+  the documentation
 - harden and test the scanner
   - support this when preprocessing isn't required
 - Make `test_` an *imported* special module; that way it can be orphaned
@@ -35,6 +39,7 @@ NEXT
   itself an implementation unit of that module. Wiring up the scanner is
   a prerequisite because without it we don't know which non-`test_` module
   the test belongs to (unless we use partitions...).
+  - same for `executable`
 - git ls-files starts up *quick*, so we could use it even for small projects,
   let _maud_glob use that
 

@@ -297,6 +297,7 @@ Table of Contents
 .. TODO allow the configuration directive to name a file
 
 .. configuration::
+
     author = "Benjamin Kietzman <bengilgit@gmail.com>"
 
     html_title = "Maud"
