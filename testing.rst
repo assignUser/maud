@@ -2,7 +2,7 @@ Unit tests
 ----------
 
 While scanning modules, ``Maud`` will detect and
-:cmake:`add_test <command/add_test.html>` unit tests.
+:cmake:`add unit tests <command/add_test.html>`.
 (This can be disabled by setting ``BUILD_TESTING = OFF``.)
 Unit testing is based on :gtest:`GTest </>`, and many basic
 concepts like suites of test cases are inherited whole.
@@ -41,6 +41,8 @@ Example
 =======
 
 .. code-block:: c++
+
+  module test_;
 
   SUITE_ { std::string yo = "yo"; };
 
@@ -84,7 +86,7 @@ If it is preferable to override ``test_`` entirely (for
 example to use a different test library like
 `Catch2 <https://github.com/catchorg/Catch2/tree/devel/docs>`_
 instead of ``GTest``), write an interface unit with
-``export module test_``> and define the cmake function ``maud_add_test``:
+``export module test_`` and define the cmake function ``maud_add_test``:
 
 .. code-block:: cmake
 
@@ -101,3 +103,37 @@ added to the target it names. (See project test
         **(extlinks if 'extlinks' in globals() else {}),
         "gtest": ("https://google.github.io/googletest/%s", None)
     }
+
+Formatting test
+~~~~~~~~~~~~~~~
+
+By default, if `ClangFormat <https://clang.llvm.org/docs/ClangFormat.html>`_ is
+detected then a test will be added which asserts that files are formatted
+consistently::
+
+  $ ctest --build-config Debug --tests-regex formatted --output-on-failure
+  Test project ~/maud/.build
+      Start 4: check.clang-formatted
+  1/1 Test #4: check.clang-formatted ............***Failed    0.07 sec
+  Clang-formating 16 files
+  ~/maud/in2.cxx:15:42: error: code should be clang-formatted [-Wclang-format-violations]
+  export void compile_in2(std::istream &is,   std::ostream &os);
+                                           ^
+
+A target will also be added which formats files in place::
+
+  $ ninja -C fix.clang-format
+
+Since the set of files which should be formatted is not necessarily identical to
+the set which should be compiled, a separate glob must be provided in the project's
+root ``.clang-format`` file::
+
+  # Maud: {
+  #   "version": 18,
+  #   "patterns": [
+  #     "\\.[ch]xx$",
+  #     "!rapidyaml\\.hxx"
+  #   ]
+  # }
+  BasedOnStyle: Google
+  ColumnLimit: 90

@@ -210,12 +210,12 @@ Built-in pipeline filters
 .. _foreach-filters:
 
 Foreach filters
----------------
+~~~~~~~~~~~~~~~
 
 When the input to a filter is a list it is frequently desirable to
 transform each list member. Foreach filters allow pipeline syntax
 to express that member transformation inline. Filters between
-`|foreach|` and `|endforeach|` are applied to each element of
+``|foreach|`` and ``|endforeach|`` are applied to each element of
 an input list.
 
 .. code-block::
