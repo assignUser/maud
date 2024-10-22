@@ -402,15 +402,15 @@ export using testing::AnyOfArray;
 export using testing::Not;
 export using testing::Conditional;
 
-/// \brief Helper for constructing matchers from lambdas
+/// Helper for constructing matchers from lambdas.
 ///
-/// ```cxx
-/// Matcher constexpr NotNull{
-///   .match = [](auto const &ptr, auto &) { return ptr != nullptr; },
-///   .describe = [](auto &os) { os << "is not NULL"; },
-///   .describe_negation = [](auto &os) { os << "is NULL"; },
-/// };
-/// ```
+/// .. code-block::
+///
+///   Matcher constexpr NotNull{
+///     .match = [](auto const &ptr, auto &) { return ptr != nullptr; },
+///     .describe = [](auto &os) { os << "is not NULL"; },
+///     .describe_negation = [](auto &os) { os << "is NULL"; },
+///   };
 export template <typename Match, typename Describe, typename DescribeNegation>
 struct Matcher {
   Match match;

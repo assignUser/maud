@@ -1044,7 +1044,6 @@ endfunction()
 
 function(_maud_setup_doc)
   find_package(Python3 3.12)
-  find_program(CLANG_DOC NAMES clang-doc)
 
   if(NOT TARGET Python3::Interpreter)
     # TODO instead, error here (but include instructions to disable doc)
@@ -1090,12 +1089,39 @@ function(_maud_setup_doc)
   )
   set(SPHINX_BUILD "${doc}/venv/bin/sphinx-build")
 
-  set(source_regex "${MAUD_CXX_SOURCE_EXTENSIONS} ${MAUD_CXX_HEADER_EXTENSIONS}")
+  # FIXME scan interface units in addition to headers for apidoc
+  set(source_regex "${MAUD_CXX_HEADER_EXTENSIONS}")
   string(REPLACE "+" "[+]" source_regex "${source_regex}")
   string(REPLACE " " "|" source_regex "${source_regex}")
   set(source_regex "\\.(${source_regex})$")
 
   glob(_MAUD_APIDOC_SOURCES CONFIGURE_DEPENDS "${source_regex}")
+  set(all_apidoc)
+  foreach(file ${_MAUD_APIDOC_SOURCES})
+    _maud_relative_path("${file}" apidoc is_gen)
+    if(is_gen)
+      set(apidoc "${doc}/apidoc/rendered/${apidoc}.json")
+    else()
+      set(apidoc "${doc}/apidoc/source/${apidoc}.json")
+    endif()
+
+    add_custom_command(
+      OUTPUT "${apidoc}"
+      DEPENDS
+        "${file}"
+        "${doc}/venv/pip.report.json"
+        "${CMAKE_SOURCE_DIR}/cmake_modules/maud_apidoc.py"
+      COMMAND
+        "${doc}/venv/bin/python3"
+        "${CMAKE_SOURCE_DIR}/cmake_modules/maud_apidoc.py"
+        --source="${file}"
+        --output="${apidoc}"
+      # TODO sphinx isn't watching these JSON files so even if they change
+      # sphinx won't regen HTML until you touch the RST which includes from them
+      COMMENT "Scanning ${file} $<$<BOOL:${is_gen}>:(generated)> for apidoc to ${apidoc}"
+    )
+    list(APPEND all_apidoc "${apidoc}")
+  endforeach()
 
   set(all_staged)
   set(all_built)
@@ -1124,19 +1150,21 @@ function(_maud_setup_doc)
     # rely on sphinx to update only stale outputs
     add_custom_command(
       OUTPUT "${doc}/dirhtml/${html}/index.html"
-      DEPENDS "${staged}" "${doc}/stage/conf.py" "${doc}/venv/pip.report.json"
+      DEPENDS "${staged}" "${doc}/stage/conf.py" "${doc}/venv/pip.report.json" ${all_apidoc}
       WORKING_DIRECTORY "${doc}"
       COMMAND "${SPHINX_BUILD}" --builder dirhtml
         stage
         dirhtml
         "${staged}"
         > dirhtml.log
+      COMMAND_EXPAND_LISTS
       COMMENT "Building ${doc}/dirhtml/${html}/index.html"
     )
     list(APPEND all_built "${doc}/dirhtml/${html}/index.html")
   endforeach()
 
   add_custom_command(
+    # TODO break up this monolithic task; we should have one per .rst
     OUTPUT "${doc}/stage/conf.py"
     DEPENDS ${all_staged} "${_MAUD_SELF_DIR}/sphinx_conf.py"
     WORKING_DIRECTORY "${MAUD_DIR}"
@@ -1193,27 +1221,6 @@ function(_maud_sphinx_conf)
     "${conf_prelude}\n"
     "${conf}\n"
   )
-endfunction()
-
-
-function(_maud_doxygen)
-  set(doc "${MAUD_DIR}/doc")
-
-  list(JOIN _MAUD_APIDOC_SOURCES " \\\n" inputs)
-  file(COPY_FILE "${_MAUD_SELF_DIR}/Doxyfile" "${doc}/stage/Doxyfile")
-  file(APPEND "${doc}/stage/Doxyfile" "\nINPUT=${inputs}\n\n")
-  execute_process(
-    COMMAND "${DOXYGEN}" "${doc}/stage/Doxyfile"
-    OUTPUT_FILE "${doc}/doxygen.log"
-    ERROR_FILE "${doc}/doxygen.log"
-    COMMAND_ERROR_IS_FATAL ANY
-  )
-endfunction()
-
-
-# render directly to file
-function(render content)
-  file(APPEND "${RENDER_FILE}" "${content}")
 endfunction()
 
 
@@ -1761,8 +1768,13 @@ endfunction()
 
 
 ################################################################################
-# Pipeline filters
+# in2 helpers and pipeline filters 
 ################################################################################
+
+# render directly to file
+function(render content)
+  file(APPEND "${RENDER_FILE}" "${content}")
+endfunction()
 
 function(in2_pipeline_filter_)
 endfunction()

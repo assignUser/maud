@@ -25,7 +25,13 @@ an explicit ``#include`` is unnecessary.)
 Macros
 ~~~~~~
 
-.. TODO wire up clangdoc and then dump TEST_, EXPECT_, SUITE_, Matcher here
+.. apidoc:: TEST_
+
+.. apidoc:: EXPECT_
+
+.. apidoc:: SUITE_
+
+.. apidoc:: struct Matcher
 
 .. FIXME GTest is not easily includable yet
 

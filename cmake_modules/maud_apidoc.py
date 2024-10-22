@@ -1,14 +1,14 @@
+import argparse
+import json
+
 from clang.cindex import (
-    Index,
-    TranslationUnit,
-    SourceRange,
     Cursor,
     CursorKind,
+    Index,
+    SourceRange,
     TokenKind,
+    TranslationUnit,
 )
-
-import json
-import argparse
 
 parser = argparse.ArgumentParser(
     description="Scan a source file for documentation comments.",
@@ -16,7 +16,7 @@ parser = argparse.ArgumentParser(
 )
 parser.add_argument(
     "--source",
-    default="-",
+    required=True,
     type=argparse.FileType("r"),
     help="source file to scan",
 )
@@ -31,13 +31,6 @@ parser.add_argument(
     type=argparse.FileType("r"),
     help="\\n-separated arguments, passed to libclang",
 )
-parser.add_argument(
-    "--doc-patterns",
-    nargs="+",
-    default=["/// ", "/**\n"],
-    metavar=("PATTERN", "PATTERNS"),
-    help="patterns used to recognize documentation comments",
-)
 
 
 # Anything more complicated than getting the decl and getting the docstring
@@ -51,7 +44,6 @@ parser.add_argument(
 # For each doccomment
 #     begins with a directive: goto directive comment
 #     line comments: concatenate consecutive comments, strip pattern
-#     block comments: strip pattern&comment delimiters&indent(up to first asterisk)
 #   extract the tokens of the next decl
 #   the decl may end early with ; or {
 #   also get the namespace from the decl
@@ -84,41 +76,52 @@ def get_ns(cursor):
 
 
 def get_sphinx_decl_extent(cursor: Cursor):
-    start = None
-    end = None
     tokens = cursor.get_tokens()
-    start = next(tokens).extent.start
-    for t in tokens:
-        if t.spelling in "{;":
-            # FIXME these could occur in an attribute
-            # or lambda expression
-            break
-        end = t.extent.end
+    first = next(tokens)
+    start = first.extent.start
+    end = start
+    if cursor.kind == CursorKind.MACRO_DEFINITION:
+        assert first.kind == TokenKind.IDENTIFIER
+        end = first.extent.end
+        if second := next(tokens, None):
+            if second.spelling == "(":
+                if second.extent.start == first.extent.end:
+                    # function macro, find the end of the parameters
+                    for t in tokens:
+                        if t.spelling == ")":
+                            end = t.extent.end
+                            break
+    else:
+        for t in tokens:
+            if t.spelling in "{;":
+                # FIXME these could occur in an attribute
+                # or lambda expression
+                break
+            end = t.extent.end
     return SourceRange.from_locations(start, end)
 
 
-def comment_scan(tu: TranslationUnit, doc_patterns: list[str], contents: str) -> dict:
+DOCUMENTATION_COMMENT_PREFIX = "/// "
+
+
+def comment_scan(tu: TranslationUnit, contents: str) -> dict:
     declarations = []
-    current_comment = None
+    current_comment = []
     current_comment_end = None
     for t in tu.get_tokens(extent=tu.cursor.extent):
         if t.kind == TokenKind.COMMENT:
             comment = t.spelling
-            for pattern in doc_patterns:
-                if not comment.startswith(pattern):
-                    continue
-                comment = comment.removeprefix(pattern)
+            if comment == DOCUMENTATION_COMMENT_PREFIX[:-1]:
+                current_comment.append("")
+                continue
 
-                if pattern.startswith("//"):
-                    if current_comment is not None:
-                        current_comment = f"{current_comment}\n{comment}"
-                    else:
-                        current_comment = comment
-                    current_comment_end = t.extent.end
-                else:
-                    raise NotImplementedError
+            if not comment.startswith(DOCUMENTATION_COMMENT_PREFIX):
+                continue
+            current_comment.append(comment.removeprefix(DOCUMENTATION_COMMENT_PREFIX))
+            current_comment_end = t.extent.end
+            continue
 
-        if current_comment is None:
+        if current_comment == []:
             continue
 
         if not can_be_documented(t.cursor.kind):
@@ -128,29 +131,25 @@ def comment_scan(tu: TranslationUnit, doc_patterns: list[str], contents: str) ->
             continue
 
         e = get_sphinx_decl_extent(t.cursor)
-        assert str(e.start.file) == str(e.end.file)
+        assert str(e.start.file) == str(e.end.file) == tu.spelling
+
         decl_str = (
             contents.encode("utf-8")[e.start.offset : e.end.offset]
             .decode("utf-8")
             .replace("\n", " ")
         )
-        declarations.append(
-            {
-                "declaration": decl_str,
-                "ns": "::".join([segment.spelling for segment in get_ns(t.cursor)]),
-                "location": {
-                    "file": str(e.start.file),
-                    "start": e.start.line,
-                    "end": e.end.line,
-                },
-                "kind": str(t.cursor.kind).removeprefix("CursorKind."),
-                "comment": current_comment.split("\n"),
-            }
-        )
-        current_comment = None
+        declarations.append({
+            "declaration": decl_str,
+            "ns": "::".join([segment.spelling for segment in get_ns(t.cursor)]),
+            "line": e.start.line,
+            "kind": str(t.cursor.kind).removeprefix("CursorKind."),
+            "comment": current_comment,
+        })
+        current_comment = []
         current_comment_end = None
 
     return {
+        "file": str(tu.spelling),
         "diagnostics": [str(d) for d in tu.diagnostics],
         "declarations": declarations,
     }
@@ -158,11 +157,17 @@ def comment_scan(tu: TranslationUnit, doc_patterns: list[str], contents: str) ->
 
 if __name__ == "__main__":
     args = parser.parse_args()
+
+    if args.clang_args_file is not None:
+        clang_args = args.clang_args_file.read().splitlines()
+    else:
+        clang_args = []
+
     index = Index.create()
     source = args.source.read()
     tu = index.parse(
         args.source.name,
-        args=args.clang_args_file,
+        args=clang_args,
         unsaved_files=[
             (args.source.name, source),
         ],
@@ -173,5 +178,5 @@ if __name__ == "__main__":
         ),
     )
 
-    json.dump(comment_scan(tu, args.doc_patterns, source), args.output, indent=2)
+    json.dump(comment_scan(tu, source), args.output, indent=2)
     args.output.write("\n")
