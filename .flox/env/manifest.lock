@@ -18,6 +18,9 @@
       "gtest": {
         "pkg-path": "gtest"
       },
+      "libclang": {
+        "pkg-path": "python312Packages.libclang"
+      },
       "ninja": {
         "pkg-path": "ninja"
       },
@@ -651,6 +654,130 @@
       "outputs": {
         "dev": "/nix/store/lfqxgrwhsl5ifasw58xc5f5xb5d99zv7-gtest-1.14.0-dev",
         "out": "/nix/store/hdwkfimyyawj5w990ihpar827w43pmpg-gtest-1.14.0"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "python312Packages.libclang",
+      "broken": false,
+      "derivation": "/nix/store/pwglbkmzfrnk0k4djhxbqfs9rjxnxcw8-python3.12-libclang-16.0.6.drv",
+      "description": "Python bindings for the C language family frontend for LLVM",
+      "install_id": "libclang",
+      "license": "NCSA",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "python3.12-libclang-16.0.6",
+      "pname": "libclang",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "python3.12-libclang-16.0.6",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dist": "/nix/store/3ng7zqcak81svbc7jh3g3f62sk0c8zsn-python3.12-libclang-16.0.6-dist",
+        "out": "/nix/store/vjir447zpkxy5mj1gbd1s9nwxrgcdjrc-python3.12-libclang-16.0.6"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "python312Packages.libclang",
+      "broken": false,
+      "derivation": "/nix/store/h3h20cq0k8n325l3hsbglr88clsjnvxk-python3.12-libclang-18.1.8.drv",
+      "description": "Python bindings for the C language family frontend for LLVM",
+      "install_id": "libclang",
+      "license": "NCSA",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "python3.12-libclang-18.1.8",
+      "pname": "libclang",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "python3.12-libclang-18.1.8",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dist": "/nix/store/vs6nrrf6vxfmdlhkdnklwr2lx5p8n3b0-python3.12-libclang-18.1.8-dist",
+        "out": "/nix/store/1fiag40yp2p95jx51mjxcjzj7dl9zv7c-python3.12-libclang-18.1.8"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "python312Packages.libclang",
+      "broken": false,
+      "derivation": "/nix/store/szn0qbi1f1biv6wmmxwq1pbbnzc2lw7l-python3.12-libclang-16.0.6.drv",
+      "description": "Python bindings for the C language family frontend for LLVM",
+      "install_id": "libclang",
+      "license": "NCSA",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "python3.12-libclang-16.0.6",
+      "pname": "libclang",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "python3.12-libclang-16.0.6",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dist": "/nix/store/p24gxfp4m62z6c3z99m74l8m3jgn5yli-python3.12-libclang-16.0.6-dist",
+        "out": "/nix/store/37flz7kk8f57vns2c26a3an5n49272f8-python3.12-libclang-16.0.6"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "python312Packages.libclang",
+      "broken": false,
+      "derivation": "/nix/store/iv3blbkqhi0n1xbk1xj7xb929785df5d-python3.12-libclang-18.1.8.drv",
+      "description": "Python bindings for the C language family frontend for LLVM",
+      "install_id": "libclang",
+      "license": "NCSA",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "python3.12-libclang-18.1.8",
+      "pname": "libclang",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "python3.12-libclang-18.1.8",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dist": "/nix/store/0z18frhcy9mjj239bjr38vs57ryzlkps-python3.12-libclang-18.1.8-dist",
+        "out": "/nix/store/q7nb7xz48aybaw7is1ns3k1f1ab9iw6v-python3.12-libclang-18.1.8"
       },
       "system": "x86_64-linux",
       "group": "toplevel",

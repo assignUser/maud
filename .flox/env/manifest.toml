@@ -17,6 +17,7 @@ compiler-rt.pkg-path = "llvmPackages.compiler-rt"
 nlohmann_json.pkg-path = "nlohmann_json"
 fmt.pkg-path = "fmt"
 python312Full.pkg-path = "python312Full"
+libclang.pkg-path = "python312Packages.libclang"
 # hello.pkg-path = "hello"
 # nodejs = { version = "^20.15.1", pkg-path = "nodejs" }
 

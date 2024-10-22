@@ -12,7 +12,9 @@ Zen
 
 .. cpp:var:: int a = 42
 
-.. cpp:function:: int f(int i)
+.. cpp:function:: int [[doc::usage{ foo = 3; }]] f(int i = 3)
+
+.. cpp:function:: template <typename... T> requires (sizeof...(T) > 0) int pack_size()
 
 An expression: :cpp:expr:`a * f(a)`
 
