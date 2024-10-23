@@ -180,7 +180,12 @@ Built-in pipeline filters
 
     .. code-block:: c++.in2
 
-      @set(OBJ [[ {"arr": [{"num": 42}, {"num": 77}]} ]])@
+      @set(
+        OBJ
+        [[
+          {"arr": [{"num": 42}, {"num": 77}]}
+        ]]
+      )@
       @OBJ | string(JSON LIST arr [] num)@
       // renders to
       42;77

@@ -1,5 +1,6 @@
 import sphinx.util.docutils
 import docutils.nodes
+import docutils.statemachine
 import pygments.lexers.c_cpp
 import sphinx.highlighting
 import pathlib
@@ -23,14 +24,14 @@ STAGE_DIR = pathlib.Path(__file__).parent
 
 APIDOC = {
     "diagnostics": {},  # mapping from file to diagnostics
-    "declarations": [],  # all declarations
+    "comments": [],  # all comments
 }
 for apidoc in STAGE_DIR.parent.glob("apidoc/**/*.json"):
     apidoc = json.load(apidoc.open())
     f = apidoc["file"]
-    for d in apidoc["declarations"]:
+    for d in apidoc["comments"]:
         d["file"] = f
-        APIDOC["declarations"].append(d)
+        APIDOC["comments"].append(d)
     APIDOC["diagnostics"][f] = apidoc["diagnostics"]
 
 for conf in STAGE_DIR.parent.glob("configuration/**/*.py"):
@@ -50,22 +51,33 @@ def setup(app):
         optional_arguments = 1000
 
         def run(self) -> list[docutils.nodes.Node]:
+            # TODO add a link to the decl on GitHub
             nodes = []
-            term = ' '.join(self.arguments)
+            term = " ".join(self.arguments)
             print(f"searching for declaration matching {term}")
-            for d in APIDOC["declarations"]:
+            for d in APIDOC["comments"]:
                 if self.arguments[0] in d["declaration"]:
-                    print(
-                        f"found declaration matching {term} {d['kind']=}"
-                    )
+                    print(f"found declaration matching {term} {d['kind']=}")
+                    text = []
+                    # TODO add a .. cpp:namespace:: here if appropriate
                     if d["kind"] == "MACRO_DEFINITION":
-                        text = f".. c:macro:: {d['declaration']}\n\n"
+                        text.append(f".. c:macro:: {d['declaration']}")
+                    elif "STRUCT" in d["kind"]:
+                        text.append(f".. cpp:struct:: {d['declaration']}")
                     elif "CLASS" in d["kind"]:
-                        text = f".. cpp:class:: {d['declaration']}\n\n"
+                        # TODO libclang uses CLASS_TEMPLATE for struct
+                        # templates, which looks odd.
+                        text.append(f".. cpp:class:: {d['declaration']}")
                     else:
                         continue
-                    text += textwrap.indent("\n".join(d["comment"]), "  ")
-                    nodes = [*nodes, *self.parse_text_to_nodes(text)]
+                    blank = ['']
+                    for line in (*blank, *self.content, *blank, *d["comment"]):
+                        text.append(f"  {line}")
+                    text = docutils.statemachine.StringList(text)
+                    nodes = [
+                        *nodes,
+                        *self.parse_text_to_nodes(text),
+                    ]
             return nodes
 
     app.add_directive("configuration", Configuration)

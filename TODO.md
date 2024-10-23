@@ -27,8 +27,6 @@ NEXT
       @
     endforeach()
     ```
-- break up Maud.cmake; it'd be friendlier to folks who just want `option()` if there's
-  one or two files to copy (and it's not tangled up with modules etc)
 - strip common base dirs from docs; somebody won't be able to resist stuffing all the
   .rsts into a docs/ subdirectory and then docs/ should be considered the root of
   the documentation
@@ -42,6 +40,21 @@ NEXT
   - same for `executable`
 - git ls-files starts up *quick*, so we could use it even for small projects,
   let _maud_glob use that
+
+
+TODO: break Maud.cmake up into distinct modules
+-----------------------------------------------
+
+It'd be friendlier to folks who just want `option()` if there's
+one or two files to copy. Currently Maud is monolithic and will
+break if you're not using the full module scan system.
+
+- `option()`
+- Sphinx and maud_apidoc targets
+- globbing and configurable regen
+- loading the cache
+- .in2 templates
+
 
 TODO: document how to do optional dependencies
 ----------------------------------------------
@@ -66,29 +79,31 @@ import a dependency then it must be available for linking to any
 configuration. In the example above, the import will still be
 linked in release but not used.
 
-TODO: screw doxygen
--------------------
 
-Even with breathe, doxygen is super annoying to deal with.
-The sphinx cpp domain is fine, and we can extract apidoc using
-clang-doc and regular expressions `^ *///.*$`, leaving them in
-a format sphinx can just import with a few directives.
+TODO: package maud_apidoc as a sphinx plugin
+--------------------------------------------
 
-#### apidoc:
+This would be a combination of the cli for extracting /// comments to json
+and the sphinx extension which adds the new directives. The sphinx extension
+should support regeneration of json on build, for use outside a build system.
 
-- doc comments are all rst which will be passed as content to
-  a cpp domain directive. The decl used is drawn from code
-- point clang-doc at each scanned source file individually so
-  that rebuilds are maximally incremental
-- scan headers manually for documented macros (macros anywhere
-  else aren't going to be public so ignore them)
-- scan modules manually for documented `module foo;` (clang-doc
-  doesn't pick these up yet)
-- provide autodoc style directives to insert synthesized
-  cpp domain directives
+- why not doxygen/breathe
+  - cross linking is hard
+  - sphinx' markup is better (documented, powerful, extensible, beauty)
+- why not clang-doc
+  - dependence on compile_commands.json is not robust (modules, pch, @opts)
+  - doesn't pick up macros or modules
+- why not hawkmoth
+  - doesn't support `///`
+  - more opinionated about attaching to declarations than I'd like-
+    I *know* apidoc will break sometime, somehow and I want to have
+    more opportunities to work around (so let some comments be orphaned)
+  - uses libclang directly in sphinx I prefer to have intermediate JSON
+    which exposes more targets to ninja and keeps the build incremental
 
-TODO: stages
-------------
+
+TODO: allow deferring past the cmake_modules stage
+--------------------------------------------------
 
 The maud sequence is:
 - init
@@ -102,21 +117,27 @@ The maud sequence is:
 ... but what if we need to insert something somewhere other than
 `cmake_modules`? For example: cpp2.in2 - the cpp2 glob is run in
 `cmake_modules`, before in2 renders, so rendered cpp2 are not scanned.
-
-One solution is to make the stages explicitly configurable:
-
-```cmake
-maud_stage(cpp2_sources BEFORE module_scan)
-maud_defer_until(cpp2_sources)
-```
-
-This would additionally mean we can just wait till targets for find_package:
+Since the stages are an implementation detail I'd rather not expose
+explicitly, we could just provide a function named `maud_defer`
+which checks conditions:
 
 ```cmake
 maud_defer(
   CODE [[
-    find_package(nlohmann_json REQUIRED)
-    find_package(fmt REQUIRED)
+    glob(CPP2_SOURCES CONFIGURE_DEPENDS "[.]cpp2$")
+    cppfront(${CPP2_SOURCES})
+  ]]
+  UNTIL EXISTS "${MAUD_DIR}/rendered/one_of_the.cpp2"
+)
+```
+
+This would also be handy for cmake code which must manipulate targets:
+
+```cmake
+find_package(nlohmann_json REQUIRED)
+find_package(fmt REQUIRED)
+maud_defer(
+  CODE [[
     target_link_libraries(
       use_json_fmt
       PRIVATE
@@ -124,9 +145,10 @@ maud_defer(
       fmt::fmt-header-only
     )
   ]]
-  UNTIL AFTER targets
+  UNTIL TARGET use_json_fmt
 )
 ```
+
 
 TODO: support C++17/non-module projects
 ---------------------------------------
@@ -156,6 +178,7 @@ option which defaults to suite-per-executable and can be enabled to
 redistribute test sources into larger test executables (which are named
 `test-executable-1` etc but ctest uses `--gtest_filter` so that we can
 still see individual suite names).
+
 
 TODO: cmake compendium
 ----------------------

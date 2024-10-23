@@ -16,35 +16,13 @@ Instead of defining test suites explicitly with classes,
 one test suite is produced for each C++ source which includes
 the special module declaration ``module test_``. Each test suite
 is compiled into an executable target named ``test_.${SUITE_NAME}``.
-In a suite source file the macros ``TEST_``, ``EXPECT_``, and ``SUITE_``
-respectively are used to define test cases, make assertions, and
-specify share resources across the suite.
-(These macros are included in the predefines buffer so
-an explicit ``#include`` is unnecessary.)
 
-Macros
-~~~~~~
-
-.. apidoc:: TEST_
-
-.. apidoc:: EXPECT_
-
-.. apidoc:: SUITE_
-
-.. apidoc:: struct Matcher
-
-.. FIXME GTest is not easily includable yet
-
-GTest is added to the include path for the suite, so explicit
-``#include <gtest/gtest.h>`` is always available if necessary.
-Each suite is linked to ``gtest_main``. Since that defines ``main``
-as a weak symbol, a custom main function can be written in a
-test suite. To write a custom main function for all test suites,
-write an interface unit with ``export module test_:main;`` and
-that will replace ``gtest_main``.
-
-Example
-=======
+In a suite source file, three macros are included in the predefines
+buffer (an explicit ``#include`` is unnecessary):
+test cases are defined with :c:macro:`TEST_`,
+and in a test case assertions are made with :c:macro:`EXPECT_`.
+:c:macro:`SUITE_` can optionally be used to 
+specify resources which should be shared across the suite.
 
 .. code-block:: c++
 
@@ -85,6 +63,29 @@ Example
     EXPECT_(parameter + parameter == parameter);
   }
 
+
+Unit test API
+~~~~~~~~~~~~~
+
+.. apidoc:: TEST_
+
+.. apidoc:: EXPECT_
+
+.. apidoc:: SUITE_
+
+.. apidoc:: Matcher
+
+.. FIXME GTest is not easily includable yet
+
+GTest is added to the include path for the suite, so explicit
+``#include <gtest/gtest.h>`` is always available if necessary.
+Each suite is linked to ``gtest_main``. Since that defines ``main``
+as a weak symbol, a custom main function can be written in a
+test suite. To write a custom main function for all test suites,
+write an interface unit with ``export module test_:main;`` and
+that will replace ``gtest_main``.
+
+
 Overriding ``test_``
 ====================
 
@@ -110,6 +111,7 @@ added to the target it names. (See project test
         **(extlinks if 'extlinks' in globals() else {}),
         "gtest": ("https://google.github.io/googletest/%s", None)
     }
+
 
 Formatting test
 ~~~~~~~~~~~~~~~
