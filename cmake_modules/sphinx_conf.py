@@ -4,10 +4,7 @@ import docutils.statemachine
 import pygments.lexers.c_cpp
 import sphinx.highlighting
 import pathlib
-import textwrap
 import json
-
-# add to the sphinx prelude code which loads apidoc jsons in preparation for .. cpp:autofunction::
 
 extensions = []
 
@@ -34,7 +31,8 @@ for apidoc in STAGE_DIR.parent.glob("apidoc/**/*.json"):
         APIDOC["comments"].append(d)
     APIDOC["diagnostics"][f] = apidoc["diagnostics"]
 
-for conf in STAGE_DIR.parent.glob("configuration/**/*.py"):
+for conf in STAGE_DIR.glob("**/*.conf.py"):
+    # There must be a better way to do this.
     exec(conf.read_text())
 
 
@@ -70,18 +68,16 @@ def setup(app):
                         text.append(f".. cpp:class:: {d['declaration']}")
                     else:
                         continue
-                    blank = ['']
+                    blank = [""]
                     for line in (*blank, *self.content, *blank, *d["comment"]):
                         text.append(f"  {line}")
                     text = docutils.statemachine.StringList(text)
-                    nodes = [
-                        *nodes,
-                        *self.parse_text_to_nodes(text),
-                    ]
+                    nodes.extend(self.parse_text_to_nodes(text))
             return nodes
 
     app.add_directive("configuration", Configuration)
     app.add_directive("apidoc", ApiDoc)
+    app.add_config_value("APIDOC", {}, "env")
     sphinx.highlighting.lexers["c++.in2"] = pygments.lexers.c_cpp.CppLexer()
     # TODO make a utility for building in2 lexers and embed cmake's syntax
     # https://pygments.org/docs/lexerdevelopment/#using-multiple-lexers

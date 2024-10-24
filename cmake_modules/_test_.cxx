@@ -404,6 +404,8 @@ export using testing::Conditional;
 
 /// Helper for constructing matchers from lambdas.
 ///
+/// For example, to define a matcher which checks for equality with nullptr:
+///
 /// .. code-block::
 ///
 ///   Matcher constexpr NotNull{

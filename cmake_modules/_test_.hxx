@@ -79,7 +79,7 @@
 ///   //   Actual:     3 vs 5
 ///
 /// :cpp:expr:`EXPECT_(...)` produces an expression rather than a statement.
-/// It is contextually convertible to ``bool```, truthy iff the condition
+/// It is contextually convertible to ``bool``, truthy iff the condition
 /// was truthy. If additional context needs to be added to a failed
 /// expectation, a lambda can be provided which will only be called
 /// if the expectation fails.

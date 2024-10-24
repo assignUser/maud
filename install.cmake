@@ -14,6 +14,7 @@ install(
   "${dir}/cmake_modules/_test_.hxx"
   "${dir}/cmake_modules/_test_main_.cxx"
   "${dir}/cmake_modules/sphinx_conf.py"
+  "${dir}/cmake_modules/maud_apidoc.py"
   "${dir}/cmake_modules/sphinx_requirements.txt"
   DESTINATION
   "${CMAKE_INSTALL_LIBDIR}/cmake/Maud"
@@ -33,4 +34,10 @@ install(
   PROGRAMS "${MAUD_DIR}/cli/maud" "${MAUD_DIR}/cli/maud.bat"
   DESTINATION "${CMAKE_INSTALL_BINDIR}"
   OPTIONAL
+)
+
+# Exclude Maud's own "system" c++ when bootstrapping
+set(
+  MAUD_CXX_SOURCE_EXCLUSION_PATTERN
+  "cmake_modules/"
 )

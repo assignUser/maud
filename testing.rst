@@ -21,7 +21,7 @@ In a suite source file, three macros are included in the predefines
 buffer (an explicit ``#include`` is unnecessary):
 test cases are defined with :c:macro:`TEST_`,
 and in a test case assertions are made with :c:macro:`EXPECT_`.
-:c:macro:`SUITE_` can optionally be used to 
+:c:macro:`SUITE_` can optionally be used to
 specify resources which should be shared across the suite.
 
 .. code-block:: c++

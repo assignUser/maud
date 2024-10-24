@@ -111,7 +111,7 @@ function(_maud_glob out_var root_dir)
     RELATIVE "${root_dir}"
     "${root_dir}/*"
   )
-  _maud_filter(matches  "!(/|^)\\.")
+  _maud_filter(matches  "!(/|^)[.]")
   set(${out_var} ${matches} PARENT_SCOPE)
 endfunction()
 
@@ -243,13 +243,22 @@ endfunction()
 
 
 function(_maud_cxx_sources)
-  set(source_regex ${MAUD_CXX_SOURCE_EXTENSIONS})
-  string(REPLACE "+" "[+]" source_regex "${source_regex}")
-  string(REPLACE " " "|" source_regex "${source_regex}")
-  set(source_regex "\\.(${source_regex})$")
+  set(ext_regex ${MAUD_CXX_SOURCE_EXTENSIONS})
+  string(REPLACE "+" "[+]" ext_regex "${ext_regex}")
+  string(REPLACE " " "|" ext_regex "${ext_regex}")
 
-  glob(_MAUD_CXX_SOURCES CONFIGURE_DEPENDS "${source_regex}" "!(/|^)_")
-  foreach(source_file ${_MAUD_CXX_SOURCES})
+  glob(_MAUD_CXX_SOURCES CONFIGURE_DEPENDS "[.](${ext_regex})$")
+
+  if(MAUD_CXX_SOURCE_EXCLUSION_PATTERN)
+    list(
+      # This doesn't alter the value in the cache, just the local value
+      FILTER _MAUD_CXX_SOURCES
+      EXCLUDE REGEX "${MAUD_CXX_SOURCE_EXCLUSION_PATTERN}"
+    )
+  endif()
+  _maud_set(_MAUD_CXX_SCANNED_SOURCES "${_MAUD_CXX_SOURCES}")
+
+  foreach(source_file ${_MAUD_CXX_SCANNED_SOURCES})
     _maud_scan("${source_file}")
   endforeach()
 endfunction()
@@ -273,7 +282,7 @@ function(_maud_setup_clang_format)
       "Couldn't read required clang-format version"
       "\n--   add a comment to ${CMAKE_SOURCE_DIR}/.clang-format"
       "\n--   like "
-      [[# Maud: {"version": 18, "patterns": ["\\.[ch]xx$", "!thirdparty/"]}]]
+      [[# Maud: {"version": 18, "patterns": ["[.][ch]xx$", "!thirdparty/"]}]]
     )
     return()
   endif()
@@ -779,7 +788,7 @@ function(_maud_maybe_regenerate)
     unset(old)
   endif()
 
-  foreach(source_file ${_MAUD_CXX_SOURCES})
+  foreach(source_file ${_MAUD_CXX_SCANNED_SOURCES})
     _maud_rescan("${source_file}" scan-results-differ)
     if(scan-results-differ)
       message(STATUS "change detected ${scan-results-differ}, will regenerate")
@@ -905,7 +914,6 @@ function(_maud_setup)
     _maud_eval()
     "
   )
-  _maud_set(MAUD_EVAL "${CMAKE_COMMAND}" -P "${MAUD_DIR}/eval.cmake" --)
 
   file(MAKE_DIRECTORY "${MAUD_DIR}/junk" "${MAUD_DIR}/rendered")
   file(WRITE "${MAUD_DIR}/options.h" "")
@@ -913,7 +921,7 @@ function(_maud_setup)
 
   cmake_path(IS_PREFIX CMAKE_SOURCE_DIR "${CMAKE_BINARY_DIR}" is_prefix)
   cmake_path(GET CMAKE_BINARY_DIR FILENAME build)
-  if(is_prefix AND NOT build MATCHES "^\\.")
+  if(is_prefix AND NOT build MATCHES "^[.]")
     message(
       FATAL_ERROR
       "Build directory is not excluded from CMAKE_SOURCE_DIR globs: rename to .build"
@@ -958,6 +966,12 @@ function(_maud_setup)
   )
 
   option(
+    MAUD_CXX_SOURCE_EXCLUSION_PATTERN
+    STRING "If provided, files matching this pattern will not be scanned as C++ modules."
+    MARK_AS_ADVANCED
+  )
+
+  option(
     MAUD_CXX_HEADER_EXTENSIONS
     STRING "Files with any of these extensions will be recognized as C++ headers."
     DEFAULT "hxx hpp h hh h++"
@@ -974,6 +988,7 @@ function(_maud_setup)
   )
 
   option(
+    # Should this be multiple boolean options like SPHINX_BUILD_DIRHTML?
     SPHINX_BUILDERS
     STRING "A ;-list of builders which will be used with Sphinx."
     DEFAULT "dirhtml"
@@ -1012,15 +1027,14 @@ function(_maud_cmake_modules)
     _MAUD_CMAKE_MODULES
     CONFIGURE_DEPENDS
     EXCLUDE_RENDERED
-    "\\.cmake$"
+    "[.]cmake$"
     "!(/|^)cmake_modules/"
-    "!(/|^)_"
   )
 endfunction()
 
 
 function(_maud_in2)
-  glob(_MAUD_IN2 CONFIGURE_DEPENDS EXCLUDE_RENDERED "\\.in2$")
+  glob(_MAUD_IN2 CONFIGURE_DEPENDS EXCLUDE_RENDERED "[.]in2$")
   foreach(template ${_MAUD_IN2})
     cmake_path(GET template PARENT_PATH dir)
     cmake_path(GET template STEM LAST_ONLY RENDER_FILE)
@@ -1054,8 +1068,8 @@ function(_maud_setup_doc)
   glob(
     _MAUD_RST
     CONFIGURE_DEPENDS
-    "\\.rst$"
-    "!(^|/)[A-Z_0-9]+\\.rst$"
+    "[.]rst$"
+    "!(^|/)[A-Z_0-9]+[.]rst$"
     "!(/|^)_"
   )
   if(NOT _MAUD_RST)
@@ -1063,6 +1077,7 @@ function(_maud_setup_doc)
     return()
   endif()
 
+  # TODO move this out of ${MAUD_DIR}; should be ${CMAKE_BINARY_DIR}/documentation
   set(doc "${MAUD_DIR}/doc")
 
   file(REMOVE_RECURSE "${doc}")
@@ -1075,7 +1090,7 @@ function(_maud_setup_doc)
     COMMAND
       Python3::Interpreter -m venv --clear "${doc}/venv"
     COMMAND
-      "${doc}/venv/bin/pip" install 
+      "${doc}/venv/bin/pip" install
       --requirement "${_MAUD_SELF_DIR}/sphinx_requirements.txt"
       --isolated
       --require-virtualenv
@@ -1085,19 +1100,27 @@ function(_maud_setup_doc)
       --quiet
       --log "${doc}/venv/pip.log"
       --report "${doc}/venv/pip.report.json"
+    # TODO pip install --editable apidoc module
     COMMENT "Building virtual env ${doc}/venv for Sphinx"
   )
   set(SPHINX_BUILD "${doc}/venv/bin/sphinx-build")
 
-  # FIXME scan interface units in addition to headers for apidoc
-  set(source_regex "${MAUD_CXX_HEADER_EXTENSIONS}")
-  string(REPLACE "+" "[+]" source_regex "${source_regex}")
-  string(REPLACE " " "|" source_regex "${source_regex}")
-  set(source_regex "\\.(${source_regex})$")
+  set(ext_regex "${MAUD_CXX_HEADER_EXTENSIONS}")
+  string(REPLACE "+" "[+]" ext_regex "${ext_regex}")
+  string(REPLACE " " "|" ext_regex "${ext_regex}")
 
-  glob(_MAUD_APIDOC_SOURCES CONFIGURE_DEPENDS "${source_regex}")
+  glob(_MAUD_HEADERS CONFIGURE_DEPENDS "[.](${ext_regex})$")
   set(all_apidoc)
-  foreach(file ${_MAUD_APIDOC_SOURCES})
+  foreach(
+    file
+    # We scan every source for doc comments, even though it's
+    # impossible for a declaration to be public outside a headers
+    # or interface unit. This allows sphinx access to (for example)
+    # doc comments in an executable's source, which might be used
+    # for literate programming.
+    ${_MAUD_HEADERS}
+    ${_MAUD_CXX_SOURCES}
+  )
     _maud_relative_path("${file}" apidoc is_gen)
     if(is_gen)
       set(apidoc "${doc}/apidoc/rendered/${apidoc}.json")
@@ -1110,21 +1133,18 @@ function(_maud_setup_doc)
       DEPENDS
         "${file}"
         "${doc}/venv/pip.report.json"
-        "${CMAKE_SOURCE_DIR}/cmake_modules/maud_apidoc.py"
+        "${_MAUD_SELF_DIR}/maud_apidoc.py"
       COMMAND
         "${doc}/venv/bin/python3"
-        "${CMAKE_SOURCE_DIR}/cmake_modules/maud_apidoc.py"
+        "${_MAUD_SELF_DIR}/maud_apidoc.py"
         --source="${file}"
         --output="${apidoc}"
-      # TODO sphinx isn't watching these JSON files so even if they change
-      # sphinx won't regen HTML until you touch the RST which includes from them
-      COMMENT "Scanning ${file} $<$<BOOL:${is_gen}>:(generated)> for apidoc to ${apidoc}"
+      COMMENT "Scanning ${file} $<$<BOOL:${is_gen}>: (generated)> for apidoc to ${apidoc}"
     )
     list(APPEND all_apidoc "${apidoc}")
   endforeach()
 
   set(all_staged)
-  set(all_built)
   foreach(file ${_MAUD_RST})
     _maud_relative_path("${file}" staged is_gen)
     cmake_path(GET staged STEM LAST_ONLY stem)
@@ -1139,42 +1159,56 @@ function(_maud_setup_doc)
       OUTPUT "${staged}"
       DEPENDS "${file}"
       COMMAND "${CMAKE_COMMAND}" -E copy "${file}" "${staged}"
-      COMMENT "Staging ${file} $<$<BOOL:${is_gen}>:(generated)> to ${staged}"
+      COMMENT "Staging ${file}$<$<BOOL:${is_gen}>:(generated)> to ${staged}"
     )
     list(APPEND all_staged "${staged}")
 
-    # TODO use the SPHINX_BUILDERS option
-    # TODO instead of enumerating outputs, just extract a directory_stamp fn
-    # which touches a stamp file to be newer than anything in the dir.
-    # Then we don't need to guess what output files there will be and we can
-    # rely on sphinx to update only stale outputs
     add_custom_command(
-      OUTPUT "${doc}/dirhtml/${html}/index.html"
-      DEPENDS "${staged}" "${doc}/stage/conf.py" "${doc}/venv/pip.report.json" ${all_apidoc}
+      OUTPUT "${staged}.conf.py"
+      DEPENDS "${file}"
       WORKING_DIRECTORY "${doc}"
-      COMMAND "${SPHINX_BUILD}" --builder dirhtml
-        stage
-        dirhtml
-        "${staged}"
-        > dirhtml.log
-      COMMAND_EXPAND_LISTS
-      COMMENT "Building ${doc}/dirhtml/${html}/index.html"
+      COMMAND
+        "${CMAKE_COMMAND}"
+        "-DRST_FILE=${file}"
+        "-DCONF_FILE=${staged}.conf.py"
+        -P "${MAUD_DIR}/eval.cmake"
+        -- "_maud_sphinx_conf()"
+      VERBATIM
+      COMMENT "Extracting inline configuration from ${file} to ${staged}.conf.py"
     )
-    list(APPEND all_built "${doc}/dirhtml/${html}/index.html")
+    list(APPEND all_staged "${staged}.conf.py")
   endforeach()
 
-  add_custom_command(
-    # TODO break up this monolithic task; we should have one per .rst
-    OUTPUT "${doc}/stage/conf.py"
-    DEPENDS ${all_staged} "${_MAUD_SELF_DIR}/sphinx_conf.py"
-    WORKING_DIRECTORY "${MAUD_DIR}"
-    COMMAND ${MAUD_EVAL} "_maud_sphinx_conf()"
-    VERBATIM
-    COMMAND_EXPAND_LISTS
-    COMMENT "Extracting inline configuration"
-  )
+  # TODO assert there are no dupes in all_staged = collision between source/generated
 
-  add_custom_target(documentation ALL DEPENDS ${all_built})
+  add_custom_command(
+    OUTPUT "${doc}/stage/conf.py"
+    DEPENDS "${_MAUD_SELF_DIR}/sphinx_conf.py"
+    COMMAND "${CMAKE_COMMAND}" -E copy "${_MAUD_SELF_DIR}/sphinx_conf.py" "${doc}/stage/conf.py"
+    COMMENT "Staging conf prelude"
+  )
+  set(all_build_logs)
+  foreach(builder ${SPHINX_BUILDERS})
+    add_custom_command(
+      OUTPUT "${doc}/${builder}.log"
+      DEPENDS
+        "${doc}/venv/pip.report.json"
+        ${all_staged}
+        ${all_apidoc}
+        "${doc}/stage/conf.py"
+      WORKING_DIRECTORY "${doc}"
+      COMMAND
+        "${SPHINX_BUILD}" --builder ${builder}
+        stage
+        ${builder}
+        > ${builder}.log
+      COMMAND_EXPAND_LISTS
+      COMMENT "Building ${builder} with sphinx"
+    )
+    list(APPEND all_build_logs "${doc}/${builder}.log")
+  endforeach()
+
+  add_custom_target(documentation ALL DEPENDS ${all_build_logs})
 endfunction()
 
 
@@ -1186,41 +1220,35 @@ endfunction()
 
 
 function(_maud_sphinx_conf)
-  set(doc "${MAUD_DIR}/doc")
+  file(READ "${RST_FILE}" content)
+
+  string(CONCAT pattern "^(.*\n)" [[\.\. configuration::]] "\n+( +)(.*)$")
+
   set(conf "")
-  foreach(file ${_MAUD_RST})
-    file(READ "${file}" content)
-    string(CONCAT pattern "^(.*\n)" [[\.\. configuration::]] "\n+( +)(.*)$")
-    while(content MATCHES "${pattern}")
-      set(content "${CMAKE_MATCH_1}")
-      set(indent "${CMAKE_MATCH_2}")
-      set(directive "${CMAKE_MATCH_3}")
 
-      if(directive MATCHES "^[^\n]*(\n${indent}[^\n]*)+")
-        set(directive "${CMAKE_MATCH_0}")
-      endif()
-      string(REGEX REPLACE "\n${indent}" "\n" directive "${directive}")
+  while(content MATCHES "${pattern}")
+    set(content "${CMAKE_MATCH_1}")
+    set(indent "${CMAKE_MATCH_2}")
+    set(directive "${CMAKE_MATCH_3}")
 
-      set(line_num 1)
-      _maud_line_count("${content}" line_inc)
-      math_assign(line_num + ${line_inc})
-      string(PREPEND directive "\n# BEGIN ${file}:${line_num}\n")
+    if(directive MATCHES "^[^\n]*(\n${indent}[^\n]*)+")
+      set(directive "${CMAKE_MATCH_0}")
+    endif()
+    string(REGEX REPLACE "\n${indent}" "\n" directive "${directive}")
 
-      _maud_line_count("${directive}" line_inc)
-      math_assign(line_num + ${line_inc})
-      string(APPEND directive "\n# END ${file}:${line_num}\n")
+    set(line_num 1)
+    _maud_line_count("${content}" line_inc)
+    math_assign(line_num + ${line_inc})
+    string(PREPEND directive "\n# BEGIN ${RST_FILE}:${line_num}\n")
 
-      string(PREPEND conf "${directive}\n")
-    endwhile()
-  endforeach()
+    _maud_line_count("${directive}" line_inc)
+    math_assign(line_num + ${line_inc})
+    string(APPEND directive "\n# END ${RST_FILE}:${line_num}\n")
 
-  file(READ "${_MAUD_SELF_DIR}/sphinx_conf.py" conf_prelude)
-  file(
-    WRITE "${doc}/stage/conf.py"
-    "project = \"${CMAKE_PROJECT_NAME}\"\n"
-    "${conf_prelude}\n"
-    "${conf}\n"
-  )
+    string(PREPEND conf "${directive}\n")
+  endwhile()
+
+  file(WRITE "${CONF_FILE}" "${conf}\n")
 endfunction()
 
 
@@ -1768,7 +1796,7 @@ endfunction()
 
 
 ################################################################################
-# in2 helpers and pipeline filters 
+# in2 helpers and pipeline filters
 ################################################################################
 
 # render directly to file
