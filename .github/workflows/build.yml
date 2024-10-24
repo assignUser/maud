@@ -71,5 +71,5 @@ jobs:
       with:
         command: >
           ctest --build-config Debug \
-                --test-dir {{ steps.strings.outputs.build-output-dir }} \
+                --test-dir ${{ steps.strings.outputs.build-output-dir }} \
                 --output-on-failure
