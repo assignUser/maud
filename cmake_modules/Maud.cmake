@@ -1140,7 +1140,7 @@ function(_maud_setup_doc)
         "${_MAUD_SELF_DIR}/maud_apidoc.py"
         --source="${file}"
         --output="${apidoc}"
-      COMMENT "Scanning ${file} $<$<BOOL:${is_gen}>: (generated)> for apidoc to ${apidoc}"
+      COMMENT "Scanning ${file}$<$<BOOL:${is_gen}>: (generated)> for apidoc to ${apidoc}"
     )
     list(APPEND all_apidoc "${apidoc}")
   endforeach()
