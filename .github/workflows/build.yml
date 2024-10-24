@@ -39,11 +39,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - uses: seanmiddleditch/gha-setup-ninja@v5
-
-    - uses: KyleMayes/install-llvm-action@v2
-      with:
-        version: 18
+    - uses: flox/install-flox-action@v2
 
     - name: Set reusable strings
       # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
@@ -53,17 +49,24 @@ jobs:
         echo "build-output-dir=${{ github.workspace }}/.build" >> "$GITHUB_OUTPUT"
 
     - name: Run Maud
-      working-directory: ${{ github.workspace }}
-      run: >
-        cmake -P cmake_modules/maud_cli.cmake --
-        --log-level=VERBOSE
-        -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
-        -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
-        --generate-only
+      uses: flox/activate-action@v1
+      with:
+        command: >
+          cmake -P cmake_modules/maud_cli.cmake --
+          --log-level=VERBOSE
+          -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
+          -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
+          --generate-only
 
     - name: Build
-      run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config Debug
+      uses: flox/activate-action@v1
+      with:
+        command: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config Debug
 
     - name: Test
-      working-directory: ${{ steps.strings.outputs.build-output-dir }}
-      run: ctest --build-config Debug
+      uses: flox/activate-action@v1
+      with:
+        command: >
+          ctest --build-config Debug
+                --test-dir {{ steps.strings.outputs.build-output-dir }}
+                --output-on-failure
