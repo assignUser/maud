@@ -413,6 +413,8 @@ export using testing::Conditional;
 ///     .describe = [](auto &os) { os << "is not NULL"; },
 ///     .describe_negation = [](auto &os) { os << "is NULL"; },
 ///   };
+///
+/// Matchers can then be used with :c:macro:`EXPECT_` using ``operator>>=``.
 export template <typename Match, typename Describe, typename DescribeNegation>
 struct Matcher {
   Match match;

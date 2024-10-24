@@ -266,6 +266,7 @@ endfunction()
 
 function(_maud_setup_clang_format)
   set(config "")
+  # FIXME support clang-format files anywhere
   if(EXISTS "${CMAKE_SOURCE_DIR}/.clang-format")
     file(READ "${CMAKE_SOURCE_DIR}/.clang-format" config)
     list(APPEND CMAKE_CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/.clang-format")
@@ -1058,7 +1059,7 @@ endfunction()
 
 
 function(_maud_setup_doc)
-  find_package(Python3 3.12)
+  find_package(Python3)
 
   if(NOT TARGET Python3::Interpreter)
     # TODO instead, error here (but include instructions to disable doc)
@@ -1078,8 +1079,7 @@ function(_maud_setup_doc)
     return()
   endif()
 
-  # TODO move this out of ${MAUD_DIR}; should be ${CMAKE_BINARY_DIR}/documentation
-  set(doc "${MAUD_DIR}/doc")
+  set(doc "${CMAKE_BINARY_DIR}/documentation")
 
   file(REMOVE_RECURSE "${doc}")
   file(MAKE_DIRECTORY "${doc}/stage")
@@ -1188,8 +1188,31 @@ function(_maud_setup_doc)
     COMMAND "${CMAKE_COMMAND}" -E copy "${_MAUD_SELF_DIR}/sphinx_conf.py" "${doc}/stage/conf.py"
     COMMENT "Staging conf prelude"
   )
+
+  add_custom_target(documentation ALL)
+
   set(all_build_logs)
-  foreach(builder ${SPHINX_BUILDERS})
+  foreach(
+    builder
+
+    html
+    dirhtml
+    singlehtml
+    htmlhelp
+    qthelp
+    devhelp
+    epub
+    applehelp
+    latex
+    man
+    texinfo
+    text
+    gettext
+    doctest
+    linkcheck
+    xml
+    pseudoxml
+  )
     add_custom_command(
       OUTPUT "${doc}/${builder}.log"
       DEPENDS
@@ -1206,10 +1229,12 @@ function(_maud_setup_doc)
       COMMAND_EXPAND_LISTS
       COMMENT "Building ${builder} with sphinx"
     )
-    list(APPEND all_build_logs "${doc}/${builder}.log")
-  endforeach()
+    add_custom_target(documentation.${builder} DEPENDS "${doc}/${builder}.log")
 
-  add_custom_target(documentation ALL DEPENDS ${all_build_logs})
+    if("${builder}" IN_LIST SPHINX_BUILDERS)
+      add_dependencies(documentation documentation.${builder})
+    endif()
+  endforeach()
 endfunction()
 
 

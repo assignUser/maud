@@ -697,8 +697,9 @@ validate string option with explicit code block:
 
 documentation:
 - write: index.rst
+  # FIXME apidoc doesn't support :members: yet
   contents: |
-    .. doxygenstruct:: Foo
+    .. apidoc:: Foo
       :members:
 - write: s.cxx
   contents: |
