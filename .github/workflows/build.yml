@@ -70,6 +70,6 @@ jobs:
       uses: flox/activate-action@v1
       with:
         command: >
-          ctest --build-config Debug
-                --test-dir {{ steps.strings.outputs.build-output-dir }}
+          ctest --build-config Debug \
+                --test-dir {{ steps.strings.outputs.build-output-dir }} \
                 --output-on-failure
