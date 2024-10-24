@@ -546,13 +546,13 @@ function(_maud_add_test source_file partition out_target_name)
     FILE_SET module_providers
     TYPE CXX_MODULES
     ${_MAUD_BASE_DIRS}
-    FILES "${_MAUD_SELF_DIR}/_test_.cxx"
+    FILES "${_MAUD_SELF_DIR}/test_.cxx"
   )
   set_target_properties(
     test_.${name}
     PROPERTIES
-    MAUD_INTERFACE "${_MAUD_SELF_DIR}/_test_.cxx"
-    COMPILE_OPTIONS "${_MAUD_INCLUDE} ${_MAUD_SELF_DIR}/_test_.hxx"
+    MAUD_INTERFACE "${_MAUD_SELF_DIR}/test_.cxx"
+    COMPILE_OPTIONS "${_MAUD_INCLUDE} ${_MAUD_SELF_DIR}/test_.hxx"
   )
 endfunction()
 
@@ -637,7 +637,7 @@ function(_maud_finalize_targets)
     get_target_property(interface ${target} MAUD_INTERFACE)
     if(NOT interface)
       if(target_type STREQUAL "EXECUTABLE")
-        set(interface "${_MAUD_SELF_DIR}/_executable.cxx")
+        set(interface "${_MAUD_SELF_DIR}/executable.cxx")
         set(source_access PRIVATE)
       else()
         get_target_property(src ${target} MAUD_INTERFACE_PARTITIONS)
@@ -671,7 +671,7 @@ function(_maud_finalize_targets)
       if(_MAUD_TEST_MAIN)
         set(test_main "${_MAUD_TEST_MAIN}")
       else()
-        set(test_main "${_MAUD_SELF_DIR}/_test_main_.cxx")
+        set(test_main "${_MAUD_SELF_DIR}/test_main_.cxx")
       endif()
       target_sources(
         ${target}
@@ -929,9 +929,9 @@ function(_maud_setup)
   endif()
 
   set_source_files_properties(
-    "${_MAUD_SELF_DIR}/_executable.cxx"
-    "${_MAUD_SELF_DIR}/_test_.cxx"
-    "${_MAUD_SELF_DIR}/_test_main_.cxx"
+    "${_MAUD_SELF_DIR}/executable.cxx"
+    "${_MAUD_SELF_DIR}/test_.cxx"
+    "${_MAUD_SELF_DIR}/test_main_.cxx"
     PROPERTIES
     MAUD_TYPE INTERFACE
   )
@@ -966,6 +966,7 @@ function(_maud_setup)
   )
 
   option(
+    # TODO document this option
     MAUD_CXX_SOURCE_EXCLUSION_PATTERN
     STRING "If provided, files matching this pattern will not be scanned as C++ modules."
     MARK_AS_ADVANCED
@@ -1159,7 +1160,7 @@ function(_maud_setup_doc)
       OUTPUT "${staged}"
       DEPENDS "${file}"
       COMMAND "${CMAKE_COMMAND}" -E copy "${file}" "${staged}"
-      COMMENT "Staging ${file}$<$<BOOL:${is_gen}>:(generated)> to ${staged}"
+      COMMENT "Staging${file}$<$<BOOL:${is_gen}>: (generated)> to ${staged}"
     )
     list(APPEND all_staged "${staged}")
 

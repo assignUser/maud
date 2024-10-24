@@ -24,7 +24,7 @@ try_compile(
   SOURCES
     "${MAUD_DIR}/maud_.cxx"
     "${dir}/filesystem.cxx"
-    "${dir}/cmake_modules/_executable.cxx"
+    "${dir}/cmake_modules/executable.cxx"
   COPY_FILE "${_MAUD_INJECT_REGENERATE}"
   OUTPUT_VARIABLE errors
   CXX_STANDARD 20

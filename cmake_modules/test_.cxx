@@ -1,5 +1,5 @@
 // leave this in cmake_modules/; it makes bootstrapping easier
-// since Maud.cmake assumes that _test_.* are next to it.
+// since Maud.cmake assumes that test_* are next to it.
 module;
 #include <gmock/gmock-matchers.h>
 #include <gtest/gtest.h>
