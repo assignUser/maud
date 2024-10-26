@@ -2,7 +2,7 @@ Unit tests
 ----------
 
 While scanning modules, ``Maud`` will detect and
-:cmake:`add unit tests <command/add_test.html>`.
+:cmake:`register <command/add_test.html>` C++ unit tests.
 (This can be disabled by setting ``BUILD_TESTING = OFF``.)
 Unit testing is based on :gtest:`GTest </>`, and many basic
 concepts like suites of test cases are inherited whole.
@@ -103,14 +103,6 @@ If defined, each source file which declares ``module test_``
 or a partition of it will be passed to this function and
 added to the target it names. (See project test
 ``custom unit testing`` for an example.)
-
-.. configuration::
-
-    # FIXME what if index.rst's configuration doesn't go first?
-    extlinks = {
-        **(extlinks if 'extlinks' in globals() else {}),
-        "gtest": ("https://google.github.io/googletest/%s", None)
-    }
 
 
 Formatting test

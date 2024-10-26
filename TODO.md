@@ -168,41 +168,6 @@ could be adoted, or you could write the module block verbatim inside
 an `#if false`- maud_scan would read it even if nothing else did.
 
 
-TODO: get python review for sphinx hackery
-------------------------------------------
-
-On the one hand, I greatly prefer the idea of inline conf.py (see below).
-On the other hand, this might be unforgivably weird to existing users of
-sphinx. I need a more expert opinion.
-
-##### opinions
-
-To me, any file which is *intended* to be singular across a project is
-highly suspect. This implies that it's automatically part of the
-"bare minimum starter boilerplate" which I'm trying to minimize here.
-It also implies nonlocality; whatever is in that file might only be
-relevant to something far away. In the example of sphinx, conf.py
-frequently contains blocks which are only relevant to
-`some/nested/dir/index.rst`. Then often as not we "tidy" up conf.py by
-adding comments like `# (used in some/nested/dir/)`.
-
-On the other hand, conf.py is absolutely singular (discounting
-extensions etc). Hiding that's dangerous even if FUD would be the only cost,
-but it *could* also suggest to someone that (as with .clang-format) different
-subdirectories can have different configs which is manifestly not correct, or
-that the working directory for the fragment is the directory containing the
-fragment (probably not). Also, of potentially equal smelliness is the standard
-prelude which is implied by fragmenting conf.py 
-
-Would it be better to have fragments which weren't embedded in rst files?
-`**/sphinx.conf.py`?
-
-Would it be better to pass them all through `.in2` so that sphinx config
-values can be drawn from CMake state? That would at least make it more
-easily *optional*, with pretty easy extension and opt-out from the default
-prelude.
-
-
 TODO: consolidate tests
 -----------------------
 

@@ -701,6 +701,8 @@ documentation:
   contents: |
     .. apidoc:: Foo
       :members:
+- write: sphinx_configuration/conf.py
+  contents: ""
 - write: s.cxx
   contents: |
     export module foo;

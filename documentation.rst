@@ -24,6 +24,11 @@ Which builders are used can be controlled via ``option(SPHINX_BUILDERS)``,
 which defaults to building just ``dirhtml``. To disable building
 documentation, set this to an empty string.
 
+Sphinx configuration (minimally, your ``conf.py``) should be put in a directory
+named ``sphinx_configuration/`` anywhere in your project.
+
+.. TODO talk about import maud, requirements.txt, venv, ...
+
 
 API doc
 =======
@@ -53,19 +58,6 @@ they can be as expressive as the rest of your documentation. Of particular
 note for those who have used other apidoc systems: cross references from
 ``///`` comments to labels defined in .rst will just work.
 
-
-Configuration
-=============
-
-Sphinx is usually configured with a single ``conf.py`` script.
-Maud provides a directive to specify configuration inline from ``.rst``
-files:
-
-.. code-block:: rst
-
-  .. configuration::
-
-    html_theme = 'furo'
 
 ``.in2`` Templates
 ~~~~~~~~~~~~~~~~~~

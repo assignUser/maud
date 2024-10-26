@@ -1,0 +1,11 @@
+from pathlib import Path
+
+STAGE_DIR = Path("@doc@/stage")
+CONF_DIR = Path("@conf_dir@")
+APIDOC_DIR = Path("@doc@/apidoc")
+CMAKE_SOURCE_DIR = Path("@CMAKE_SOURCE_DIR@")
+project = "@PROJECT_NAME@"
+
+
+def setup(app):
+    print("set up maud extension")

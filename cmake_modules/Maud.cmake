@@ -1079,11 +1079,45 @@ function(_maud_setup_doc)
     return()
   endif()
 
+  # TODO document that conf can't be generated
+  glob(
+    _MAUD_SPHINX_CONF
+    CONFIGURE_DEPENDS
+    EXCLUDE_RENDERED
+    "(^|/)sphinx_configuration/conf.py$"
+  )
+  if(_MAUD_SPHINX_CONF MATCHES "^(.*;.*|)$")
+    # TODO if no conf.py is found, dump a decent default into the source tree
+    message(FATAL_ERROR "Sphinx requires exactly one conf.py file but found '${_MAUD_SPHINX_CONF}'")
+    return()
+  endif()
+  cmake_path(GET _MAUD_SPHINX_CONF PARENT_PATH conf_dir)
+
   set(doc "${CMAKE_BINARY_DIR}/documentation")
 
   file(REMOVE_RECURSE "${doc}")
   file(MAKE_DIRECTORY "${doc}/stage")
+  # TODO verify that this link is sufficient to literalinclude and document it
   file(CREATE_LINK "${CMAKE_SOURCE_DIR}" "${doc}/stage/CMAKE_SOURCE_DIR" SYMBOLIC)
+
+  file(
+    WRITE "${MAUD_DIR}/maud_sphinx_helper/pyproject.toml"
+    [[
+      [build-system]
+      requires = ["setuptools"]
+      build-backend = "setuptools.build_meta"
+      [project]
+      name = "maud"
+      version = "0.0.1"
+      dependencies = []
+    ]]
+  )
+  configure_file(
+    "${_MAUD_SELF_DIR}/maud_sphinx_helper.py.in"
+    "${MAUD_DIR}/maud_sphinx_helper/maud/__init__.py"
+    NO_SOURCE_PERMISSIONS
+    @ONLY
+  )
 
   add_custom_command(
     OUTPUT "${doc}/venv/pip.report.json"
@@ -1092,6 +1126,7 @@ function(_maud_setup_doc)
       Python3::Interpreter -m venv --clear "${doc}/venv"
     COMMAND
       "${doc}/venv/bin/pip" install
+      "${MAUD_DIR}/maud_sphinx_helper"
       --requirement "${_MAUD_SELF_DIR}/sphinx_requirements.txt"
       --isolated
       --require-virtualenv
@@ -1101,7 +1136,6 @@ function(_maud_setup_doc)
       --quiet
       --log "${doc}/venv/pip.log"
       --report "${doc}/venv/pip.report.json"
-    # TODO pip install --editable apidoc module
     COMMENT "Building virtual env ${doc}/venv for Sphinx"
   )
   set(SPHINX_BUILD "${doc}/venv/bin/sphinx-build")
@@ -1163,31 +1197,9 @@ function(_maud_setup_doc)
       COMMENT "Staging${file}$<$<BOOL:${is_gen}>: (generated)> to ${staged}"
     )
     list(APPEND all_staged "${staged}")
-
-    add_custom_command(
-      OUTPUT "${staged}.conf.py"
-      DEPENDS "${file}"
-      WORKING_DIRECTORY "${doc}"
-      COMMAND
-        "${CMAKE_COMMAND}"
-        "-DRST_FILE=${file}"
-        "-DCONF_FILE=${staged}.conf.py"
-        -P "${MAUD_DIR}/eval.cmake"
-        -- "_maud_sphinx_conf()"
-      VERBATIM
-      COMMENT "Extracting inline configuration from ${file} to ${staged}.conf.py"
-    )
-    list(APPEND all_staged "${staged}.conf.py")
   endforeach()
 
   # TODO assert there are no dupes in all_staged = collision between source/generated
-
-  add_custom_command(
-    OUTPUT "${doc}/stage/conf.py"
-    DEPENDS "${_MAUD_SELF_DIR}/sphinx_conf.py"
-    COMMAND "${CMAKE_COMMAND}" -E copy "${_MAUD_SELF_DIR}/sphinx_conf.py" "${doc}/stage/conf.py"
-    COMMENT "Staging conf prelude"
-  )
 
   add_custom_target(documentation ALL)
 
@@ -1219,10 +1231,18 @@ function(_maud_setup_doc)
         "${doc}/venv/pip.report.json"
         ${all_staged}
         ${all_apidoc}
-        "${doc}/stage/conf.py"
+        # FIXME sphinx doesn't check the mtime of conf.py; it will only rebuild
+        # if the pickled configuration has changed. That's not great for
+        # interactive development; it'd be better if modifying conf.py
+        # invalidated the whole doc build. Maybe add a config value which is
+        # the mtime of conf.py? Or better, have the command use --write-all --fresh-env
+        # if any configuration file has changed
+        "${conf_dir}/conf.py"
       WORKING_DIRECTORY "${doc}"
       COMMAND
-        "${SPHINX_BUILD}" --builder ${builder}
+        "${SPHINX_BUILD}"
+        --builder ${builder}
+        --conf-dir "${conf_dir}"
         stage
         ${builder}
         > ${builder}.log
@@ -1242,39 +1262,6 @@ function(_maud_line_count string out_var)
   string(REGEX REPLACE "[^\n]*\n" "\n" count "${string}")
   string(LENGTH "${count}" count)
   set(${out_var} ${count} PARENT_SCOPE)
-endfunction()
-
-
-function(_maud_sphinx_conf)
-  file(READ "${RST_FILE}" content)
-
-  string(CONCAT pattern "^(.*\n)" [[\.\. configuration::]] "\n+( +)(.*)$")
-
-  set(conf "")
-
-  while(content MATCHES "${pattern}")
-    set(content "${CMAKE_MATCH_1}")
-    set(indent "${CMAKE_MATCH_2}")
-    set(directive "${CMAKE_MATCH_3}")
-
-    if(directive MATCHES "^[^\n]*(\n${indent}[^\n]*)+")
-      set(directive "${CMAKE_MATCH_0}")
-    endif()
-    string(REGEX REPLACE "\n${indent}" "\n" directive "${directive}")
-
-    set(line_num 1)
-    _maud_line_count("${content}" line_inc)
-    math_assign(line_num + ${line_inc})
-    string(PREPEND directive "\n# BEGIN ${RST_FILE}:${line_num}\n")
-
-    _maud_line_count("${directive}" line_inc)
-    math_assign(line_num + ${line_inc})
-    string(APPEND directive "\n# END ${RST_FILE}:${line_num}\n")
-
-    string(PREPEND conf "${directive}\n")
-  endwhile()
-
-  file(WRITE "${CONF_FILE}" "${conf}\n")
 endfunction()
 
 
