@@ -8,6 +8,9 @@ on:
   pull_request:
     branches: [ "trunk" ]
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
@@ -67,3 +70,24 @@ jobs:
           ctest --build-config Debug \
                 --test-dir ${{ env.build_output_dir }} \
                 --output-on-failure
+
+    - name: Upload doc files
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: ${{ env.build_output_dir }}/documentation/dirhtml
+
+  deploy:
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
