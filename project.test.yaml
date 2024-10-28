@@ -1,3 +1,7 @@
+empty:
+# With no files at all, maud will still configure a viable build
+- maud --log-level=VERBOSE
+
 auto add sources:
 - write: foo.cxx
   contents: |
