@@ -249,6 +249,12 @@ function(_maud_cxx_sources)
 
   glob(_MAUD_CXX_SOURCES CONFIGURE_DEPENDS "[.](${ext_regex})$")
 
+  # TODO handle this (and other glob exclusions) with a source property
+  # rather than another glob. Then if a glob is desired, we can write
+  # glob(CXX_EXCLUDED_SOURCES "cmake_modules/.*[.]cxx")
+  # foreach(source ${CXX_EXCLUDED_SOURCES})
+  #   # set the excluded property
+  # endforeach()
   if(MAUD_CXX_SOURCE_EXCLUSION_PATTERN)
     list(
       # This doesn't alter the value in the cache, just the local value
@@ -849,10 +855,10 @@ function(_maud_load_cache build_dir)
     unset(CMAKE_SOURCE_DIR PARENT_SCOPE)
     unset(CMAKE_BINARY_DIR PARENT_SCOPE)
     file(READ "${build_dir}/CMakeCache.txt" cache)
-    string(CONCAT pattern "^(.*\n)" [[([^#/].*):.+=]] "([^\n]*)" "\n(.*)$")
+    string(CONCAT pattern "^(.*\n)" [[([^#/].*):(.+)=]] "([^\n]*)" "\n(.*)$")
     while(cache MATCHES "${pattern}")
       set(cache "${CMAKE_MATCH_1}")
-      _maud_set(${CMAKE_MATCH_2} "${CMAKE_MATCH_3}")
+      set(${CMAKE_MATCH_2} "${CMAKE_MATCH_4}" CACHE ${CMAKE_MATCH_3} "" FORCE)
     endwhile()
   endif()
 
@@ -892,12 +898,14 @@ endfunction()
 function(_maud_setup)
   _maud_set(CMAKE_SOURCE_DIR "${CMAKE_SOURCE_DIR}")
   _maud_set(CMAKE_BINARY_DIR "${CMAKE_BINARY_DIR}")
+  _maud_set(PROJECT_NAME "${PROJECT_NAME}")
   _maud_set(MAUD_DIR "${CMAKE_BINARY_DIR}/_maud")
 
   _maud_set(_MAUD_INCLUDE "SHELL: $<IF:$<CXX_COMPILER_ID:MSVC>,/Fi,-include>")
   _maud_set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
   _maud_load_cache(CONFIGURING)
+  unset(_MAUD_ALL_OPTIONS CACHE)
   unset(_MAUD_ALL_OPTIONS_RESOLVED CACHE)
 
   if(NOT DEFINED _MAUD_ALL)
@@ -967,7 +975,6 @@ function(_maud_setup)
   )
 
   option(
-    # TODO document this option
     MAUD_CXX_SOURCE_EXCLUSION_PATTERN
     STRING "If provided, files matching this pattern will not be scanned as C++ modules."
     MARK_AS_ADVANCED
@@ -1036,25 +1043,39 @@ endfunction()
 
 
 function(_maud_in2)
-  glob(_MAUD_IN2 CONFIGURE_DEPENDS EXCLUDE_RENDERED "[.]in2$")
-  foreach(template ${_MAUD_IN2})
+  if("${_MAUD_IN2}" STREQUAL "")
+    find_program(_MAUD_IN2 maud_in2 REQUIRED)
+  endif()
+
+  glob(_MAUD_IN2_TEMPLATES CONFIGURE_DEPENDS EXCLUDE_RENDERED "[.]in2$")
+  foreach(template ${_MAUD_IN2_TEMPLATES})
     cmake_path(GET template PARENT_PATH dir)
-    cmake_path(GET template STEM LAST_ONLY RENDER_FILE)
-
-    set(compiled "${MAUD_DIR}/compiled_templates/${RENDER_FILE}.in2.cmake")
-    file(WRITE "${compiled}" "")
-
-    execute_process(
-      COMMAND maud_in2
-      INPUT_FILE "${template}"
-      OUTPUT_FILE "${compiled}"
-      COMMAND_ERROR_IS_FATAL ANY
+    cmake_path(GET template STEM LAST_ONLY stem)
+    cmake_path(
+      RELATIVE_PATH dir
+      BASE_DIRECTORY "${CMAKE_SOURCE_DIR}"
+      OUTPUT_VARIABLE relative_dir
     )
 
-    set(RENDER_FILE "${MAUD_DIR}/rendered/${RENDER_FILE}")
-    file(WRITE "${RENDER_FILE}" "")
-    include("${compiled}")
+    set(compiled "${MAUD_DIR}/compiled_templates/${relative_dir}/${stem}.in2.cmake")
+    set(RENDER_FILE "${MAUD_DIR}/rendered/${relative_dir}/${stem}")
+    _maud_render_in2()
   endforeach()
+endfunction()
+
+
+function(_maud_render_in2)
+  file(WRITE "${compiled}" "")
+  file(WRITE "${RENDER_FILE}" "")
+
+  execute_process(
+    COMMAND "${_MAUD_IN2}"
+    INPUT_FILE "${template}"
+    OUTPUT_FILE "${compiled}"
+    COMMAND_ERROR_IS_FATAL ANY
+  )
+
+  include("${compiled}")
 endfunction()
 
 
@@ -1101,7 +1122,7 @@ function(_maud_setup_doc)
   file(CREATE_LINK "${CMAKE_SOURCE_DIR}" "${doc}/stage/CMAKE_SOURCE_DIR" SYMBOLIC)
 
   file(
-    WRITE "${MAUD_DIR}/maud_sphinx_helper/pyproject.toml"
+    WRITE "${MAUD_DIR}/maud_sphinx_cmake_adapter/pyproject.toml"
     [[
       [build-system]
       requires = ["setuptools"]
@@ -1112,21 +1133,31 @@ function(_maud_setup_doc)
       dependencies = []
     ]]
   )
-  configure_file(
-    "${_MAUD_SELF_DIR}/maud_sphinx_helper.py.in"
-    "${MAUD_DIR}/maud_sphinx_helper/maud/__init__.py"
-    NO_SOURCE_PERMISSIONS
-    @ONLY
+
+  add_custom_command(
+    OUTPUT "${MAUD_DIR}/maud_sphinx_cmake_adapter/maud/__init__.py"
+    DEPENDS "${_MAUD_SELF_DIR}/.maud_sphinx_cmake_adapter.py.in2" "${_MAUD_IN2}"
+    COMMAND
+      "${CMAKE_COMMAND}"
+      -DRENDER_FILE="${MAUD_DIR}/maud_sphinx_cmake_adapter/maud/__init__.py"
+      -Dcompiled="${MAUD_DIR}/maud_sphinx_cmake_adapter/maud/__init__.py.in2.cmake"
+      -Dtemplate="${_MAUD_SELF_DIR}/.maud_sphinx_cmake_adapter.py.in2"
+      -P "${MAUD_DIR}/eval.cmake"
+      --
+      [["_maud_render_in2()"]]
+    COMMENT "Extracting cmake state for sphinx access"
   )
 
   add_custom_command(
     OUTPUT "${doc}/venv/pip.report.json"
-    DEPENDS "${_MAUD_SELF_DIR}/sphinx_requirements.txt"
+    DEPENDS
+      "${_MAUD_SELF_DIR}/sphinx_requirements.txt"
+      "${MAUD_DIR}/maud_sphinx_cmake_adapter/maud/__init__.py"
     COMMAND
       Python3::Interpreter -m venv --clear "${doc}/venv"
     COMMAND
       "${doc}/venv/bin/pip" install
-      "${MAUD_DIR}/maud_sphinx_helper"
+      "${MAUD_DIR}/maud_sphinx_cmake_adapter"
       --requirement "${_MAUD_SELF_DIR}/sphinx_requirements.txt"
       --isolated
       --require-virtualenv
@@ -1207,23 +1238,13 @@ function(_maud_setup_doc)
   foreach(
     builder
 
-    html
-    dirhtml
-    singlehtml
-    htmlhelp
-    qthelp
-    devhelp
-    epub
-    applehelp
-    latex
+    html dirhtml singlehtml
+    htmlhelp qthelp devhelp applehelp
+    epub latex texinfo
     man
-    texinfo
-    text
-    gettext
-    doctest
-    linkcheck
-    xml
-    pseudoxml
+    text gettext
+    doctest linkcheck
+    xml pseudoxml
   )
     add_custom_command(
       OUTPUT "${doc}/${builder}.log"
@@ -1231,12 +1252,8 @@ function(_maud_setup_doc)
         "${doc}/venv/pip.report.json"
         ${all_staged}
         ${all_apidoc}
-        # FIXME sphinx doesn't check the mtime of conf.py; it will only rebuild
-        # if the pickled configuration has changed. That's not great for
-        # interactive development; it'd be better if modifying conf.py
-        # invalidated the whole doc build. Maybe add a config value which is
-        # the mtime of conf.py? Or better, have the command use --write-all --fresh-env
-        # if any configuration file has changed
+        # FIXME note all of these with Sphinx.env.note_dependency()
+        # if they aren't already noted.
         "${conf_dir}/conf.py"
       WORKING_DIRECTORY "${doc}"
       COMMAND
@@ -1804,7 +1821,6 @@ function(_maud_options_summary)
       unset(_MAUD_${prefix}_${name} CACHE)
     endforeach()
   endforeach()
-  unset(_MAUD_ALL_OPTIONS CACHE)
 endfunction()
 
 

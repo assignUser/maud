@@ -34,3 +34,23 @@ try_compile(
 if(NOT success)
   message(FATAL_ERROR "try_compile failed: ${errors}")
 endif()
+
+
+# When documenting Maud itself, we need to render the sphinx
+# extension template with maud_in2. However we can only get
+# the name of the target file with a generator expression,
+# but that's enough to copy it to a known location.
+set(
+  _MAUD_IN2
+  "${MAUD_DIR}/maud_in2"
+  CACHE INTERNAL
+  "copied maud_in2 for bootstrapping Maud"
+)
+add_custom_command(
+  OUTPUT "${_MAUD_IN2}"
+  DEPENDS maud_in2
+  COMMAND
+    "${CMAKE_COMMAND}" -E create_hardlink
+    $<TARGET_FILE:maud_in2>
+    "${_MAUD_IN2}"
+)

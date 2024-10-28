@@ -25,7 +25,24 @@ which defaults to building just ``dirhtml``. To disable building
 documentation, set this to an empty string.
 
 Sphinx configuration (minimally, your ``conf.py``) should be put in a directory
-named ``sphinx_configuration/`` anywhere in your project.
+named ``sphinx_configuration/`` anywhere in your project. In a Maud project,
+``conf.py`` has access to all :ref:`options` defined in cmake. For example,
+``option(ENABLE_DIAGRAMS)`` might be used in ``conf.py``:
+
+.. code-block:: python
+
+   import maud
+   if maud.ENABLE_DIAGRAMS:
+       # set up sphinx extension for diagrams
+
+... or ``option(DOCUMENT_EXPERIMENTAL)`` might be used with
+`ifconfig <https://www.sphinx-doc.org/en/master/extensions/ifconfig.html>`_:
+
+.. code-block:: rst
+
+  .. ifconfig:: maud.DOCUMENT_EXPERIMENTAL
+
+    .. experimental features doc
 
 .. TODO talk about import maud, requirements.txt, venv, ...
 
@@ -59,16 +76,5 @@ note for those who have used other apidoc systems: cross references from
 ``///`` comments to labels defined in .rst will just work.
 
 
-``.in2`` Templates
-~~~~~~~~~~~~~~~~~~
-
-ReStructuredText files can also be rendered from ``.in2``
-:ref:`templates <in2-templates>`, which allows documentation to have easy
-access to arbitrary cmake state. Let's say documentation of experimental
-features should be controlled by ``option(DOCUMENT_EXPERIMENTAL)``:
-
-.. code-block:: rst
-
-  .. ifconfig:: @DOCUMENT_EXPERIMENTAL | if_else(True False)@
-
-    .. experimental features doc
+.. TODO if there's an example of ``.rst.in2`` which isn't completely
+   redundant put that here

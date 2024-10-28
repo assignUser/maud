@@ -1,0 +1,26 @@
+from pathlib import Path
+
+CMAKE_SOURCE_DIR = Path("@CMAKE_SOURCE_DIR@")
+CMAKE_BINARY_DIR = Path("@CMAKE_BINARY_DIR@")
+STAGE_DIR = CMAKE_BINARY_DIR / "documentation/stage"
+APIDOC_DIR = CMAKE_BINARY_DIR / "documentation/apidoc"
+
+project = "@PROJECT_NAME@"
+
+for name, typ, value in [@
+  foreach(name ${_MAUD_ALL_OPTIONS})
+    get_property(typ CACHE ${name} PROPERTY TYPE)
+    string_escape("${${name}}" value)
+    render("\n  ('${name}', '${typ}', \"${value}\"),")
+  endforeach()
+@]:
+  if typ == "BOOL":
+      globals()[name] = (value == "ON")
+  elif "PATH" in typ:
+      globals()[name] = Path(value)
+  else:
+      globals()[name] = value
+
+def setup(app):
+    print("set up maud extension")
+
