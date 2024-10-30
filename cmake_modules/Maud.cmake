@@ -1157,7 +1157,8 @@ function(_maud_setup_doc)
       Python3::Interpreter -m venv --clear "${doc}/venv"
     COMMAND
       "${doc}/venv/bin/pip" install
-      "${MAUD_DIR}/maud_sphinx_cmake_adapter"
+      --editable "${MAUD_DIR}/maud_sphinx_cmake_adapter"
+      --editable "${_MAUD_SELF_DIR}/trike"
       --requirement "${_MAUD_SELF_DIR}/sphinx_requirements.txt"
       --isolated
       --require-virtualenv
@@ -1174,41 +1175,6 @@ function(_maud_setup_doc)
   set(ext_regex "${MAUD_CXX_HEADER_EXTENSIONS}")
   string(REPLACE "+" "[+]" ext_regex "${ext_regex}")
   string(REPLACE " " "|" ext_regex "${ext_regex}")
-
-  glob(_MAUD_HEADERS CONFIGURE_DEPENDS "[.](${ext_regex})$")
-  set(all_apidoc)
-  foreach(
-    file
-    # We scan every source for doc comments, even though it's
-    # impossible for a declaration to be public outside a headers
-    # or interface unit. This allows sphinx access to (for example)
-    # doc comments in an executable's source, which might be used
-    # for literate programming.
-    ${_MAUD_HEADERS}
-    ${_MAUD_CXX_SOURCES}
-  )
-    _maud_relative_path("${file}" apidoc is_gen)
-    if(is_gen)
-      set(apidoc "${doc}/apidoc/rendered/${apidoc}.json")
-    else()
-      set(apidoc "${doc}/apidoc/source/${apidoc}.json")
-    endif()
-
-    add_custom_command(
-      OUTPUT "${apidoc}"
-      DEPENDS
-        "${file}"
-        "${doc}/venv/pip.report.json"
-        "${_MAUD_SELF_DIR}/maud_apidoc.py"
-      COMMAND
-        "${doc}/venv/bin/python3"
-        "${_MAUD_SELF_DIR}/maud_apidoc.py"
-        --source="${file}"
-        --output="${apidoc}"
-      COMMENT "Scanning ${file}$<$<BOOL:${is_gen}>: (generated)> for apidoc to ${apidoc}"
-    )
-    list(APPEND all_apidoc "${apidoc}")
-  endforeach()
 
   set(all_staged)
   foreach(file ${_MAUD_RST})
@@ -1234,6 +1200,13 @@ function(_maud_setup_doc)
 
   add_custom_target(documentation ALL)
 
+  # We run sphinx multithreaded. This can pessimize throughput since ninja
+  # is probably *also* running `nproc` tasks. If this becomes a problem later,
+  # there will need to be an option or some other way to mediate between sphinx
+  # and ninja. In the meantime, ensure that at least sphinx isn't trying to build
+  # manpages and html at the same time.
+  set_property(GLOBAL APPEND PROPERTY JOB_POOLS sphinx_build=1)
+
   set(all_build_logs)
   foreach(
     builder
@@ -1251,7 +1224,6 @@ function(_maud_setup_doc)
       DEPENDS
         "${doc}/venv/pip.report.json"
         ${all_staged}
-        ${all_apidoc}
         # FIXME note all of these with Sphinx.env.note_dependency()
         # if they aren't already noted.
         "${conf_dir}/conf.py"
@@ -1260,9 +1232,12 @@ function(_maud_setup_doc)
         "${SPHINX_BUILD}"
         --builder ${builder}
         --conf-dir "${conf_dir}"
-        stage
-        ${builder}
+        --doctree-dir doctrees
+        --jobs auto
+        stage       # use stage as source directory
+        ${builder}  # provide an independent build directory to each builder
         > ${builder}.log
+      JOB_POOL sphinx_build
       COMMAND_EXPAND_LISTS
       COMMENT "Building ${builder} with sphinx"
     )

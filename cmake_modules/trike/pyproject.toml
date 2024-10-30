@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "trike"
+description = "Simple doc comments for C++"
+version = "0.0.1"
+dependencies = [
+  "libclang",
+  "sphinx >= 8",
+]
+classifiers = [
+  "Framework :: Sphinx :: Extension",
+]

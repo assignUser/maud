@@ -1,4 +1,5 @@
 import sphinx.util.docutils
+import sphinx.util.logging
 import docutils.nodes
 import docutils.statemachine
 import pygments.lexers.c_cpp
@@ -6,9 +7,14 @@ import sphinx.highlighting
 import pathlib
 import json
 
+# TODO instead of trying to provide defaults for config settings,
+# let the maud extension just assert that config doesn't have any errors
+# (like failure to exclude CMAKE_SOURCE_DIR).
 from maud import *
 
-extensions = ['maud']
+logger = sphinx.util.logging.getLogger(__name__)
+
+extensions = ['maud', 'trike']
 templates_path = []
 exclude_patterns = ["CMAKE_SOURCE_DIR", "Thumbs.db", ".DS_Store"]
 html_static_path = []
@@ -66,60 +72,21 @@ extlinks = {
     "sphinx": ("https://www.sphinx-doc.org/en/master/usage/%s", None)
 }
 
-APIDOC = {
-    "diagnostics": {},  # mapping from file to diagnostics
-    "comments": [],  # all comments
-}
-
-for apidoc in APIDOC_DIR.glob("**/*.json"):
-    apidoc = json.load(apidoc.open())
-    f = apidoc["file"]
-    for d in apidoc["comments"]:
-        d["file"] = f
-        APIDOC["comments"].append(d)
-    APIDOC["diagnostics"][f] = apidoc["diagnostics"]
-
-
-class ApiDoc(sphinx.util.docutils.SphinxDirective):
-    has_content = True
-    required_arguments = 1
-    optional_arguments = 1000
-
-    def run(self) -> list[docutils.nodes.Node]:
-        # TODO add a link to the decl on GitHub
-        nodes = []
-        term = " ".join(self.arguments)
-        for d in APIDOC["comments"]:
-            if self.arguments[0] not in d["declaration"]:
-                continue
-
-            text = []
-            # TODO add a .. cpp:namespace:: here if appropriate
-            if d["kind"] == "MACRO_DEFINITION":
-                text.append(f".. c:macro:: {d['declaration']}")
-            elif "STRUCT" in d["kind"]:
-                text.append(f".. cpp:struct:: {d['declaration']}")
-            elif "CLASS" in d["kind"]:
-                # TODO libclang uses CLASS_TEMPLATE for struct
-                # templates, which looks odd.
-                text.append(f".. cpp:class:: {d['declaration']}")
-            else:
-                text.append(f"UNKNOWN decl kind {d['kind']}")
-            blank = [""]
-            for line in (*blank, *self.content, *blank, *d["comment"]):
-                text.append(f"  {line}")
-            text = docutils.statemachine.StringList(text)
-            nodes.extend(self.parse_text_to_nodes(text))
-            break
-
-        else:
-            raise ValueError(f"found no declaration matching {term}")
-        return nodes
+# TODO get trike files from cmake
+trike_files = [
+    *CMAKE_SOURCE_DIR.glob("*.cxx"),
+    *CMAKE_SOURCE_DIR.glob("cmake_modules/*.cxx"),
+    *CMAKE_SOURCE_DIR.glob("cmake_modules/*.hxx"),
+]
+# FIXME with c++20 libclang parses exported decls to UNEXPOSED_DECL
+trike_default_clang_args = ["-std=gnu++20", "-Dexport="]
 
 
 def setup(app):
-    app.add_directive("apidoc", ApiDoc)
-    app.add_config_value("APIDOC", {}, "env")
     sphinx.highlighting.lexers["c++.in2"] = pygments.lexers.c_cpp.CppLexer()
+    # def lexer(*args, **kwargs):
+    #     print(args, kwargs)
+    #     return pygments.lexers.c_cpp.CppLexer(*args, **kwargs)
+    # app.add_lexer("c++.in2", lexer)
     # TODO make a utility for building in2 lexers and embed cmake's syntax
     # https://pygments.org/docs/lexerdevelopment/#using-multiple-lexers

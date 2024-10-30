@@ -14,8 +14,13 @@ install(
   "${dir}/cmake_modules/test_.hxx"
   "${dir}/cmake_modules/test_main_.cxx"
   "${dir}/cmake_modules/.maud_sphinx_cmake_adapter.py.in2"
-  "${dir}/cmake_modules/maud_apidoc.py"
   "${dir}/cmake_modules/sphinx_requirements.txt"
+  DESTINATION
+  "${CMAKE_INSTALL_LIBDIR}/cmake/Maud"
+)
+install(
+  DIRECTORY
+  "${dir}/cmake_modules/trike"
   DESTINATION
   "${CMAKE_INSTALL_LIBDIR}/cmake/Maud"
 )

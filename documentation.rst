@@ -52,7 +52,7 @@ API doc
 ``Maud`` includes a Sphinx extension which scans C++ sources and headers
 for ``///`` comments. `libclang <https://libclang.readthedocs.io/>`_
 is used to associate these with declarations. These can then be
-referenced using the ``.. apidoc::`` directive.
+referenced using the ``.. trike-put::`` directive.
 
 For example, given the following C++ and rst sources in your project:
 
@@ -63,7 +63,7 @@ For example, given the following C++ and rst sources in your project:
 
 .. code-block:: rst
 
-  .. apidoc:: frobnicate
+  .. trike-put:: cpp:function frobnicate
 
 ... a :sphinx:`cpp:function <domains/cpp.html#directive-cpp-function>`
 directive will be introduced with content drawn from the ``///`` comment.
