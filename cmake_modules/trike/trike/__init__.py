@@ -360,7 +360,7 @@ class PutDirective(sphinx.util.docutils.SphinxDirective):
 
     def run(self) -> list[docutils.nodes.Node]:
         # TODO add a link to the decl on GitHub
-        comments = self.env.trike_state.comments
+        comments = self.env.trike_state.declaration_comments
         namespace = self.env.temp_data.get("cpp:namespace_stack", [""])[-1]
         # TODO get module
         module = ""
