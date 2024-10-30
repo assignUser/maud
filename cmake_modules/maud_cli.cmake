@@ -57,6 +57,7 @@ if(ARG_h)
 endif()
 string(APPEND help_str "\n")
 
+argument(quiet OFF "Make cmake and the build tool quiet")
 argument(log_level STATUS "Log level for cmake")
 argument(generator "Ninja Multi-Config" "Build tool for generated build")
 argument(
@@ -86,6 +87,9 @@ argument(CMakeLists_only OFF "Only generate CMakeLists.txt")
 
 if(log_level STREQUAL "VERBOSE")
   message(STATUS "This is Larry's spirit guide, Maud. I am looking into the box...")
+endif()
+if(quiet)
+  set(log_level ERROR)
 endif()
 
 if(help)
@@ -186,10 +190,16 @@ while(NOT (verify MATCHES "INJECTED BY MAUD"))
   endif()
 endwhile()
 
+if(quiet AND generator MATCHES "Ninja")
+  set(quiet_arg --quiet)
+endif()
+
 execute_process(
   COMMAND
   "${CMAKE_COMMAND}"
   --build "${build_dir}"
+  --
+  ${quiet_arg}
   RESULT_VARIABLE result
 )
 

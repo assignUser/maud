@@ -2,6 +2,18 @@ empty:
 # With no files at all, maud will still configure a viable build
 - maud --log-level=VERBOSE
 
+hello world:
+- write: hello.cxx
+  contents: |
+    module;
+    #include <iostream>
+    module executable;
+    int main() {
+      std::cout << "hello world!" << std::endl;
+    }
+- cmake -E echo ----------
+- maud --quiet
+
 auto add sources:
 - write: foo.cxx
   contents: |

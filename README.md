@@ -3,7 +3,27 @@ Maud
 
 Maud simplifies building C++ projects by reducing configuration boilerplate.
 
-Maud makes building C++20 modules straightforward. Other
+```shell-session
+$ ls
+hello.cxx
+
+$ cat hello.cxx
+#include <iostream>
+
+import executable;
+
+int main() {
+  std::cout << "hello world!" << std::endl;
+}
+
+$ maud --quiet
+
+$ .build/Debug/hello
+hello world!
+```
+
+Maud bootstraps a cmake build directory with excellent defaults and batteries
+included. Maud makes building C++20 modules straightforward. Other
 features include performant and expressive globbing, first class support for
 generated files, inference of compilation/link/test targets from source files,
 built-in targets for rendering gorgeous documentation, expanded capabilities
@@ -27,7 +47,7 @@ $ cmake --install .build --config Debug
 ```
 
 Maud uses
-[ninja Multi-Config](https://cmake.org/cmake/help/latest/manual/cmake-generators.7.html#ninja-generators)
+[Ninja Multi-Config](https://cmake.org/cmake/help/latest/manual/cmake-generators.7.html#ninja-generators)
 by default, but recent versions of MSVC/Visual Studio also support C++20 modules.
 
 If you don't already have the `maud` executable on your PATH, you can bootstrap using:
