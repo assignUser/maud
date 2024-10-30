@@ -63,6 +63,7 @@ extlinks = {
     # TODO this should be intersphinx instead
     "cmake": ("https://cmake.org/cmake/help/latest/%s", None),
     "gtest": ("https://google.github.io/googletest/%s", None),
+    "sphinx": ("https://www.sphinx-doc.org/en/master/usage/%s", None)
 }
 
 APIDOC = {

@@ -5,8 +5,7 @@ Documentation
 
 By default, `Sphinx <https://www.sphinx-doc.org/>`_
 will be used to build documentation from all ``.rst`` files.
-A Sphinx build directory for each
-`builder <https://www.sphinx-doc.org/en/master/usage/builders/>`_
+A Sphinx build directory for each :sphinx:`builder <builders>`
 is staged in ``${CMAKE_BINARY_DIR}/documentation/${builder}``, and
 rebuilding them is included in the ``documentation`` target:
 
@@ -36,7 +35,7 @@ named ``sphinx_configuration/`` anywhere in your project. In a Maud project,
        # set up sphinx extension for diagrams
 
 ... or ``option(DOCUMENT_EXPERIMENTAL)`` might be used with
-`ifconfig <https://www.sphinx-doc.org/en/master/extensions/ifconfig.html>`_:
+:sphinx:`ifconfig <extensions/ifconfig.html>`:
 
 .. code-block:: rst
 
@@ -66,8 +65,7 @@ For example, given the following C++ and rst sources in your project:
 
   .. apidoc:: frobnicate
 
-... a
-`cpp function <https://www.sphinx-doc.org/en/master/usage/domains/cpp.html#directive-cpp-function>`_
+... a :sphinx:`cpp:function <domains/cpp.html#directive-cpp-function>`
 directive will be introduced with content drawn from the ``///`` comment.
 
 The content of ``///`` comments is interpreted as ReStructuredText, so

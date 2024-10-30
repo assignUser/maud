@@ -7,6 +7,8 @@ APIDOC_DIR = CMAKE_BINARY_DIR / "documentation/apidoc"
 
 project = "@PROJECT_NAME@"
 
+# FIXME this is awful, just have python read CMakeCache.txt
+
 for name, typ, value in [@
   foreach(name ${_MAUD_ALL_OPTIONS})
     get_property(typ CACHE ${name} PROPERTY TYPE)
@@ -14,13 +16,17 @@ for name, typ, value in [@
     render("\n  ('${name}', '${typ}', \"${value}\"),")
   endforeach()
 @]:
-  if typ == "BOOL":
-      globals()[name] = (value == "ON")
-  elif "PATH" in typ:
-      globals()[name] = Path(value)
-  else:
-      globals()[name] = value
+    if typ == "BOOL":
+        globals()[name] = (value == "ON")
+    elif "PATH" in typ:
+        globals()[name] = Path(value)
+    else:
+        globals()[name] = value
 
 def setup(app):
-    print("set up maud extension")
+    return {
+        "version": "0.1",
+        "parallel_read_safe": True,
+        "parallel_write_safe": True,
+    }
 
