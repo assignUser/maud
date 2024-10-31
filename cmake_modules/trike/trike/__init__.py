@@ -2,8 +2,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import sphinx.util.logging
-import docutils.nodes
-import docutils.statemachine
 import difflib
 
 from clang.cindex import (
@@ -11,11 +9,16 @@ from clang.cindex import (
     CursorKind,
     Index,
     SourceLocation,
+    Token,
     TokenKind,
     TranslationUnit,
 )
 from sphinx.application import Sphinx
 from sphinx.environment import BuildEnvironment
+from sphinx.util.typing import ExtensionMetadata
+from sphinx.util.docutils import SphinxDirective
+from docutils.nodes import Node
+from docutils.statemachine import StringList
 
 logger = sphinx.util.logging.getLogger(__name__)
 
@@ -29,14 +32,20 @@ NOT_DOCUMENTABLE = {
     CursorKind.UNEXPOSED_DECL,
 }
 
+PARSE_FLAGS = (
+    TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD
+    | TranslationUnit.PARSE_SKIP_FUNCTION_BODIES
+    | TranslationUnit.PARSE_INCOMPLETE
+)
+
 
 @dataclass
 class Comment:
     """The content of an individual ///"""
 
     file: Path
-    line: int
-    lines: list[str]
+    next_line: int
+    text: list[str]
     clang_cursor_kind: str = ""
 
 
@@ -44,6 +53,7 @@ class Comment:
 class DeclarationContext:
     directive: str
     namespace: str
+    #: For lookup purposes, DeclarationContext.module does not include a partition
     module: str
 
     def __hash__(self):
@@ -55,8 +65,9 @@ class FileContent:
     """A container for all /// content in a file"""
 
     module: str
-    comments: list[tuple[DeclarationContext | None, str, Comment]]
-    diagnostics: list[str]
+    declaration_comments: list[tuple[DeclarationContext, str, Comment]]
+    floating_comments: list[Comment]
+    clang_diagnostics: list[str]
     mtime_when_parsed: float
 
 
@@ -139,10 +150,11 @@ def get_sphinx_decl(cursor: Cursor, contents: str):
 DOCUMENTATION_COMMENT = "///"
 
 
-def comment_scan(file: Path, tu: TranslationUnit, contents: str) -> FileContent:
+def comment_scan(path: Path, tu: TranslationUnit, contents: str) -> FileContent:
     module = ""  # TODO detect modules
-    comments = []
-    current_comment = []
+    declaration_comments = []
+    floating_comments = []
+    current_comment_lines = []
     for t in tu.get_tokens(extent=tu.cursor.extent):
         if t.kind == TokenKind.COMMENT:
             line = t.spelling
@@ -151,12 +163,12 @@ def comment_scan(file: Path, tu: TranslationUnit, contents: str) -> FileContent:
 
             # TODO detect ///.. explicit:directive::
 
-            current_comment.append(line[len(DOCUMENTATION_COMMENT) + 1 :])
+            current_comment_lines.append(line[len(DOCUMENTATION_COMMENT) + 1 :])
             current_comment_end = t.extent.end
             previous_token = t
             continue
 
-        if current_comment == []:
+        if current_comment_lines == []:
             continue
 
         # At this point, we have collected a doccomment and we are looking
@@ -164,19 +176,32 @@ def comment_scan(file: Path, tu: TranslationUnit, contents: str) -> FileContent:
         # with cursors (pointers into the AST). So we can scan through the tokens
         # following this comment, looking for the first which is associated with
         # a documentable declaration.
+        comment = Comment(
+            path,
+            next_line=1
+            + current_comment_end.line,  # pyright: ignore [reportPossiblyUnboundVariable]
+            text=current_comment_lines,
+        )
 
-        if t.extent.start.line >= previous_token.extent.end.line + 2:
+        if (
+            t.extent.start.line
+            >= previous_token.extent.end.line  # pyright: ignore [reportPossiblyUnboundVariable]
+            + 2
+        ):
+            # TODO if not explicitly floating, then error
             # There is at least one blank line after the previous token. At this point
-            # we consider this doccomment orphaned; we could not find a declaration
+            # we consider this doccomment floating; we could not find a declaration
             # with which it is obviously associated. This could be a failure of
             # liblclang or our usage of it or could be intentional. In either case,
-            # we store the orphaned comment and let Sphinx sort it out.
-            context, declaration = None, ""
-            clang_cursor_kind = ""
+            # we store the floating comment and let Sphinx sort it out.
+            floating_comments.append(comment)
 
         else:
             previous_token = t
-            if t.cursor.extent.start.offset < current_comment_end.offset:
+            if (
+                t.cursor.extent.start.offset
+                < current_comment_end.offset  # pyright: ignore [reportPossiblyUnboundVariable]
+            ):
                 # Some of the tokens captured by Clang might be associated with a declaration
                 # which *encloses* the decl of interest. For example:
                 #
@@ -194,41 +219,34 @@ def comment_scan(file: Path, tu: TranslationUnit, contents: str) -> FileContent:
             if declaration is None:
                 continue
 
-            namespace = get_namespace(t.cursor)
-            clang_cursor_kind = str(t.cursor.kind).removeprefix("CursorKind.")
-            if clang_cursor_kind == "MACRO_DEFINITION":
+            comment.clang_cursor_kind = str(t.cursor.kind).removeprefix("CursorKind.")
+            if comment.clang_cursor_kind == "MACRO_DEFINITION":
                 directive = "c:macro"
-            elif "STRUCT" in clang_cursor_kind or "CLASS" in clang_cursor_kind:
+            elif (
+                "STRUCT" in comment.clang_cursor_kind
+                or "CLASS" in comment.clang_cursor_kind
+            ):
                 # Classes and structs are stored together because libclang uses
                 # CLASS_TEMPLATE for struct templates. We decide whether to use
                 # cpp:struct or cpp:class based on the referencing directive.
                 directive = "cpp:struct"
-            elif "VAR" in clang_cursor_kind:
+            elif "VAR" in comment.clang_cursor_kind:
                 directive = "cpp:var"
             else:
-                logger.info(f"UNKNOWN decl kind {clang_cursor_kind}")
+                logger.info(f"UNKNOWN decl kind {comment.clang_cursor_kind}")
                 directive = ""
-            context = DeclarationContext(directive, namespace, module)
 
-        comments.append(
-            (
-                context,
-                declaration,
-                Comment(
-                    file,
-                    line=current_comment_end.line + 1,
-                    lines=current_comment,
-                    clang_cursor_kind=clang_cursor_kind,
-                ),
-            )
-        )
-        current_comment = []
+            namespace = get_namespace(t.cursor)
+            context = DeclarationContext(directive, namespace, module)
+            declaration_comments.append((context, declaration, comment))
+        current_comment_lines = []
 
     return FileContent(
         module,
-        comments,
-        diagnostics=[str(d) for d in tu.diagnostics],
-        mtime_when_parsed=file.stat().st_mtime,
+        declaration_comments,
+        floating_comments,
+        clang_diagnostics=[str(d) for d in tu.diagnostics],
+        mtime_when_parsed=path.stat().st_mtime,
     )
 
 
@@ -238,84 +256,62 @@ class State:
 
     files: dict[Path, FileContent]
     declaration_comments: dict[DeclarationContext, dict[str, Comment]]
-    updated_builders: list[str]
+    references: dict[str, set[Path]]
 
     @staticmethod
     def empty():
-        """
-        We *don't* want to `note_dependency("foo.h")` because that would
-        rebuild for any change to foo.h (including a change which didn't
-        alter /// content)... On the other hand, most changes will at least
-        modify line numbers.
+        return State({}, {}, {})
 
-        We *do* want to store the mtime of foo.h because that will enable
-        us to skip parsing it if it hasn't been updated... but the stored
-        mtime should be allowed to change without triggering rebuild.
-        """
-        return State({}, {}, [])
+    def __reduce__(self):
+        logger.info(f"reducing... {self.references}")
+        return State, (self.files, self.declaration_comments, self.references)
 
     def purge(self, outdated: FileContent):
-        for context, declaration, _ in outdated.comments:
-            if context is None:
-                continue
-
+        for context, declaration, _ in outdated.declaration_comments:
             del self.declaration_comments[context][declaration]
             if not self.declaration_comments[context]:
                 del self.declaration_comments[context]
 
-    def check_for_updates(self, app: Sphinx) -> int:
+    def check_for_updates(self, app: Sphinx) -> set[str]:
         logger.info("trike.State checking for updates")
+        invalidated = set()
 
-        mtimes = {
-            path: path.stat().st_mtime for path in map(Path, app.config.trike_files)
-        }
-        old_mtimes = {path: file.mtime_when_parsed for path, file in self.files.items()}
+        needs_purge = []
+        for path, file_content in self.files.items():
+            if path in app.config.trike_files:
+                mtime = path.stat().st_mtime
+                if file_content.mtime_when_parsed == mtime:
+                    continue
+            self.purge(file_content)
+            for docname, referenced_files in self.references.items():
+                if path in referenced_files:
+                    invalidated.add(docname)
+            needs_purge.append(path)
 
-        needs_purge = [path for path in old_mtimes.keys() if path not in mtimes]
-        needs_parse = [
-            path
-            for path, mtime in mtimes.items()
-            if mtime > old_mtimes.get(path, mtime - 1)
-        ]
-
-        update_count = len(needs_purge)
         for path in needs_purge:
-            self.purge(self.files[path])
             del self.files[path]
 
-        # TODO parse in parallel
-        for path in needs_parse:
+        for path in app.config.trike_files:
+            if path in self.files:
+                # Anything outdated has already been purged
+                assert self.files[path].mtime_when_parsed == path.stat().st_mtime
+                continue
+            clang_args = app.config.trike_clang_args.get(
+                path, app.config.trike_default_clang_args
+            )
+
             index = Index.create()
             source = path.read_text()
             tu = index.parse(
                 path.name,
-                args=app.config.trike_clang_args.get(
-                    path, app.config.trike_default_clang_args
-                ),
-                unsaved_files=[
-                    (path.name, source),
-                ],
-                options=(
-                    TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD
-                    | TranslationUnit.PARSE_SKIP_FUNCTION_BODIES
-                    | TranslationUnit.PARSE_INCOMPLETE
-                ),
+                args=clang_args,
+                unsaved_files=[(path.name, source)],
+                options=PARSE_FLAGS,
             )
             file_content = comment_scan(path, tu, source)
-            if old_file_content := self.files.get(path, None):
-                if file_content == old_file_content:
-                    logger.info(f"trike.State {path}'s /// content was unchanged")
-                    continue
-                self.purge(old_file_content)
             self.files[path] = file_content
 
-            logger.info(f"trike.State {path}'s /// content differed")
-            update_count += 1
-
-            for context, declaration, comment in file_content.comments:
-                if context is None:
-                    continue
-
+            for context, declaration, comment in file_content.declaration_comments:
                 stored = self.declaration_comments.setdefault(context, {}).setdefault(
                     declaration, comment
                 )
@@ -324,7 +320,7 @@ class State:
                         f"Duplicate /// detected:\n{stored}\n\n  vs\n\n{comment}"
                     )
 
-        return update_count
+        return invalidated
 
 
 def _env_get_outdated(
@@ -333,72 +329,90 @@ def _env_get_outdated(
     added: set[str],
     changed: set[str],
     removed: set[str],
-) -> list[str]:
+) -> set[str]:
     logger.info("trike.State handled in env-get-outdated")
 
     if not hasattr(env, "trike_state"):
         env.trike_state = State.empty()
 
-    update_count = env.trike_state.check_for_updates(app)
-
-    if update_count > 0:
-        env.trike_state.updated_builders = [app.builder.name]
-    elif app.builder.name not in env.trike_state.updated_builders:
-        env.trike_state.updated_builders.append(app.builder.name)
-    else:
-        return []
-
-    # Either the /// content has been updated during this build or
-    # it has been updated since this builder last ran. In either
-    # case all files which might've referenced /// content are outdated.
+    # Even if foo.rst itself has not changed, if it referenced foo.hxx
+    # which *did* change then we must consider it outdated.
     #
-    # TODO we could be more fine-grained here; if we maintain a list of
-    # files which never use trike's directives then we can skip regenerating
-    # their outputs. We might even be able to avoid regenerating sources
-    # if the /// content which is actually referenced didn't change.
-    return list(env.all_docs.keys())
+    # XXX what if:
+    # - we update foo.hxx
+    # - we rebuild with html
+    # - foo.rst is correctly re-parsed to foo.doctree
+    # - foo.doctree is correctly re-rendered to foo.html
+    # - ... now we rebuild for manpages
+    # - foo.doctree is newer than foo.1 so... it *does* get re-rendered, right?
+    invalidated = env.trike_state.check_for_updates(app)
+    return invalidated
 
 
-class PutDirective(sphinx.util.docutils.SphinxDirective):
+def _env_purge_doc(
+    _app: Sphinx,
+    env: BuildEnvironment,
+    docname: str,
+):
+    if docname in env.trike_state.references:
+        del env.trike_state.references[docname]
+
+
+def _env_merge_info(
+    _app: Sphinx,
+    env: BuildEnvironment,
+    subprocess_docnames: list[str],
+    subprocess_env: BuildEnvironment,
+):
+    for docname in subprocess_docnames:
+        referenced_files = env.trike_state.references.setdefault(docname, set())
+        referenced_files |= subprocess_env.trike_state.references.get(docname, set())
+
+
+class PutDirective(SphinxDirective):
     has_content = True
     required_arguments = 2
     optional_arguments = 1000
 
-    def run(self) -> list[docutils.nodes.Node]:
-        # TODO add a link to the decl on GitHub
-        comments = self.env.trike_state.declaration_comments
+    def run(self) -> list[Node]:
+        directive = self.arguments[0]
         namespace = self.env.temp_data.get("cpp:namespace_stack", [""])[-1]
         # TODO get module
         module = ""
 
-        self.arguments = list(filter(lambda arg: arg != "\\", self.arguments))
-        directive = self.arguments[0]
-        declaration = " ".join(self.arguments[1:])
         context = DeclarationContext(
             directive if directive != "cpp:class" else "cpp:struct",
             namespace,
             module,
         )
-        declarations = comments.get(context, {})
+        declarations = self.env.trike_state.declaration_comments.get(context, {})
+
+        declaration = " ".join(filter(lambda arg: arg != "\\", self.arguments[1:]))
         if comment := declarations.get(declaration, None):
-            text = docutils.statemachine.StringList(
+            self.env.trike_state.references.setdefault(self.env.docname, set()).add(
+                comment.file
+            )
+            logger.info(f"{comment.file} referenced by {self.env.docname}")
+            text = StringList(
                 [
                     f".. {directive}:: {declaration}",
+                    # TODO add a link to the decl on GitHub
                     "",
                     *(f"  {line}" for line in self.content),
                     "",
-                    *(f"  {line}" for line in comment.lines),
+                    *(f"  {line}" for line in comment.text),
                 ]
             )
             return self.parse_text_to_nodes(text)
 
         message = f"found no declaration matching `{declaration}`\n  {context=}"
         for m in difflib.get_close_matches(declaration, declarations.keys()):
-            message += f"\n  close match: `{m}`"
-        raise ValueError(message)
+            message += f"\n    close match: `{m}`"
+        logger.error(message)
+        return []
 
 
-def setup(app: Sphinx):
+def setup(app: Sphinx) -> ExtensionMetadata:
     app.add_config_value(
         "trike_files",
         [],
@@ -419,6 +433,8 @@ def setup(app: Sphinx):
         description="Per-file overrides of arguments which will be passed to clang",
     )
     app.connect("env-get-outdated", _env_get_outdated)
+    app.connect("env-merge-info", _env_merge_info)
+    app.connect("env-purge-doc", _env_purge_doc)
 
     # XXX should trike be a Domain?
     app.add_directive("trike-put", PutDirective)
