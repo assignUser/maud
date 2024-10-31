@@ -3,7 +3,7 @@ Maud
 
 Maud simplifies building C++ projects by reducing configuration boilerplate.
 
-```shell-session
+```sh-session
 $ ls
 hello.cxx
 
@@ -34,7 +34,7 @@ Getting Started
 
 Maud is itself a Maud-based project. Build with:
 
-```shell-session
+```sh-session
 $ git clone https://github.com/bkietz/maud.git && cd maud
 
 # get dependencies with flox
