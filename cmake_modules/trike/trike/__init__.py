@@ -4,6 +4,7 @@ from pathlib import Path
 import sphinx.util.logging
 import docutils.nodes
 import docutils.statemachine
+import difflib
 
 from clang.cindex import (
     Cursor,
@@ -33,30 +34,28 @@ NOT_DOCUMENTABLE = {
 class Comment:
     """The content of an individual ///"""
 
-    directive: str
-    module: str
-    namespace: str
-    declaration: str
-    declaration_kind: str
     file: Path
     line: int
     lines: list[str]
+    clang_cursor_kind: str = ""
 
-    @property
-    def is_orphan(self):
-        return self.directive == ""
 
-    @property
-    def key(self):
-        # XXX should these only exist in the keys of FileContent.comments?
-        return self.directive, self.module, self.namespace, self.declaration
+@dataclass
+class DeclarationContext:
+    directive: str
+    namespace: str
+    module: str
+
+    def __hash__(self):
+        return hash((self.directive, self.namespace, self.module))
 
 
 @dataclass
 class FileContent:
     """A container for all /// content in a file"""
 
-    comments: list[Comment]
+    module: str
+    comments: list[tuple[DeclarationContext | None, str, Comment]]
     diagnostics: list[str]
     mtime_when_parsed: float
 
@@ -141,6 +140,7 @@ DOCUMENTATION_COMMENT = "///"
 
 
 def comment_scan(file: Path, tu: TranslationUnit, contents: str) -> FileContent:
+    module = ""  # TODO detect modules
     comments = []
     current_comment = []
     for t in tu.get_tokens(extent=tu.cursor.extent):
@@ -171,10 +171,8 @@ def comment_scan(file: Path, tu: TranslationUnit, contents: str) -> FileContent:
             # with which it is obviously associated. This could be a failure of
             # liblclang or our usage of it or could be intentional. In either case,
             # we store the orphaned comment and let Sphinx sort it out.
-            declaration = ""
-            namespace = ""
-            directive = ""
-            declaration_kind = ""
+            context, declaration = None, ""
+            clang_cursor_kind = ""
 
         else:
             previous_token = t
@@ -197,37 +195,37 @@ def comment_scan(file: Path, tu: TranslationUnit, contents: str) -> FileContent:
                 continue
 
             namespace = get_namespace(t.cursor)
-            declaration_kind = str(t.cursor.kind).removeprefix("CursorKind.")
-            if declaration_kind == "MACRO_DEFINITION":
+            clang_cursor_kind = str(t.cursor.kind).removeprefix("CursorKind.")
+            if clang_cursor_kind == "MACRO_DEFINITION":
                 directive = "c:macro"
-            elif "STRUCT" in declaration_kind or "CLASS" in declaration_kind:
+            elif "STRUCT" in clang_cursor_kind or "CLASS" in clang_cursor_kind:
                 # Classes and structs are stored together because libclang uses
                 # CLASS_TEMPLATE for struct templates. We decide whether to use
                 # cpp:struct or cpp:class based on the referencing directive.
                 directive = "cpp:struct"
-            elif "VAR" in declaration_kind:
+            elif "VAR" in clang_cursor_kind:
                 directive = "cpp:var"
             else:
-                logger.info(f"UNKNOWN decl kind {declaration_kind}")
+                logger.info(f"UNKNOWN decl kind {clang_cursor_kind}")
                 directive = ""
-
-        module = ""  # TODO detect modules
+            context = DeclarationContext(directive, namespace, module)
 
         comments.append(
-            Comment(
-                directive,
-                module,
-                namespace,
+            (
+                context,
                 declaration,
-                declaration_kind,
-                file,
-                line=current_comment_end.line + 1,
-                lines=current_comment,
+                Comment(
+                    file,
+                    line=current_comment_end.line + 1,
+                    lines=current_comment,
+                    clang_cursor_kind=clang_cursor_kind,
+                ),
             )
         )
         current_comment = []
 
     return FileContent(
+        module,
         comments,
         diagnostics=[str(d) for d in tu.diagnostics],
         mtime_when_parsed=file.stat().st_mtime,
@@ -239,7 +237,7 @@ class State:
     """A container for all /// content in a project plus tracking metadata"""
 
     files: dict[Path, FileContent]
-    declaration_comments: dict[tuple[str, str, str, str], Comment]
+    declaration_comments: dict[DeclarationContext, dict[str, Comment]]
     updated_builders: list[str]
 
     @staticmethod
@@ -257,9 +255,13 @@ class State:
         return State({}, {}, [])
 
     def purge(self, outdated: FileContent):
-        for comment in outdated.comments:
-            if not comment.is_orphan:
-                del self.declaration_comments[comment.key]
+        for context, declaration, _ in outdated.comments:
+            if context is None:
+                continue
+
+            del self.declaration_comments[context][declaration]
+            if not self.declaration_comments[context]:
+                del self.declaration_comments[context]
 
     def check_for_updates(self, app: Sphinx) -> int:
         logger.info("trike.State checking for updates")
@@ -310,13 +312,17 @@ class State:
             logger.info(f"trike.State {path}'s /// content differed")
             update_count += 1
 
-            for comment in file_content.comments:
-                if not comment.is_orphan:
-                    stored = self.declaration_comments.setdefault(comment.key, comment)
-                    if stored is not comment:
-                        raise RuntimeError(
-                            f"Duplicate /// detected:\n{stored}\n\n  vs\n\n{comment}"
-                        )
+            for context, declaration, comment in file_content.comments:
+                if context is None:
+                    continue
+
+                stored = self.declaration_comments.setdefault(context, {}).setdefault(
+                    declaration, comment
+                )
+                if stored is not comment:
+                    raise RuntimeError(
+                        f"Duplicate /// detected:\n{stored}\n\n  vs\n\n{comment}"
+                    )
 
         return update_count
 
@@ -368,13 +374,13 @@ class PutDirective(sphinx.util.docutils.SphinxDirective):
         self.arguments = list(filter(lambda arg: arg != "\\", self.arguments))
         directive = self.arguments[0]
         declaration = " ".join(self.arguments[1:])
-        key = (
+        context = DeclarationContext(
             directive if directive != "cpp:class" else "cpp:struct",
-            module,
             namespace,
-            declaration,
+            module,
         )
-        if comment := comments.get(key, None):
+        declarations = comments.get(context, {})
+        if comment := declarations.get(declaration, None):
             text = docutils.statemachine.StringList(
                 [
                     f".. {directive}:: {declaration}",
@@ -385,7 +391,11 @@ class PutDirective(sphinx.util.docutils.SphinxDirective):
                 ]
             )
             return self.parse_text_to_nodes(text)
-        raise ValueError(f"found no declaration matching {key}")
+
+        message = f"found no declaration matching `{declaration}`\n  {context=}"
+        for m in difflib.get_close_matches(declaration, declarations.keys()):
+            message += f"\n  close match: `{m}`"
+        raise ValueError(message)
 
 
 def setup(app: Sphinx):
