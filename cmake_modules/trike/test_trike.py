@@ -11,9 +11,16 @@ from clang.cindex import (
 )
 
 
+def make_tu(tmp_path, source, clang_args=[]):
+    path = tmp_path / "source.cxx"
+    path.write_text(source)
+    tu = Index.create().parse(str(path), args=clang_args, options=trike.PARSE_FLAGS)
+    return tu, path
+
+
 def test_basic(tmp_path):
-    path = tmp_path / "str.cxx"
-    path.write_text(
+    _, path = make_tu(
+        tmp_path,
         """
         /// The entry point
         // clang-format on
@@ -22,9 +29,9 @@ def test_basic(tmp_path):
         int main() {
             return 0
         }
-        """
+        """,
     )
-    file_content = trike.comment_scan(path, clang_args=[], contents=path.read_text())
+    file_content = trike.comment_scan(path, clang_args=[])
     assert file_content.contexted_comments == [
         (
             trike.DeclarationContext(directive="cpp:function"),
@@ -40,9 +47,8 @@ def test_basic(tmp_path):
 
 
 def test_comment_from_tokens(tmp_path):
-    assert tmp_path.is_absolute()
-    path = tmp_path / "str.cxx"
-    path.write_text(
+    tu, path = make_tu(
+        tmp_path,
         """
         /// The entry point
         // clang-format off
@@ -54,23 +60,17 @@ def test_comment_from_tokens(tmp_path):
         // clang-format off
         /// Bar
         // clang-format on
-        """
-    )
-    index = Index.create()
-    tu = index.parse(
-        str(path),
-        args=[],
-        unsaved_files=[],
-        options=trike.PARSE_FLAGS,
+        """,
     )
 
-    tokens = tu.get_tokens(extent=tu.cursor.extent)
+    tokens = trike.Tokens(tu)
     comment = trike.Comment.read_from_tokens(path, tokens)
     assert comment.next_line == 5
     assert comment.text == [
         "/// The entry point",
         "/// something clang-format would mangle",
     ]
+    assert next(tokens).spelling == "int"
 
     comment = trike.Comment.read_from_tokens(path, tokens)
     assert comment.next_line == 11
@@ -99,9 +99,8 @@ def test_is_documentable():
 
 
 def test_documentable_declaration(tmp_path):
-    assert tmp_path.is_absolute()
-    path = tmp_path / "str.cxx"
-    path.write_text(
+    tu, _ = make_tu(
+        tmp_path,
         """
         /// The entry point
         // clang-format off
@@ -113,19 +112,20 @@ def test_documentable_declaration(tmp_path):
         // clang-format off
         /// Bar
         // clang-format on
-        """
-    )
-    index = Index.create()
-    tu = index.parse(
-        str(path),
-        args=[],
-        unsaved_files=[],
-        options=trike.PARSE_FLAGS,
+        """,
     )
 
-    tokens = tu.get_tokens(extent=tu.cursor.extent)
-    assert trike.get_documentable_declaration(tokens) == ("int foo = 3", "VAR_DECL", "cpp:var", "")
-    assert next(tokens).spelling == ';'
+    tokens = trike.Tokens(tu)
+    assert trike.get_documentable_declaration(tokens) == (
+        "int foo = 3",
+        "VAR_DECL",
+        "cpp:var",
+        "",
+    )
+    assert next(tokens).spelling == "/// Foo"
     assert trike.get_documentable_declaration(tokens) is None
 
 
+def test_whitespace(tmp_path):
+    tu, _ = make_tu(tmp_path, """  int   foo  =3   ;   """)
+    assert trike.join_tokens(trike.Tokens(tu)) == """int foo =3 ;"""

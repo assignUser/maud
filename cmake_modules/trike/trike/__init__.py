@@ -23,21 +23,28 @@ from typing import Sequence, Self
 
 logger = sphinx.util.logging.getLogger(__name__)
 
-NOT_DOCUMENTABLE = {
-    CursorKind.NAMESPACE,
-    CursorKind.INVALID_FILE,
-    CursorKind.NAMESPACE_REF,
-    CursorKind.TEMPLATE_REF,
-    CursorKind.PREPROCESSING_DIRECTIVE,
-    CursorKind.MACRO_INSTANTIATION,
-    CursorKind.UNEXPOSED_DECL,
-}
 
 PARSE_FLAGS = (
     TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD
     | TranslationUnit.PARSE_SKIP_FUNCTION_BODIES
     | TranslationUnit.PARSE_INCOMPLETE
 )
+
+
+class Tokens:
+    def __init__(self, tu: TranslationUnit):
+        self.tokens = iter(tu.get_tokens(extent=tu.cursor.extent))
+        self._next = None
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        t, self._next = self._next, None
+        return t or next(self.tokens)
+
+    def unget(self, t):
+        self._next = t
 
 
 @dataclass
@@ -52,12 +59,13 @@ class Comment:
     clang_cursor_kind: str = ""
 
     @staticmethod
-    def read_from_tokens(file: Path, tokens: Sequence[Token]) -> Self | None:
+    def read_from_tokens(file: Path, tokens: Tokens) -> Self | None:
         comment = Comment(file, 0, [])
 
         for t in tokens:
             if t.kind != TokenKind.COMMENT:
                 if comment.text:
+                    tokens.unget(t)
                     break
                 continue
             if t.spelling.startswith(Comment.PREFIX):
@@ -69,7 +77,7 @@ class Comment:
 
     @property
     def stripped_text(self) -> list[str]:
-        return [line[len(Comment.PREFIX) + 1:] for line in self.text]
+        return [line[len(Comment.PREFIX) + 1 :] for line in self.text]
 
 
 @dataclass
@@ -108,73 +116,8 @@ def get_namespace(cursor):
     return "::".join(path)
 
 
-def byte_slice(s: str, begin: SourceLocation, end: SourceLocation):
-    # source location offsets are byte offsets, whereas str[] indexes by code point
-    return s.encode("utf-8")[begin.offset : end.offset].decode("utf-8")
-
-
-def get_sphinx_decl(cursor: Cursor, contents: str):
-    tokens = cursor.get_tokens()
-
-    if cursor.kind == CursorKind.MACRO_DEFINITION:
-        first = next(tokens)
-        assert first.kind == TokenKind.IDENTIFIER
-        start = first.extent.start
-        end = first.extent.end
-        if second := next(tokens, None):
-            if second.spelling == "(":
-                if second.extent.start == first.extent.end:
-                    # function macro; find the end of the parameters
-                    for t in tokens:
-                        if t.spelling == ")":
-                            end = t.extent.end
-                            break
-        return byte_slice(contents, start, end)
-
-    if not cursor.kind.is_declaration() or cursor.kind in NOT_DOCUMENTABLE:
-        return None
-
-    decl = ""
-    previous_token = None
-    for t in tokens:
-        if t.spelling in "{;":
-            # TECHNICALLY these could occur in an attribute or lambda expression:
-            #
-            # .. code-block:: c++
-            #
-            #   /// we only see "IDENTITY = [](auto self)"
-            #   auto IDENTITY = [](auto self) { return self; };
-            #
-            #   /// we only see "[[preconditions"
-            #   [[preconditions{ this->foo == 3 }]] int Foo::get_three() const
-            #
-            # However this doesn't seem critical to support, particularly since
-            # if these constructions are necessary it should be sufficient to
-            # override the automatic declaration string.
-            break
-
-        if t.spelling in {"class", "struct", "export", "union"}:
-            # sphinx decls do not include these; skip them
-            #
-            # Again, TECHNICALLY these could appear in a template argument *and*
-            # be syntactically necessary. Again, simplicity here seems preferable.
-            previous_token = t
-            continue
-
-        if previous_token is not None:
-            # include any whitespace between this token and the previous
-            start = previous_token.extent.end
-        else:
-            start = t.extent.start
-
-        decl += byte_slice(contents, start, t.extent.end)
-        previous_token = t
-
-    # FIXME do a better job of canonicalizing all whitespace to " "
-    return decl.strip()
-
-
 def is_documentable(kind: CursorKind):
+    # TODO this should instead return the directive which we use
     return (
         kind == CursorKind.MACRO_DEFINITION
         or kind.is_declaration()
@@ -191,24 +134,26 @@ def is_documentable(kind: CursorKind):
     )
 
 
-def spaced(first: Token, second: Token):
-    return first.extent.end != second.extent.start
+def contiguous(first: Token | None, second: Token | None) -> bool:
+    if first is None or second is None:
+        return True
+    return first.extent.end == second.extent.start
 
 
-@dataclass
-class TokenCanon:
-    spelling: str = ""
-    last_token: Token | None = None
-
-    def append(self, token: Token):
-        if self.last_token is not None and spaced(self.last_token, token):
-            self.spelling += " "
-        self.spelling += token.spelling
-        self.last_token = token
+def join_tokens(tokens):
+    tokens = iter(tokens)
+    previous = next(tokens)
+    joined = previous.spelling
+    for t in tokens:
+        if not contiguous(previous, t):
+            joined += " "
+        joined += t.spelling
+        previous = t
+    return joined
 
 
 def get_documentable_declaration(
-    tokens: Sequence[Token],
+    tokens: Tokens,
 ) -> tuple[str, str, str, str] | None:
     """
     Get a documentable declaration from a token stream, with
@@ -220,6 +165,17 @@ def get_documentable_declaration(
         if is_documentable(t.cursor.kind):
             cursor = t.cursor
             break
+        # FIXME Some of the tokens captured by Clang might be associated with a declaration
+        # which *encloses* the decl of interest. For example:
+        #
+        # .. code-block:: c++
+        #
+        #   struct Foo {
+        #     enum Color { R, G, B };
+        #     /// The first token after this doccomment is the return type,
+        #     /// for which t.cursor corresponds to Foo rather than get_color.
+        #     Color get_color();
+        #   };
     else:
         return None
 
@@ -242,15 +198,13 @@ def get_documentable_declaration(
         directive = ""
 
     cursor_tokens = cursor.get_tokens()
-    declaration = TokenCanon()
+    declaration = []
 
     if cursor.kind == CursorKind.MACRO_DEFINITION:
-        identifier = next(cursor_tokens)
-        declaration.append(identifier)
+        name = next(cursor_tokens)
+        declaration.append(name)
         if maybe_open_paren := next(cursor_tokens, None):
-            if maybe_open_paren.spelling == "(" and not spaced(
-                identifier, maybe_open_paren
-            ):
+            if maybe_open_paren.spelling == "(" and contiguous(name, maybe_open_paren):
                 # function macro; include parameters
                 declaration.append(maybe_open_paren)
                 for t in cursor_tokens:
@@ -286,25 +240,17 @@ def get_documentable_declaration(
             declaration.append(t)
 
     # Advance tokens past what we've consumed here
-    offset = declaration.last_token.extent.end.offset
+    next_line = declaration[-1].extent.end.line + 1
     for t in tokens:
-        if t.extent.end.offset == offset:
+        if t.extent.end.line >= next_line:
+            tokens.unget(t)
             break
 
-    return declaration.spelling, clang_cursor_kind, directive, namespace
+    return join_tokens(declaration), clang_cursor_kind, directive, namespace
 
 
-DOCUMENTATION_COMMENT = "///"
-
-
-def comment_scan(path: Path, clang_args: list[str], contents: str) -> FileContent:
-    index = Index.create()
-    tu = index.parse(
-        path.name,
-        args=clang_args,
-        unsaved_files=[(path.name, contents)],
-        options=PARSE_FLAGS,
-    )
+def comment_scan(path: Path, clang_args: list[str]) -> FileContent:
+    tu = Index.create().parse(str(path), args=clang_args, options=PARSE_FLAGS)
     #   - if explicit directive
     #     - if attached to documentable declaration, override but steal namespace
     #     - otherwise use namespace = ''
@@ -316,7 +262,7 @@ def comment_scan(path: Path, clang_args: list[str], contents: str) -> FileConten
     contexted_comments = []
     floating_comments = []
     current_comment_lines = []
-    tokens = tu.get_tokens(extent=tu.cursor.extent)
+    tokens = Tokens(tu)
 
     while True:
         comment = Comment.read_from_tokens(path, tokens)
@@ -333,17 +279,6 @@ def comment_scan(path: Path, clang_args: list[str], contents: str) -> FileConten
             floating_comments.append(comment)
 
         # TODO if not explicitly floating, then error
-        # Some of the tokens captured by Clang might be associated with a declaration
-        # which *encloses* the decl of interest. For example:
-        #
-        # .. code-block:: c++
-        #
-        #   struct Foo {
-        #     enum Color { R, G, B };
-        #     /// The first token after this doccomment is the return type,
-        #     /// for which t.cursor corresponds to Foo rather than get_color.
-        #     Color get_color();
-        #   };
 
     return FileContent(
         module,
@@ -370,29 +305,24 @@ class State:
         logger.info(f"reducing... {self.references}")
         return State, (self.files, self.contexted_comments, self.references)
 
-    def purge(self, outdated: FileContent):
-        for context, declaration, _ in outdated.contexted_comments:
-            del self.contexted_comments[context][declaration]
-            if not self.contexted_comments[context]:
-                del self.contexted_comments[context]
-
     def check_for_updates(self, app: Sphinx) -> set[str]:
         logger.info("trike.State checking for updates")
         invalidated = set()
 
-        needs_purge = []
-        for path, file_content in self.files.items():
+        for path, file_content in list(self.files.items()):
             if path in app.config.trike_files:
                 mtime = path.stat().st_mtime
                 if file_content.mtime_when_parsed == mtime:
                     continue
-            self.purge(file_content)
+
+            # Every doc which references this /// source must be re-parsed
             for docname, referenced_files in self.references.items():
                 if path in referenced_files:
                     invalidated.add(docname)
-            needs_purge.append(path)
 
-        for path in needs_purge:
+            # purge this file's ///s
+            for context, declaration, _ in file_content.contexted_comments:
+                del self.contexted_comments[context][declaration]
             del self.files[path]
 
         for path in app.config.trike_files:
@@ -404,8 +334,7 @@ class State:
                 path, app.config.trike_default_clang_args
             )
 
-            file_content = comment_scan(path, clang_args, path.read_text())
-            self.files[path] = file_content
+            file_content = self.files[path] = comment_scan(path, clang_args)
 
             for context, declaration, comment in file_content.contexted_comments:
                 stored = self.contexted_comments.setdefault(context, {}).setdefault(
@@ -513,20 +442,20 @@ def setup(app: Sphinx) -> ExtensionMetadata:
         "trike_files",
         [],
         "env",
-        #description="All files which will be scanned for ///",
+        # description="All files which will be scanned for ///",
     )
 
     app.add_config_value(
         "trike_default_clang_args",
         [],
         "env",
-        #description="Arguments which will be passed to clang",
+        # description="Arguments which will be passed to clang",
     )
     app.add_config_value(
         "trike_clang_args",
         {},
         "env",
-        #description="Per-file overrides of arguments which will be passed to clang",
+        # description="Per-file overrides of arguments which will be passed to clang",
     )
     app.connect("env-get-outdated", _env_get_outdated)
     app.connect("env-merge-info", _env_merge_info)
