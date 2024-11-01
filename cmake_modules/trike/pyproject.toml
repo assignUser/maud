@@ -13,3 +13,8 @@ dependencies = [
 classifiers = [
   "Framework :: Sphinx :: Extension",
 ]
+
+[project.optional-dependencies]
+test = [
+    "pytest >= 8",
+]

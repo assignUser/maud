@@ -27,6 +27,9 @@
       "nlohmann_json": {
         "pkg-path": "nlohmann_json"
       },
+      "pytest": {
+        "pkg-path": "python312Packages.pytest"
+      },
       "python312Full": {
         "pkg-path": "python312Full"
       }
@@ -1018,6 +1021,134 @@
       ],
       "outputs": {
         "out": "/nix/store/xarikg128sw8fvw8wppnnj0b2s6f1bd2-nlohmann_json-3.11.3"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "python312Packages.pytest",
+      "broken": false,
+      "derivation": "/nix/store/7zml8ik7v5ca8pacqfzvyvzh3kf3h5ld-python3.12-pytest-8.3.2.drv",
+      "description": "Framework for writing tests",
+      "install_id": "pytest",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "python3.12-pytest-8.3.2",
+      "pname": "pytest",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "python3.12-pytest-8.3.2",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dist": "/nix/store/wwh5xjka26pnzjiardsfrgrxlj77dd0v-python3.12-pytest-8.3.2-dist",
+        "out": "/nix/store/x4ssmgpp6xbn96zg8xg83g0zb7gb530l-python3.12-pytest-8.3.2",
+        "testout": "/nix/store/k7sry70ylx7s39ns8hbk1y241f9lx4pa-python3.12-pytest-8.3.2-testout"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "python312Packages.pytest",
+      "broken": false,
+      "derivation": "/nix/store/r7i0ic1dcy343cqc3n4hbzf9jxdp0j35-python3.12-pytest-8.3.2.drv",
+      "description": "Framework for writing tests",
+      "install_id": "pytest",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "python3.12-pytest-8.3.2",
+      "pname": "pytest",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "python3.12-pytest-8.3.2",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dist": "/nix/store/nvbp99hs6sd3rgd2y42h62fdf7avgnb5-python3.12-pytest-8.3.2-dist",
+        "out": "/nix/store/nmsg8ia9snqrhmw3ylqpwmpb3rn8s5zk-python3.12-pytest-8.3.2",
+        "testout": "/nix/store/qcgbzl9acdd0dx0nwzyrmrv6h2nsjqif-python3.12-pytest-8.3.2-testout"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "python312Packages.pytest",
+      "broken": false,
+      "derivation": "/nix/store/7xjvhiq7ii22h7mi3ns9l3gipmn3i6kr-python3.12-pytest-8.3.2.drv",
+      "description": "Framework for writing tests",
+      "install_id": "pytest",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "python3.12-pytest-8.3.2",
+      "pname": "pytest",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "python3.12-pytest-8.3.2",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dist": "/nix/store/d9i4s1kkbmfx2zh0x8sc2lb79d820was-python3.12-pytest-8.3.2-dist",
+        "out": "/nix/store/rdzx4znh29mxxwisblhq9lpn7nnrsd7c-python3.12-pytest-8.3.2",
+        "testout": "/nix/store/k45wcgx9ifx7zpv9bkbmkn546crrxicd-python3.12-pytest-8.3.2-testout"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "python312Packages.pytest",
+      "broken": false,
+      "derivation": "/nix/store/m9f113g86y2qck5p1yrd0f03yi4szqfm-python3.12-pytest-8.3.2.drv",
+      "description": "Framework for writing tests",
+      "install_id": "pytest",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "name": "python3.12-pytest-8.3.2",
+      "pname": "pytest",
+      "rev": "5633bcff0c6162b9e4b5f1264264611e950c8ec7",
+      "rev_count": 690827,
+      "rev_date": "2024-10-09T16:51:18Z",
+      "scrape_date": "2024-10-11T03:53:01Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "python3.12-pytest-8.3.2",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dist": "/nix/store/jr697lx7za5gg75ayq546w3ylkk34szn-python3.12-pytest-8.3.2-dist",
+        "out": "/nix/store/fc0f4xvss1pny8vxix2lr2f2y7gfxz95-python3.12-pytest-8.3.2",
+        "testout": "/nix/store/b6b6irvqc45pbbxbnfs1rd4vibk3d13l-python3.12-pytest-8.3.2-testout"
       },
       "system": "x86_64-linux",
       "group": "toplevel",

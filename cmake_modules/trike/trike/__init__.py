@@ -19,6 +19,7 @@ from sphinx.util.typing import ExtensionMetadata
 from sphinx.util.docutils import SphinxDirective
 from docutils.nodes import Node
 from docutils.statemachine import StringList
+from typing import Sequence, Self
 
 logger = sphinx.util.logging.getLogger(__name__)
 
@@ -43,18 +44,40 @@ PARSE_FLAGS = (
 class Comment:
     """The content of an individual ///"""
 
+    PREFIX = "///"
+
     file: Path
     next_line: int
     text: list[str]
     clang_cursor_kind: str = ""
 
+    @staticmethod
+    def read_from_tokens(file: Path, tokens: Sequence[Token]) -> Self | None:
+        comment = Comment(file, 0, [])
+
+        for t in tokens:
+            if t.kind != TokenKind.COMMENT:
+                if comment.text:
+                    break
+                continue
+            if t.spelling.startswith(Comment.PREFIX):
+                comment.text.append(t.spelling)
+                comment.next_line = t.extent.end.line + 1
+
+        if comment.text:
+            return comment
+
+    @property
+    def stripped_text(self) -> list[str]:
+        return [line[len(Comment.PREFIX) + 1:] for line in self.text]
+
 
 @dataclass
 class DeclarationContext:
     directive: str
-    namespace: str
+    namespace: str = ""
     #: For lookup purposes, DeclarationContext.module does not include a partition
-    module: str
+    module: str = ""
 
     def __hash__(self):
         return hash((self.directive, self.namespace, self.module))
@@ -65,13 +88,17 @@ class FileContent:
     """A container for all /// content in a file"""
 
     module: str
-    declaration_comments: list[tuple[DeclarationContext, str, Comment]]
+    contexted_comments: list[tuple[DeclarationContext, str, Comment]]
     floating_comments: list[Comment]
     clang_diagnostics: list[str]
     mtime_when_parsed: float
 
 
 def get_namespace(cursor):
+    # FIXME this will probably need to be much more sophisticated;
+    # since we're including classes in the namespace we may need to
+    # memoize the canonicalized spelling of the class (semantic_parent.spelling
+    # probably doesn't include template parameters, for example)
     path = []
     parent = cursor.semantic_parent
     tu = cursor.translation_unit.cursor
@@ -126,7 +153,7 @@ def get_sphinx_decl(cursor: Cursor, contents: str):
             # override the automatic declaration string.
             break
 
-        if t.spelling in {"class", "struct", "export"}:
+        if t.spelling in {"class", "struct", "export", "union"}:
             # sphinx decls do not include these; skip them
             #
             # Again, TECHNICALLY these could appear in a template argument *and*
@@ -147,103 +174,180 @@ def get_sphinx_decl(cursor: Cursor, contents: str):
     return decl.strip()
 
 
-DOCUMENTATION_COMMENT = "///"
+def is_documentable(kind: CursorKind):
+    return (
+        kind == CursorKind.MACRO_DEFINITION
+        or kind.is_declaration()
+        and kind
+        not in {
+            CursorKind.NAMESPACE,
+            CursorKind.INVALID_FILE,
+            CursorKind.NAMESPACE_REF,
+            CursorKind.TEMPLATE_REF,
+            CursorKind.PREPROCESSING_DIRECTIVE,
+            CursorKind.MACRO_INSTANTIATION,
+            CursorKind.UNEXPOSED_DECL,
+        }
+    )
 
 
-def comment_scan(path: Path, tu: TranslationUnit, contents: str) -> FileContent:
-    module = ""  # TODO detect modules
-    declaration_comments = []
-    floating_comments = []
-    current_comment_lines = []
-    for t in tu.get_tokens(extent=tu.cursor.extent):
-        if t.kind == TokenKind.COMMENT:
-            line = t.spelling
-            if not line.startswith(DOCUMENTATION_COMMENT):
-                continue
+def spaced(first: Token, second: Token):
+    return first.extent.end != second.extent.start
 
-            # TODO detect ///.. explicit:directive::
 
-            current_comment_lines.append(line[len(DOCUMENTATION_COMMENT) + 1 :])
-            current_comment_end = t.extent.end
-            previous_token = t
-            continue
+@dataclass
+class TokenCanon:
+    spelling: str = ""
+    last_token: Token | None = None
 
-        if current_comment_lines == []:
-            continue
+    def append(self, token: Token):
+        if self.last_token is not None and spaced(self.last_token, token):
+            self.spelling += " "
+        self.spelling += token.spelling
+        self.last_token = token
 
-        # At this point, we have collected a doccomment and we are looking
-        # for a declaration to which it should be attached. Clang associates tokens
-        # with cursors (pointers into the AST). So we can scan through the tokens
-        # following this comment, looking for the first which is associated with
-        # a documentable declaration.
-        comment = Comment(
-            path,
-            next_line=1
-            + current_comment_end.line,  # pyright: ignore [reportPossiblyUnboundVariable]
-            text=current_comment_lines,
-        )
 
-        if (
-            t.extent.start.line
-            >= previous_token.extent.end.line  # pyright: ignore [reportPossiblyUnboundVariable]
-            + 2
-        ):
-            # TODO if not explicitly floating, then error
-            # There is at least one blank line after the previous token. At this point
-            # we consider this doccomment floating; we could not find a declaration
-            # with which it is obviously associated. This could be a failure of
-            # liblclang or our usage of it or could be intentional. In either case,
-            # we store the floating comment and let Sphinx sort it out.
-            floating_comments.append(comment)
+def get_documentable_declaration(
+    tokens: Sequence[Token],
+) -> tuple[str, str, str, str] | None:
+    """
+    Get a documentable declaration from a token stream, with
+    whitespace canonicalized to a single " "
 
-        else:
-            previous_token = t
-            if (
-                t.cursor.extent.start.offset
-                < current_comment_end.offset  # pyright: ignore [reportPossiblyUnboundVariable]
+    :return: declaration_string, clang_cursor_kind, directive_name, namespace
+    """
+    for t in tokens:
+        if is_documentable(t.cursor.kind):
+            cursor = t.cursor
+            break
+    else:
+        return None
+
+    namespace = get_namespace(cursor)
+
+    clang_cursor_kind = str(cursor.kind).removeprefix("CursorKind.")
+    if clang_cursor_kind == "MACRO_DEFINITION":
+        directive = "c:macro"
+    elif "STRUCT" in clang_cursor_kind or "CLASS" in clang_cursor_kind:
+        # Classes and structs are stored together because libclang uses
+        # CLASS_TEMPLATE for struct templates. We decide whether to use
+        # cpp:struct or cpp:class based on the referencing directive.
+        directive = "cpp:struct"
+    elif "FUNCTION" in clang_cursor_kind:
+        directive = "cpp:function"
+    elif "VAR" in clang_cursor_kind:
+        directive = "cpp:var"
+    else:
+        logger.info(f"UNKNOWN decl kind {clang_cursor_kind}")
+        directive = ""
+
+    cursor_tokens = cursor.get_tokens()
+    declaration = TokenCanon()
+
+    if cursor.kind == CursorKind.MACRO_DEFINITION:
+        identifier = next(cursor_tokens)
+        declaration.append(identifier)
+        if maybe_open_paren := next(cursor_tokens, None):
+            if maybe_open_paren.spelling == "(" and not spaced(
+                identifier, maybe_open_paren
             ):
-                # Some of the tokens captured by Clang might be associated with a declaration
-                # which *encloses* the decl of interest. For example:
+                # function macro; include parameters
+                declaration.append(maybe_open_paren)
+                for t in cursor_tokens:
+                    declaration.append(t)
+                    if t.spelling == ")":
+                        break
+
+    else:
+        for t in cursor_tokens:
+            if t.spelling in "{;":
+                # TECHNICALLY these could occur in an attribute or lambda expression:
                 #
                 # .. code-block:: c++
                 #
-                #   struct Foo {
-                #     enum Color { R, G, B };
-                #     /// The first token after this doccomment is the return type,
-                #     /// for which t.cursor corresponds to Foo rather than get_color.
-                #     Color get_color();
-                #   };
+                #   /// we only see "IDENTITY = [](auto self)"
+                #   auto IDENTITY = [](auto self) { return self; };
+                #
+                #   /// we only see "[[preconditions"
+                #   [[preconditions{ this->foo == 3 }]] int Foo::get_three() const
+                #
+                # However this doesn't seem critical to support, particularly since
+                # if these constructions are necessary it should be sufficient to
+                # override the automatic declaration string.
+                break
+
+            if t.spelling in {"class", "struct", "export", "union"}:
+                # sphinx decls do not include these; skip them
+                #
+                # Again, TECHNICALLY these could appear in a template argument *and*
+                # be syntactically necessary. Again, simplicity here seems preferable.
                 continue
 
-            declaration = get_sphinx_decl(t.cursor, contents)
-            if declaration is None:
-                continue
+            declaration.append(t)
 
-            comment.clang_cursor_kind = str(t.cursor.kind).removeprefix("CursorKind.")
-            if comment.clang_cursor_kind == "MACRO_DEFINITION":
-                directive = "c:macro"
-            elif (
-                "STRUCT" in comment.clang_cursor_kind
-                or "CLASS" in comment.clang_cursor_kind
-            ):
-                # Classes and structs are stored together because libclang uses
-                # CLASS_TEMPLATE for struct templates. We decide whether to use
-                # cpp:struct or cpp:class based on the referencing directive.
-                directive = "cpp:struct"
-            elif "VAR" in comment.clang_cursor_kind:
-                directive = "cpp:var"
-            else:
-                logger.info(f"UNKNOWN decl kind {comment.clang_cursor_kind}")
-                directive = ""
+    # Advance tokens past what we've consumed here
+    offset = declaration.last_token.extent.end.offset
+    for t in tokens:
+        if t.extent.end.offset == offset:
+            break
 
-            namespace = get_namespace(t.cursor)
+    return declaration.spelling, clang_cursor_kind, directive, namespace
+
+
+DOCUMENTATION_COMMENT = "///"
+
+
+def comment_scan(path: Path, clang_args: list[str], contents: str) -> FileContent:
+    index = Index.create()
+    tu = index.parse(
+        path.name,
+        args=clang_args,
+        unsaved_files=[(path.name, contents)],
+        options=PARSE_FLAGS,
+    )
+    #   - if explicit directive
+    #     - if attached to documentable declaration, override but steal namespace
+    #     - otherwise use namespace = ''
+    #     - append to contexted_comments
+    #   - if explicitly floating, append to floating_comments
+    #   - if attached to documentable declaration, append to contexted_comments
+    #   - otherwise we are unattached and not explicitly floating, error
+    module = ""  # TODO detect modules
+    contexted_comments = []
+    floating_comments = []
+    current_comment_lines = []
+    tokens = tu.get_tokens(extent=tu.cursor.extent)
+
+    while True:
+        comment = Comment.read_from_tokens(path, tokens)
+        if comment is None:
+            break
+
+        if d := get_documentable_declaration(tokens):
+            # TODO detect ///.. explicit:directive::
+            declaration, clang_cursor_kind, directive, namespace = d
+            comment.clang_cursor_kind = clang_cursor_kind
             context = DeclarationContext(directive, namespace, module)
-            declaration_comments.append((context, declaration, comment))
-        current_comment_lines = []
+            contexted_comments.append((context, declaration, comment))
+        else:
+            floating_comments.append(comment)
+
+        # TODO if not explicitly floating, then error
+        # Some of the tokens captured by Clang might be associated with a declaration
+        # which *encloses* the decl of interest. For example:
+        #
+        # .. code-block:: c++
+        #
+        #   struct Foo {
+        #     enum Color { R, G, B };
+        #     /// The first token after this doccomment is the return type,
+        #     /// for which t.cursor corresponds to Foo rather than get_color.
+        #     Color get_color();
+        #   };
 
     return FileContent(
         module,
-        declaration_comments,
+        contexted_comments,
         floating_comments,
         clang_diagnostics=[str(d) for d in tu.diagnostics],
         mtime_when_parsed=path.stat().st_mtime,
@@ -255,7 +359,7 @@ class State:
     """A container for all /// content in a project plus tracking metadata"""
 
     files: dict[Path, FileContent]
-    declaration_comments: dict[DeclarationContext, dict[str, Comment]]
+    contexted_comments: dict[DeclarationContext, dict[str, Comment]]
     references: dict[str, set[Path]]
 
     @staticmethod
@@ -264,13 +368,13 @@ class State:
 
     def __reduce__(self):
         logger.info(f"reducing... {self.references}")
-        return State, (self.files, self.declaration_comments, self.references)
+        return State, (self.files, self.contexted_comments, self.references)
 
     def purge(self, outdated: FileContent):
-        for context, declaration, _ in outdated.declaration_comments:
-            del self.declaration_comments[context][declaration]
-            if not self.declaration_comments[context]:
-                del self.declaration_comments[context]
+        for context, declaration, _ in outdated.contexted_comments:
+            del self.contexted_comments[context][declaration]
+            if not self.contexted_comments[context]:
+                del self.contexted_comments[context]
 
     def check_for_updates(self, app: Sphinx) -> set[str]:
         logger.info("trike.State checking for updates")
@@ -300,19 +404,11 @@ class State:
                 path, app.config.trike_default_clang_args
             )
 
-            index = Index.create()
-            source = path.read_text()
-            tu = index.parse(
-                path.name,
-                args=clang_args,
-                unsaved_files=[(path.name, source)],
-                options=PARSE_FLAGS,
-            )
-            file_content = comment_scan(path, tu, source)
+            file_content = comment_scan(path, clang_args, path.read_text())
             self.files[path] = file_content
 
-            for context, declaration, comment in file_content.declaration_comments:
-                stored = self.declaration_comments.setdefault(context, {}).setdefault(
+            for context, declaration, comment in file_content.contexted_comments:
+                stored = self.contexted_comments.setdefault(context, {}).setdefault(
                     declaration, comment
                 )
                 if stored is not comment:
@@ -385,7 +481,7 @@ class PutDirective(SphinxDirective):
             namespace,
             module,
         )
-        declarations = self.env.trike_state.declaration_comments.get(context, {})
+        declarations = self.env.trike_state.contexted_comments.get(context, {})
 
         declaration = " ".join(filter(lambda arg: arg != "\\", self.arguments[1:]))
         if comment := declarations.get(declaration, None):
@@ -400,7 +496,7 @@ class PutDirective(SphinxDirective):
                     "",
                     *(f"  {line}" for line in self.content),
                     "",
-                    *(f"  {line}" for line in comment.text),
+                    *(f"  {line}" for line in comment.stripped_text),
                 ]
             )
             return self.parse_text_to_nodes(text)
@@ -417,20 +513,20 @@ def setup(app: Sphinx) -> ExtensionMetadata:
         "trike_files",
         [],
         "env",
-        description="All files which will be scanned for ///",
+        #description="All files which will be scanned for ///",
     )
 
     app.add_config_value(
         "trike_default_clang_args",
         [],
         "env",
-        description="Arguments which will be passed to clang",
+        #description="Arguments which will be passed to clang",
     )
     app.add_config_value(
         "trike_clang_args",
         {},
         "env",
-        description="Per-file overrides of arguments which will be passed to clang",
+        #description="Per-file overrides of arguments which will be passed to clang",
     )
     app.connect("env-get-outdated", _env_get_outdated)
     app.connect("env-merge-info", _env_merge_info)
