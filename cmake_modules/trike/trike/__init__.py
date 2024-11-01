@@ -79,6 +79,13 @@ class Comment:
     def stripped_text(self) -> list[str]:
         return [line[len(Comment.PREFIX) + 1 :] for line in self.text]
 
+    def get_explicit_directive(self):
+        if self.text[0].startswith("///.. "):
+            directive, declaration = (
+                self.text.pop(0).removeprefix("///.. ").split("::", 1)
+            )
+            return directive.strip(), declaration.strip()
+
 
 @dataclass
 class DeclarationContext:
@@ -270,13 +277,19 @@ def comment_scan(path: Path, clang_args: list[str]) -> FileContent:
             break
 
         if d := get_documentable_declaration(tokens):
-            # TODO detect ///.. explicit:directive::
             declaration, clang_cursor_kind, directive, namespace = d
+            if d:= comment.get_explicit_directive():
+                directive, declaration = d
             comment.clang_cursor_kind = clang_cursor_kind
             context = DeclarationContext(directive, namespace, module)
             contexted_comments.append((context, declaration, comment))
         else:
-            floating_comments.append(comment)
+            if d:= comment.get_explicit_directive():
+                directive, declaration = d
+                context = DeclarationContext(directive, "", module)
+                contexted_comments.append((context, declaration, comment))
+            else:
+                floating_comments.append(comment)
 
         # TODO if not explicitly floating, then error
 

@@ -29,6 +29,10 @@ def test_basic(tmp_path):
         int main() {
             return 0
         }
+
+        ///.. c:macro:: EXPECT_(condition...)
+        /// la
+        #define EXPECT_(...) foo
         """,
     )
     file_content = trike.comment_scan(path, clang_args=[])
@@ -42,7 +46,17 @@ def test_basic(tmp_path):
                 text=["/// The entry point", "/// something clang-format would mangle"],
                 clang_cursor_kind="FUNCTION_DECL",
             ),
-        )
+        ),
+        (
+            trike.DeclarationContext(directive="c:macro"),
+            "EXPECT_(condition...)",
+            trike.Comment(
+                path,
+                next_line=12,
+                text=["/// la"],
+                clang_cursor_kind="MACRO_DEFINITION",
+            ),
+        ),
     ]
 
 
