@@ -8,7 +8,6 @@ from clang.cindex import (
     Cursor,
     CursorKind,
     Index,
-    SourceLocation,
     Token,
     TokenKind,
     TranslationUnit,
@@ -19,7 +18,7 @@ from sphinx.util.typing import ExtensionMetadata
 from sphinx.util.docutils import SphinxDirective
 from docutils.nodes import Node
 from docutils.statemachine import StringList
-from typing import Sequence, Self
+from typing import Self
 
 logger = sphinx.util.logging.getLogger(__name__)
 
@@ -59,7 +58,7 @@ class Comment:
     clang_cursor_kind: str = ""
 
     @staticmethod
-    def read_from_tokens(file: Path, tokens: Tokens) -> tuple[Self, bool] | None:
+    def read_from_tokens(file: Path, tokens: Tokens) -> Self | None:
         comment = Comment(file, 2**32, [])
 
         for t in tokens:
@@ -113,7 +112,7 @@ class FileContent:
     mtime_when_parsed: float
 
 
-def get_namespace(cursor):
+def get_namespace(cursor: Cursor) -> str:
     # FIXME this will probably need to be much more sophisticated;
     # since we're including classes in the namespace we may need to
     # memoize the canonicalized spelling of the class (semantic_parent.spelling
@@ -265,7 +264,6 @@ def comment_scan(path: Path, clang_args: list[str]) -> FileContent:
     module = ""  # TODO detect modules
     contexted_comments = []
     floating_comments = []
-    current_comment_lines = []
     tokens = Tokens(tu)
 
     while True:
@@ -277,7 +275,7 @@ def comment_scan(path: Path, clang_args: list[str]) -> FileContent:
         explicitly_floating = t is None or t.extent.start.line > comment.next_line
         tokens.unget(t)
 
-        directive, namespace = "", ""
+        declaration, clang_cursor_kind, directive, namespace = [""] * 4
 
         if not explicitly_floating:
             if d := get_documentable_declaration(tokens):
@@ -369,9 +367,9 @@ class State:
 def _env_get_outdated(
     app: Sphinx,
     env: BuildEnvironment,
-    added: set[str],
-    changed: set[str],
-    removed: set[str],
+    _added: set[str],
+    _changed: set[str],
+    _removed: set[str],
 ) -> set[str]:
     logger.info("trike.State handled in env-get-outdated")
 
@@ -460,20 +458,20 @@ def setup(app: Sphinx) -> ExtensionMetadata:
         "trike_files",
         [],
         "env",
-        # description="All files which will be scanned for ///",
+        description="All files which will be scanned for ///",
     )
 
     app.add_config_value(
         "trike_default_clang_args",
         [],
         "env",
-        # description="Arguments which will be passed to clang",
+        description="Arguments which will be passed to clang",
     )
     app.add_config_value(
         "trike_clang_args",
         {},
         "env",
-        # description="Per-file overrides of arguments which will be passed to clang",
+        description="Per-file overrides of arguments which will be passed to clang",
     )
     app.connect("env-get-outdated", _env_get_outdated)
     app.connect("env-merge-info", _env_merge_info)

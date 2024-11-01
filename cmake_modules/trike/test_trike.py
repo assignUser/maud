@@ -30,10 +30,10 @@ def test_basic(tmp_path):
             return 0
         }
 
-        /// fa
+        /// floating something
 
         ///.. c:macro:: EXPECT_(condition...)
-        /// la
+        /// expect doc
         #define EXPECT_(...) foo
         """,
     )
@@ -55,9 +55,16 @@ def test_basic(tmp_path):
             trike.Comment(
                 path,
                 next_line=14,
-                text=["/// la"],
+                text=["/// expect doc"],
                 clang_cursor_kind="MACRO_DEFINITION",
             ),
+        ),
+    ]
+    assert file_content.floating_comments == [
+        trike.Comment(
+            path,
+            next_line=11,
+            text=["/// floating something"],
         ),
     ]
 
