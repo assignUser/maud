@@ -30,6 +30,8 @@ def test_basic(tmp_path):
             return 0
         }
 
+        /// fa
+
         ///.. c:macro:: EXPECT_(condition...)
         /// la
         #define EXPECT_(...) foo
@@ -42,7 +44,7 @@ def test_basic(tmp_path):
             "int main()",
             trike.Comment(
                 path,
-                next_line=5,
+                next_line=6,
                 text=["/// The entry point", "/// something clang-format would mangle"],
                 clang_cursor_kind="FUNCTION_DECL",
             ),
@@ -52,7 +54,7 @@ def test_basic(tmp_path):
             "EXPECT_(condition...)",
             trike.Comment(
                 path,
-                next_line=12,
+                next_line=14,
                 text=["/// la"],
                 clang_cursor_kind="MACRO_DEFINITION",
             ),
@@ -71,15 +73,13 @@ def test_comment_from_tokens(tmp_path):
         int foo = 3;
 
         /// Foo
-        // clang-format off
         /// Bar
-        // clang-format on
         """,
     )
 
     tokens = trike.Tokens(tu)
     comment = trike.Comment.read_from_tokens(path, tokens)
-    assert comment.next_line == 5
+    assert comment.next_line == 6
     assert comment.text == [
         "/// The entry point",
         "/// something clang-format would mangle",
@@ -87,7 +87,7 @@ def test_comment_from_tokens(tmp_path):
     assert next(tokens).spelling == "int"
 
     comment = trike.Comment.read_from_tokens(path, tokens)
-    assert comment.next_line == 11
+    assert comment.next_line == 10
     assert comment.text == [
         "/// Foo",
         "/// Bar",

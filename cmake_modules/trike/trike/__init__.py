@@ -59,20 +59,24 @@ class Comment:
     clang_cursor_kind: str = ""
 
     @staticmethod
-    def read_from_tokens(file: Path, tokens: Tokens) -> Self | None:
-        comment = Comment(file, 0, [])
+    def read_from_tokens(file: Path, tokens: Tokens) -> tuple[Self, bool] | None:
+        comment = Comment(file, 2**32, [])
 
         for t in tokens:
+            if t.extent.start.line > comment.next_line:
+                break
             if t.kind != TokenKind.COMMENT:
                 if comment.text:
-                    tokens.unget(t)
                     break
                 continue
             if t.spelling.startswith(Comment.PREFIX):
                 comment.text.append(t.spelling)
-                comment.next_line = t.extent.end.line + 1
+            comment.next_line = t.extent.end.line + 1
+        else:
+            t = None
 
         if comment.text:
+            tokens.unget(t)
             return comment
 
     @property
@@ -258,13 +262,6 @@ def get_documentable_declaration(
 
 def comment_scan(path: Path, clang_args: list[str]) -> FileContent:
     tu = Index.create().parse(str(path), args=clang_args, options=PARSE_FLAGS)
-    #   - if explicit directive
-    #     - if attached to documentable declaration, override but steal namespace
-    #     - otherwise use namespace = ''
-    #     - append to contexted_comments
-    #   - if explicitly floating, append to floating_comments
-    #   - if attached to documentable declaration, append to contexted_comments
-    #   - otherwise we are unattached and not explicitly floating, error
     module = ""  # TODO detect modules
     contexted_comments = []
     floating_comments = []
@@ -276,22 +273,30 @@ def comment_scan(path: Path, clang_args: list[str]) -> FileContent:
         if comment is None:
             break
 
-        if d := get_documentable_declaration(tokens):
-            declaration, clang_cursor_kind, directive, namespace = d
-            if d:= comment.get_explicit_directive():
-                directive, declaration = d
+        t = next(tokens, None)
+        explicitly_floating = t is None or t.extent.start.line > comment.next_line
+        tokens.unget(t)
+
+        directive, namespace = "", ""
+
+        if not explicitly_floating:
+            if d := get_documentable_declaration(tokens):
+                declaration, clang_cursor_kind, directive, namespace = d
+
+        if d := comment.get_explicit_directive():
+            # explicit directives override those inferred from decls
+            directive, declaration = d
+
+        if directive:
             comment.clang_cursor_kind = clang_cursor_kind
             context = DeclarationContext(directive, namespace, module)
             contexted_comments.append((context, declaration, comment))
+        elif explicitly_floating:
+            floating_comments.append(comment)
         else:
-            if d:= comment.get_explicit_directive():
-                directive, declaration = d
-                context = DeclarationContext(directive, "", module)
-                contexted_comments.append((context, declaration, comment))
-            else:
-                floating_comments.append(comment)
-
-        # TODO if not explicitly floating, then error
+            logger.error(
+                f"Could not infer directive from {str(path)}:{comment.next_line}"
+            )
 
     return FileContent(
         module,
