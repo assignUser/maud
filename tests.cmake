@@ -6,6 +6,6 @@ add_compile_definitions(
 add_test(
   NAME pytest.trike
   COMMAND
-    "${CMAKE_BUILD_DIR}/documentation/venv/bin/pytest"
+    "${CMAKE_BUILD_DIR}/documentation/venv/bin/pytest" -vv
     "${CMAKE_SOURCE_DIR}/cmake_modules/trike"
 )

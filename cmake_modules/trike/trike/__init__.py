@@ -67,11 +67,8 @@ class Comment:
 
         comment = Comment(file, t.extent.end.line + 1, [t.spelling])
         for t in tokens:
-            if t.kind != TokenKind.COMMENT:
+            if t.kind != TokenKind.COMMENT or t.extent.start.line > comment.next_line:
                 tokens.unget(t)
-                break
-
-            if t.extent.start.line > comment.next_line:
                 break
             comment.next_line = t.extent.end.line + 1
 
@@ -152,7 +149,7 @@ def contiguous(first: Token | None, second: Token | None) -> bool:
     return first.extent.end == second.extent.start
 
 
-def join_tokens(tokens):
+def join_tokens(tokens: Tokens) -> str:
     tokens = iter(tokens)
     previous = next(tokens)
     joined = previous.spelling
@@ -173,21 +170,30 @@ def get_documentable_declaration(
 
     :return: declaration_string, clang_cursor_kind, directive_name, namespace
     """
+    if t := next(tokens, None):
+        min_offset = t.extent.start.offset
+        tokens.unget(t)
+    else:
+        return None
+
     for t in tokens:
+        if t.cursor.extent.start.offset < min_offset:
+            # Some of the tokens captured by Clang might be associated with a declaration
+            # which *encloses* the decl of interest. For example:
+            #
+            # .. code-block:: c++
+            #
+            #   struct Foo {
+            #     enum Color { R, G, B };
+            #     /// The first token after this doccomment is the return type,
+            #     /// for which t.cursor corresponds to Foo rather than get_color.
+            #     Color get_color();
+            #   };
+            continue
+
         if is_documentable(t.cursor.kind):
             cursor = t.cursor
             break
-        # FIXME Some of the tokens captured by Clang might be associated with a declaration
-        # which *encloses* the decl of interest. For example:
-        #
-        # .. code-block:: c++
-        #
-        #   struct Foo {
-        #     enum Color { R, G, B };
-        #     /// The first token after this doccomment is the return type,
-        #     /// for which t.cursor corresponds to Foo rather than get_color.
-        #     Color get_color();
-        #   };
     else:
         return None
 
