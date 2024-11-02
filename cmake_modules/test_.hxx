@@ -3,6 +3,8 @@
 #define GTEST_STRINGIFY_HELPER_(name, ...) #name
 #define GTEST_STRINGIFY_(...) GTEST_STRINGIFY_HELPER_(__VA_ARGS__, )
 
+///.. c:macro:: TEST_(case_name, parameters...)
+///
 /// Defines and registers a test case with optional parameters.
 ///
 /// :param case_name: The test case's name
@@ -62,6 +64,8 @@
   template <typename Parameter>                                          \
   void SUITE_NAME::case_name::body(Parameter const &parameter)
 
+///.. c:macro:: EXPECT_(condition...)
+///
 /// Checks its condition, producing a failure if it is falsy.
 ///
 /// :param condition: An expression which is expected to be truthy.
