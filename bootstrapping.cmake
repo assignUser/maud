@@ -50,7 +50,7 @@ add_custom_command(
   OUTPUT "${_MAUD_IN2}"
   DEPENDS maud_in2
   COMMAND
-    "${CMAKE_COMMAND}" -E create_hardlink
+    "${CMAKE_COMMAND}" -E copy
     $<TARGET_FILE:maud_in2>
     "${_MAUD_IN2}"
 )

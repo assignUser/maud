@@ -59,24 +59,26 @@ class Comment:
 
     @staticmethod
     def read_from_tokens(file: Path, tokens: Tokens) -> Self | None:
-        comment = Comment(file, 2**32, [])
-
         for t in tokens:
+            if t.kind == TokenKind.COMMENT and t.spelling.startswith(Comment.PREFIX):
+                break
+        else:
+            return None
+
+        comment = Comment(file, t.extent.end.line + 1, [t.spelling])
+        for t in tokens:
+            if t.kind != TokenKind.COMMENT:
+                tokens.unget(t)
+                break
+
             if t.extent.start.line > comment.next_line:
                 break
-            if t.kind != TokenKind.COMMENT:
-                if comment.text:
-                    break
-                continue
+            comment.next_line = t.extent.end.line + 1
+
             if t.spelling.startswith(Comment.PREFIX):
                 comment.text.append(t.spelling)
-            comment.next_line = t.extent.end.line + 1
-        else:
-            t = None
 
-        if comment.text:
-            tokens.unget(t)
-            return comment
+        return comment
 
     @property
     def stripped_text(self) -> list[str]:

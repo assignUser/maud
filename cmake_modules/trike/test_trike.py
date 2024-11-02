@@ -150,3 +150,30 @@ def test_documentable_declaration(tmp_path):
 def test_whitespace(tmp_path):
     tu, _ = make_tu(tmp_path, """  int   foo  =3   ;   """)
     assert trike.join_tokens(trike.Tokens(tu)) == """int foo =3 ;"""
+
+
+def test_modules(tmp_path):
+    tu, _ = make_tu(
+        tmp_path,
+        """
+        module;
+        module foo;
+        import bar;
+        """,
+        clang_args=["-std=gnu++20"],
+    )
+
+    tokens = trike.Tokens(tu)
+    for t in tokens:
+        if t.spelling == "module":
+            t = next(tokens)
+            if t.spelling != ";":
+                break
+    assert t.spelling == "foo"
+
+
+def test_test_hxx():
+    path = Path(__file__).parent.parent / "test_.hxx"
+    file_content = trike.comment_scan(path, clang_args=[])
+    for ctx, _, _ in file_content.contexted_comments:
+        assert ctx.directive == "c:macro"
