@@ -30,14 +30,8 @@ NEXT
   the documentation
 - harden and test the scanner
   - support this when preprocessing isn't required
-- Make `test_` an *imported* special module; that way it can be orphaned
-  if you like but can test things a module doesn't export by declaring
-  itself an implementation unit of that module. Wiring up the scanner is
-  a prerequisite because without it we don't know which non-`test_` module
-  the test belongs to (unless we use partitions...).
-  - same for `executable`
 - git ls-files starts up *quick*, so we could use it even for small projects,
-  let _maud_glob use that
+  let `_maud_glob` use that
 
 
 TODO: break Maud.cmake up into distinct modules

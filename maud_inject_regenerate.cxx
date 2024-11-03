@@ -1,4 +1,3 @@
-module;
 #include <cerrno>
 #include <chrono>
 #include <filesystem>
@@ -7,7 +6,7 @@ module;
 #include <string>
 #include <string_view>
 #include <thread>
-module executable;
+import executable;
 
 namespace fs = std::filesystem;
 

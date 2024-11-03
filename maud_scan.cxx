@@ -1,6 +1,5 @@
 // Boost Licensed
 //
-module;
 
 #include <cassert>
 #include <cstdlib>
@@ -10,8 +9,7 @@ module;
 #include <string_view>
 #include <vector>
 
-module executable;
-
+import executable;
 import maud_;
 
 // TODO catch errors which are definitely a problem in the interface block:

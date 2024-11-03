@@ -1,10 +1,8 @@
-module;
 #include <filesystem>
 #include <sstream>
 #include <string>
 #include <string_view>
-module test_;
-
+import test_;
 import maud_;
 
 using std::operator""s;

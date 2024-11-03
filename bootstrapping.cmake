@@ -9,30 +9,35 @@ set(
   "try_compile'd maud_inject_regenerate for bootstrapping Maud"
 )
 
-file(
-  WRITE "${MAUD_DIR}/maud_.cxx"
-  "
-  export module maud_;
-  export import :filesystem;
-  "
+if(
+  "${dir}/filesystem.cxx" IS_NEWER_THAN "${_MAUD_INJECT_REGENERATE}"
+  OR
+  "${dir}/cmake_modules/executable.cxx" IS_NEWER_THAN "${_MAUD_INJECT_REGENERATE}"
 )
+  file(
+    WRITE "${MAUD_DIR}/maud_.cxx"
+    "export module maud_;\nexport import :filesystem;\n"
+  )
 
-try_compile(
-  success
-  SOURCES "${dir}/maud_inject_regenerate.cxx"
-  SOURCES_TYPE CXX_MODULE
-  SOURCES
-    "${MAUD_DIR}/maud_.cxx"
-    "${dir}/filesystem.cxx"
-    "${dir}/cmake_modules/executable.cxx"
-  COPY_FILE "${_MAUD_INJECT_REGENERATE}"
-  OUTPUT_VARIABLE errors
-  CXX_STANDARD 20
-  NO_CACHE
-)
+  # TODO we don't even need a target for this; just install the bootstrapped one
+  #      (rename to .maud_inject_regenerate.cxx to exclude from the glob)
+  try_compile(
+    success
+    SOURCES "${dir}/maud_inject_regenerate.cxx"
+    SOURCES_TYPE CXX_MODULE
+    SOURCES
+      "${MAUD_DIR}/maud_.cxx"
+      "${dir}/filesystem.cxx"
+      "${dir}/cmake_modules/executable.cxx"
+    COPY_FILE "${_MAUD_INJECT_REGENERATE}"
+    OUTPUT_VARIABLE errors
+    CXX_STANDARD 20
+    NO_CACHE
+  )
 
-if(NOT success)
-  message(FATAL_ERROR "try_compile failed: ${errors}")
+  if(NOT success)
+    message(FATAL_ERROR "try_compile failed: ${errors}")
+  endif()
 endif()
 
 

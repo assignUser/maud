@@ -365,12 +365,12 @@ function(_maud_scan source_file)
   if(NOT imports)
     set(imports)
   endif()
+  message(VERBOSE "  imports ${imports}")
 
   string(JSON module ERROR_VARIABLE error GET "${ddi}" rules 0 _maud_module-name)
   if(NOT error)
     message(FATAL_ERROR "FIXME not yet supported")
     list(REMOVE_ITEM imports "${module}")
-    set(type IMPLEMENTATION)
   else()
     set(module "")
   endif()
@@ -396,70 +396,65 @@ function(_maud_scan source_file)
     set(is-interface OFF)
   endif()
 
-  if(module STREQUAL "")
-    # No associated module was detected, but this is sometimes due to using a
-    # scanner which doesn't report implementation units with _maud_module-name.
-    # If it happens to be one of the special modules, then it'll be reported in
-    # imports and we can avoid orphaning this source.
-    if("executable" IN_LIST imports)
-      list(REMOVE_ITEM imports "executable")
-      set(module "executable")
-      set(type IMPLEMENTATION)
-    elseif("test_" IN_LIST imports)
-      list(REMOVE_ITEM imports "test_")
-      set(module "test_")
-      set(type IMPLEMENTATION)
-    else()
-      # If we have no module name then we can't associate this source with a target
-      message(VERBOSE "  ORPHANED, imports ${imports}")
-      return()
-    endif()
+  if(module AND NOT type)
+    set(type IMPLEMENTATION)
   endif()
 
-  message(VERBOSE "  module ${type} ${module}:${partition}")
-  message(VERBOSE "  imports ${imports}")
+  # set properties for later introspection
+  set_source_files_properties(
+    ${source_file}
+    PROPERTIES
+    MAUD_IMPORTS "${imports}"
+    MAUD_TYPE "${type}"
+    MAUD_MODULE "${module}"
+    MAUD_PARTITION "${partition}"
+    MAUD_IS_INTERFACE ${is-interface}
+  )
 
-  if(module STREQUAL "executable")
+  if("executable" IN_LIST imports)
+    message(VERBOSE "  executable")
     cmake_path(GET source_file STEM target_name)
-    set(source_access PRIVATE)
-  elseif(module STREQUAL "test_")
+    if(NOT TARGET ${target_name})
+      add_executable(${target_name})
+      message(VERBOSE "  creating executable ${target_name}")
+    endif()
+  elseif("test_" IN_LIST imports OR module STREQUAL "test_")
+    message(VERBOSE "  unit test")
     if(NOT BUILD_TESTING)
       message(VERBOSE "  Testing disabled, ORPHANED")
       return()
     endif()
-
     if(COMMAND "maud_add_test")
-      maud_add_test("${source_file}" "${partition}" target_name)
+      maud_add_test("${source_file}" "${module}" "${partition}" target_name)
     else()
-      _maud_add_test("${source_file}" "${partition}" target_name)
+      _maud_add_test("${source_file}" "${module}" "${partition}" target_name)
     endif()
-
-    if(NOT TARGET "${target_name}")
-      message(VERBOSE "  No target named, ORPHANED")
-      return()
-    endif()
-    set(source_access PRIVATE)
-  else()
-    set(target_name ${module})
-    set(source_access PUBLIC)
   endif()
 
-  if(NOT TARGET ${target_name})
-    if(module STREQUAL "executable")
-      add_executable(${target_name})
-      message(VERBOSE "  creating executable ${target_name}")
-    elseif(module MATCHES "^.*_$")
-      add_library(${target_name} OBJECT)
-      message(VERBOSE "  creating internal library ${target_name}")
-    else()
-      add_library(${target_name})
-      message(VERBOSE "  creating library ${target_name}")
+  if(module)
+    message(VERBOSE "  module ${type} ${module}:${partition}")
+    if(NOT target_name)
+      set(target_name ${module})
     endif()
-  else()
-    message(VERBOSE "  attaching to ${target_name}")
+
+    if(NOT TARGET ${target_name})
+      if(module MATCHES "^.*_$")
+        add_library(${target_name} OBJECT)
+        message(VERBOSE "  creating internal library ${target_name}")
+      else()
+        add_library(${target_name})
+        message(VERBOSE "  creating library ${target_name}")
+      endif()
+    endif()
   endif()
+
+  if(NOT TARGET "${target_name}")
+    message(VERBOSE "  not automatically associated with any target")
+    return()
+  endif()
+  message(VERBOSE "  attaching to ${target_name}")
+
   set_property(TARGET ${target_name} APPEND PROPERTY MAUD_IMPORTS "${imports}")
-
   set_target_properties(${target_name} PROPERTIES MAUD_SCANNED ON)
   target_compile_features(
     ${target_name}
@@ -468,17 +463,17 @@ function(_maud_scan source_file)
   )
 
   # attach sources
-  if(type STREQUAL "IMPLEMENTATION")
-    target_sources(${target_name} PRIVATE "${source_file}")
-  else()
+  if(type STREQUAL "INTERFACE" OR type STREQUAL "PROVIDER")
     target_sources(
       ${target_name}
-      ${source_access}
+      PUBLIC
       FILE_SET module_providers
       TYPE CXX_MODULES
       BASE_DIRS ${_MAUD_BASE_DIRS}
       FILES "${source_file}"
     )
+  else()
+    target_sources(${target_name} PRIVATE "${source_file}")
   endif()
 
   if(type STREQUAL "INTERFACE")
@@ -486,49 +481,40 @@ function(_maud_scan source_file)
     list(FILTER internal_imports INCLUDE REGEX "_$")
     # Every module imported by an interface must also be installed, so
     # ensure that no internal modules were imported here.
-    if(internal_imports STREQUAL "")
-    else()
+    if(internal_imports)
       message(
         FATAL_ERROR
         "${source_file} is an interface for an installed target but imports ${internal_imports}"
       )
     endif()
 
-    if(partition STREQUAL "")
-      set_target_properties(
-        ${target_name}
-        PROPERTIES
-        MAUD_INTERFACE "${source_file}"
-      )
-    else()
+    if(partition)
       set_property(
         TARGET ${target_name}
         APPEND PROPERTY
         MAUD_INTERFACE_PARTITIONS "${partition}"
       )
+    else()
+      set_target_properties(
+        ${target_name}
+        PROPERTIES
+        MAUD_INTERFACE "${source_file}"
+      )
     endif()
   endif()
-
-  # set properties for later introspection
-  set_source_files_properties(
-    ${source_file}
-    PROPERTIES
-    MAUD_TYPE ${type}
-    MAUD_MODULE ${module}
-    MAUD_PARTITION "${partition}"
-    MAUD_IS_INTERFACE ${is-interface}
-    MAUD_IMPORTS "${imports}"
-  )
 endfunction()
 
 
-function(_maud_add_test source_file partition out_target_name)
+function(_maud_add_test source_file module partition out_target_name)
   if(partition STREQUAL "main")
     if(_MAUD_TEST_MAIN)
       message(
         FATAL_ERROR
-        "Only one definition of test_:main is supported, but got\n"
-        "        ${source_file}\n        ${_MAUD_TEST_MAIN}\n"
+        "
+    Only one definition of test_:main is supported, but got
+        ${source_file}
+        ${_MAUD_TEST_MAIN}
+        "
       )
     endif()
     set(_MAUD_TEST_MAIN "${source_file}" CACHE INTERNAL "" FORCE)
@@ -632,6 +618,9 @@ function(_maud_finalize_targets)
     # Link targets to imported modules
     list(FILTER imports EXCLUDE REGEX ":")
     foreach(import ${imports})
+      if(import STREQUAL "executable" OR import STREQUAL "test_")
+        continue()
+      endif()
       if(NOT TARGET ${import})
         find_package("${import}.maud" REQUIRED CONFIG)
       endif()

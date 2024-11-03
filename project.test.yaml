@@ -5,9 +5,8 @@ empty:
 hello world:
 - write: hello.cxx
   contents: |
-    module;
     #include <iostream>
-    module executable;
+    import executable;
     int main() {
       std::cout << "hello world!" << std::endl;
     }
@@ -48,7 +47,7 @@ std lib:
     }
 - write: bar.cxx
   contents: |
-    module executable;
+    import executable;
     import std_;
     int main() {
       std::vector<std::string> s;
@@ -304,7 +303,7 @@ custom unit testing:
       MAUD_CXX_SOURCE_EXCLUSION_PATTERN
       "test_[.]cxx"
     )
-    function(maud_add_test source_file partition out_target_name)
+    function(maud_add_test source_file module partition out_target_name)
       cmake_path(GET source_file STEM name)
       set(${out_target_name} "test_.${name}" PARENT_SCOPE)
 
@@ -332,7 +331,7 @@ import installed:
 - cmake --install foo/.build --prefix ../usr --config Debug
 - write: use/use.cxx
   contents: |
-    module executable;
+    import executable;
     import foo;
     int main() { return foo(); }
 - command: maud --log-level=VERBOSE
@@ -363,7 +362,7 @@ DISABLED_import installed with options:
 - cmake --install fmt_42/.build --prefix ../usr --config Debug
 - write: use/use.cxx
   contents: |
-    module executable;
+    import executable;
     import fmt_42;
     int main() { return fmt_42().size(); }
 - command: maud --log-level=VERBOSE
@@ -389,7 +388,7 @@ auto primary interface:
     export int b() { return 0; }
 - write: use.cxx
   contents: |
-    module executable;
+    import executable;
     import foo;
     int main() { return a() + b(); }
 - maud --log-level=VERBOSE
@@ -424,10 +423,9 @@ rendered in2 source:
 use find_package:
 - write: use_json_fmt.cxx
   contents: |
-    module;
     #include <fmt/format.h>
     #include <nlohmann/json.hpp>
-    module executable;
+    import executable;
     int main() {}
 
 - write: use_json_fmt.cmake
@@ -531,7 +529,7 @@ util_ is not installed:
     export int zero() { return 0; }
 - write: foo.cxx
   contents: |
-    module executable;
+    import executable;
     import util_;
     int main() { return zero(); }
 - maud --log-level=VERBOSE
@@ -565,7 +563,7 @@ options:
     )
 - write: assertions.cxx
   contents: |
-    module executable; int main() {}
+    import executable; int main() {}
 
     static_assert(not LEGACY_0);
     static_assert(LEGACY_1);
@@ -620,9 +618,8 @@ option dependencies resolve correctly:
     option(F "" ADD_COMPILE_DEFINITIONS)
 - write: assertions.cxx
   contents: |
-    module;
     #include <string_view>
-    module executable; int main() {}
+    import executable; int main() {}
     using std::operator""sv;
 
     static_assert(A and B and C);
@@ -653,7 +650,7 @@ resolve undeclared options correctly:
     option(B "B help" ADD_COMPILE_DEFINITIONS)
 - write: assertions.cxx
   contents: |
-    module executable; int main() {}
+    import executable; int main() {}
     static_assert(A and B);
 - maud --log-level=VERBOSE -DA=ON -DB=OFF
 
@@ -670,9 +667,8 @@ path option:
     )
 - write: assertions.cxx
   contents: |
-    module;
     #include <string_view>
-    module executable; int main() {}
+    import executable; int main() {}
     static_assert(P == std::string_view{__FILE__});
 - # Note that only -DA=ON will not be overridden
   command: maud --log-level=VERBOSE -DP=./assertions.cxx
