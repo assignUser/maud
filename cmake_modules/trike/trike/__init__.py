@@ -202,6 +202,10 @@ def get_documentable_declaration(
     clang_cursor_kind = str(cursor.kind).removeprefix("CursorKind.")
     if clang_cursor_kind == "MACRO_DEFINITION":
         directive = "c:macro"
+    elif clang_cursor_kind == "FIELD_DECL":
+        directive = "cpp:member"
+    elif "TYPE_ALIAS" in clang_cursor_kind:
+        directive = "cpp:type"
     elif "STRUCT" in clang_cursor_kind or "CLASS" in clang_cursor_kind:
         # Classes and structs are stored together because libclang uses
         # CLASS_TEMPLATE for struct templates. We decide whether to use
@@ -212,7 +216,7 @@ def get_documentable_declaration(
     elif "VAR" in clang_cursor_kind:
         directive = "cpp:var"
     else:
-        logger.info(f"UNKNOWN decl kind {clang_cursor_kind}")
+        logger.error(f"UNKNOWN decl kind {clang_cursor_kind}")
         directive = ""
 
     cursor_tokens = cursor.get_tokens()
@@ -248,7 +252,7 @@ def get_documentable_declaration(
                 # override the automatic declaration string.
                 break
 
-            if t.spelling in {"class", "struct", "export", "union"}:
+            if t.spelling in {"class", "struct", "export", "union", "using", "typedef"}:
                 # sphinx decls do not include these; skip them
                 #
                 # Again, TECHNICALLY these could appear in a template argument *and*

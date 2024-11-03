@@ -23,9 +23,9 @@ def test_basic(tmp_path):
         tmp_path,
         """
         /// The entry point
-        // clang-format on
-        /// something clang-format would mangle
         // clang-format off
+        /// something clang-format would mangle
+        // clang-format on
         int main() {
             return 0
         }
@@ -35,6 +35,21 @@ def test_basic(tmp_path):
         ///.. c:macro:: EXPECT_(condition...)
         /// expect doc
         #define EXPECT_(...) foo
+
+        namespace baz {
+
+        /// Metasyntactic value
+        struct Quux {
+          /// four oopsies
+          int foo;
+          /// beyond available resources
+          int bar;
+        };
+
+        /// rEVERSEpASCAL never caught on for some reason
+        using cHAR = char;
+
+        } // namespace baz
         """,
     )
     file_content = trike.comment_scan(path, clang_args=[])
@@ -57,6 +72,46 @@ def test_basic(tmp_path):
                 next_line=14,
                 text=["/// expect doc"],
                 clang_cursor_kind="MACRO_DEFINITION",
+            ),
+        ),
+        (
+            trike.DeclarationContext(directive="cpp:struct", namespace="baz"),
+            "Quux",
+            trike.Comment(
+                path,
+                next_line=19,
+                text=["/// Metasyntactic value"],
+                clang_cursor_kind="STRUCT_DECL",
+            ),
+        ),
+        (
+            trike.DeclarationContext(directive="cpp:member", namespace="baz::Quux"),
+            "int foo",
+            trike.Comment(
+                path,
+                next_line=21,
+                text=["/// four oopsies"],
+                clang_cursor_kind="FIELD_DECL",
+            ),
+        ),
+        (
+            trike.DeclarationContext(directive="cpp:member", namespace="baz::Quux"),
+            "int bar",
+            trike.Comment(
+                path,
+                next_line=23,
+                text=["/// beyond available resources"],
+                clang_cursor_kind="FIELD_DECL",
+            ),
+        ),
+        (
+            trike.DeclarationContext(directive="cpp:type", namespace="baz"),
+            "cHAR = char",
+            trike.Comment(
+                path,
+                next_line=27,
+                text=["/// rEVERSEpASCAL never caught on for some reason"],
+                clang_cursor_kind="TYPE_ALIAS_DECL",
             ),
         ),
     ]
@@ -110,8 +165,22 @@ def test_is_documentable():
     assert trike.is_documentable(CursorKind.FUNCTION_TEMPLATE)
     assert trike.is_documentable(CursorKind.CLASS_TEMPLATE)
     assert trike.is_documentable(CursorKind.STRUCT_DECL)
+    assert trike.is_documentable(CursorKind.CXX_METHOD)
     assert trike.is_documentable(CursorKind.ENUM_DECL)
+    assert trike.is_documentable(CursorKind.ENUM_CONSTANT_DECL)
+    assert trike.is_documentable(CursorKind.FIELD_DECL)
     assert trike.is_documentable(CursorKind.VAR_DECL)
+    assert trike.is_documentable(CursorKind.TYPEDEF_DECL)
+    assert trike.is_documentable(CursorKind.CONSTRUCTOR)
+    assert trike.is_documentable(CursorKind.CONCEPT_DECL)
+
+    # TODO maybe add these to the non-documented set
+    assert trike.is_documentable(CursorKind.USING_DECLARATION)
+    assert trike.is_documentable(CursorKind.USING_DIRECTIVE)
+    assert trike.is_documentable(CursorKind.FRIEND_DECL)
+    assert trike.is_documentable(CursorKind.TYPE_ALIAS_DECL)
+    assert trike.is_documentable(CursorKind.CXX_ACCESS_SPEC_DECL)
+
     assert not trike.is_documentable(CursorKind.PREPROCESSING_DIRECTIVE)
     assert not trike.is_documentable(CursorKind.UNEXPOSED_DECL)
     assert not trike.is_documentable(CursorKind.STRING_LITERAL)
