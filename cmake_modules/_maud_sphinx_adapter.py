@@ -1,10 +1,7 @@
 from pathlib import Path
 import re
 
-def read_cache(build_dir: str):
-    class cache:
-        pass
-
+def read_cache(build_dir: str, cache):
     ENTRY = re.compile("([^#/].*):(.+)=(.*)")
     FALSE_STRINGS = {""} | set("0 FALSE OFF N NO IGNORE NOTFOUND".split())
     INTERNAL_PATHS = set("CMAKE_SOURCE_DIR CMAKE_BINARY_DIR MAUD_DIR".split())
@@ -20,7 +17,6 @@ def read_cache(build_dir: str):
                 value = Path(value)
 
             setattr(cache, name, value)
-    return cache
 
 
 def setup(app):

@@ -745,7 +745,7 @@ documentation:
     )
 - write: sphinx_configuration/conf.py
   contents: |
-    from maud import SOME_DOC_OPTION, BUILD_TESTING, CMAKE_SOURCE_DIR
+    from maud.cache import SOME_DOC_OPTION, BUILD_TESTING, CMAKE_SOURCE_DIR
     extensions = ['maud', 'trike']
     assert SOME_DOC_OPTION == 'B'
     assert type(BUILD_TESTING) == bool

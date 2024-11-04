@@ -39,3 +39,5 @@ if(
     message(FATAL_ERROR "try_compile failed: ${errors}")
   endif()
 endif()
+
+_maud_set(_MAUD_IN2 "ERROR_PLACEHOLDER_MAUD_IN2_NOT_BOOTSTRAPPED")

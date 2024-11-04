@@ -1071,7 +1071,6 @@ endfunction()
 
 function(_maud_setup_doc)
   find_package(Python3)
-
   if(NOT TARGET Python3::Interpreter)
     # TODO instead, error here (but include instructions to disable doc)
     message(VERBOSE "Could not find Python3, abandoning doc")
@@ -1123,13 +1122,15 @@ function(_maud_setup_doc)
       dependencies = []
     ]]
   )
+  file(WRITE "${MAUD_DIR}/maud_sphinx_adapter/maud/cache/__init__.py")
   file(
     WRITE "${MAUD_DIR}/maud_sphinx_adapter/maud/__init__.py"
     "import sys\n"
     "sys.path.append('${_MAUD_SELF_DIR}')\n"
     "from _maud_sphinx_adapter import setup, read_cache\n"
     "sys.path = sys.path[:-1]\n"
-    "cache = read_cache('${CMAKE_BINARY_DIR}')\n"
+    "import maud.cache\n"
+    "read_cache('${CMAKE_BINARY_DIR}', maud.cache)\n"
   )
 
   message(STATUS "Building virtual env ${doc}/venv for Sphinx")
