@@ -456,6 +456,32 @@ use find_package:
 - maud
 
 
+c++17 project:
+- write: src/src-y.cxx
+  contents: |
+    int main() {}
+- write: explicit_targets.cmake
+  contents: |
+    set(CMAKE_CXX_STANDARD 17)
+    glob(SRCS CONFIGURE_DEPENDS "src/.*[.]cxx$")
+    add_executable(hello ${SRCS})
+- maud --log-level=VERBOSE
+- exists: .build/Debug/hello
+
+
+c++23 project:
+- write: fib.cxx
+  contents: |
+    export module fib;
+    auto fib = [](this auto const &self, int i) {
+      if (i <= 1) return i;
+      return self(i - 1) + self(i - 2);
+    };
+- write: cxx23.cmake
+  contents: |
+    set(CMAKE_CXX_STANDARD 23)
+- maud --log-level=VERBOSE
+- exists: .build/Debug/libfib.a
 
 
 internal decl:
@@ -709,10 +735,8 @@ validate string option with explicit code block:
 
 documentation:
 - write: index.rst
-  # FIXME apidoc doesn't support :members: yet
   contents: |
     .. trike-put:: cpp:struct Foo
-      :members:
 - write: options.cmake
   contents: |
     option(
@@ -722,14 +746,13 @@ documentation:
 - write: sphinx_configuration/conf.py
   contents: |
     from maud import SOME_DOC_OPTION, BUILD_TESTING, CMAKE_SOURCE_DIR
+    extensions = ['maud', 'trike']
     assert SOME_DOC_OPTION == 'B'
     assert type(BUILD_TESTING) == bool
     exclude_patterns = ["CMAKE_SOURCE_DIR", "Thumbs.db", ".DS_Store"]
-    trike_files = list(CMAKE_SOURCE_DIR.glob("*.cxx"))
-- write: s.cxx
+    trike_files = list(CMAKE_SOURCE_DIR.glob("*.hxx"))
+- write: s.hxx
   contents: |
-    export module foo;
-
     /// a simple foobar struct
     struct Foo {
       /// metasyntactic variable
@@ -740,3 +763,4 @@ documentation:
     };
 - maud --log-level=VERBOSE -DSOME_DOC_OPTION=B
 # TODO abolish exist etc; just provide an inline cmake command for asserting whatever
+

@@ -9,15 +9,6 @@ cmake_policy(SET CMP0057 NEW) # Support new ``if()`` IN_LIST operator.
 set(_MAUD_SELF_DIR "${CMAKE_CURRENT_LIST_DIR}")
 
 
-# TODO defer this until c++ source scan time
-if(NOT CMAKE_CXX_STANDARD)
-  set(CMAKE_CXX_STANDARD 20)
-  set(CMAKE_CXX_STANDARD_REQUIRED ON)
-elseif(CMAKE_CXX_STANDARD LESS 20)
-  message(FATAL_ERROR "Building with modules requires at least C++20")
-endif()
-
-
 function(_maud_set var)
   set(${var} "${ARGN}" CACHE INTERNAL "" FORCE)
 endfunction()
@@ -243,6 +234,16 @@ endfunction()
 
 
 function(_maud_cxx_sources)
+  if(NOT CMAKE_CXX_STANDARD)
+    set(CMAKE_CXX_STANDARD 20)
+    set(CMAKE_CXX_STANDARD_REQUIRED ON)
+  elseif(CMAKE_CXX_STANDARD LESS 20)
+    message(STATUS "Building with modules requires at least C++20, however")
+    message(STATUS "  this project is configured for C++${CMAKE_CXX_STANDARD}.")
+    message(STATUS "  Abandoning automatic target scanning...")
+    return()
+  endif()
+
   set(ext_regex ${MAUD_CXX_SOURCE_EXTENSIONS})
   string(REPLACE "+" "[+]" ext_regex "${ext_regex}")
   string(REPLACE " " "|" ext_regex "${ext_regex}")

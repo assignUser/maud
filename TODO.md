@@ -6,12 +6,12 @@ NEXT
 - how should we recommend use of gtest_discover_tests? If you only have a few it's nice
 - write doc
   - getting_started.rst
+  - doc c++17 project
   - we need an "introduction to C++20 modules" page too; there won't just be C++
     experts needing to build stuff
 - more test projects
   - just compile each test case to a cmake script
   - use a maud based project with fetchcontent
-  - verify maud works while using c++23
   - install documentation
   - render one in2 multiple times, one for each value from a list
     ```
@@ -167,23 +167,6 @@ maud_defer(
   UNTIL TARGET use_json_fmt
 )
 ```
-
-
-TODO: support C++17/non-module projects
----------------------------------------
-
-There's plenty of maud features which could be useful even without
-full module support. All the source files would be orphaned, but
-with the `glob()` function provided it'd be pretty trivial to define
-targets manually. This would just require *not* setting/asserting
-`CMAKE_CXX_STANDARD` and gracefully skipping scanning if the compiler
-doesn't do modules anyway.
-
-Taking things further, C++ sources could be associated with targets
-even without using modules. The module block could be written using
-a custom attribute for example, or a directory naming convention
-could be adoted, or you could write the module block verbatim inside
-an `#if false`- maud_scan would read it even if nothing else did.
 
 
 TODO: consolidate tests
