@@ -23,7 +23,7 @@
 /// distinct test case using the same test body. In the scope of
 /// the test body, the parameter is declared as
 ///
-/// .. cpp:var:: Parameter const &parameter
+/// .. var:: Parameter const &parameter
 ///
 /// If parameters are read from an initializer list or other
 /// range then this is analogous to a
@@ -82,7 +82,7 @@
 ///   // Expected: three == five
 ///   //   Actual:     3 vs 5
 ///
-/// :cpp:expr:`EXPECT_(...)` produces an expression rather than a statement.
+/// :expr:`EXPECT_(...)` produces an expression rather than a statement.
 /// It is contextually convertible to ``bool``, truthy iff the condition
 /// was truthy. If additional context needs to be added to a failed
 /// expectation, a lambda can be provided which will only be called
@@ -135,11 +135,11 @@
 ///   };
 ///
 /// This may be omitted, in which case no state will be shared.
-/// If it is provided it must precede all :cpp:expr:`TEST_(...)`
+/// If it is provided it must precede all :expr:`TEST_(...)`
 /// definitions (this is checked at runtime).
 ///
 /// A pointer to the constructed state ``struct`` is accessible
-/// in test bodies by calling :cpp:expr:`suite_state()`.
+/// in test bodies by calling :expr:`suite_state()`.
 ///
 /// .. code-block::
 ///

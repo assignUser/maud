@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from contextlib import contextmanager
 from pathlib import Path
 
 import sphinx.util.logging
@@ -427,6 +428,22 @@ class PutDirective(SphinxDirective):
     required_arguments = 2
     optional_arguments = 1000
 
+    @contextmanager
+    def default_cpp(self):
+        tmp = {}
+        tmp["highlight_language"] = self.env.temp_data.get("highlight_language", None)
+        self.env.temp_data["highlight_language"] = "cpp"
+        tmp["default_domain"] = self.env.temp_data.get("default_domain", None)
+        self.env.temp_data["default_domain"] = self.env.domains.get("cpp")
+        try:
+            yield
+        finally:
+            for key, value in tmp.items():
+                if value is None:
+                    del self.env.temp_data[key]
+                else:
+                    self.env.temp_data[key] = value
+
     def run(self) -> list[Node]:
         directive = self.arguments[0]
         namespace = self.env.temp_data.get("cpp:namespace_stack", [""])[-1]
@@ -456,7 +473,8 @@ class PutDirective(SphinxDirective):
                     *(f"  {line}" for line in comment.stripped_text),
                 ]
             )
-            return self.parse_text_to_nodes(text)
+            with self.default_cpp():
+                return self.parse_text_to_nodes(text)
 
         message = f"found no declaration matching `{declaration}`\n  {context=}"
         for m in difflib.get_close_matches(declaration, declarations.keys()):

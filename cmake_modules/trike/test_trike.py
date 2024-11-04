@@ -52,6 +52,14 @@ def test_basic(tmp_path):
         using cHAR = char;
 
         } // namespace baz
+
+        /*
+        /// e
+        enum Enum {
+          /// s
+          SCOPED
+        };
+        */
         """,
     )
     file_content = trike.comment_scan(path, clang_args=[])
