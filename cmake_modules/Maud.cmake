@@ -1112,7 +1112,7 @@ function(_maud_setup_doc)
   file(CREATE_LINK "${CMAKE_SOURCE_DIR}" "${doc}/stage/CMAKE_SOURCE_DIR" SYMBOLIC)
 
   file(
-    WRITE "${MAUD_DIR}/maud_sphinx_cmake_adapter/pyproject.toml"
+    WRITE "${MAUD_DIR}/maud_sphinx_adapter/pyproject.toml"
     [[
       [build-system]
       requires = ["setuptools"]
@@ -1123,31 +1123,21 @@ function(_maud_setup_doc)
       dependencies = []
     ]]
   )
-
-  add_custom_command(
-    OUTPUT "${MAUD_DIR}/maud_sphinx_cmake_adapter/maud/__init__.py"
-    DEPENDS "${_MAUD_SELF_DIR}/.maud_sphinx_cmake_adapter.py.in2" "${_MAUD_IN2}"
-    COMMAND
-      "${CMAKE_COMMAND}"
-      -DRENDER_FILE="${MAUD_DIR}/maud_sphinx_cmake_adapter/maud/__init__.py"
-      -Dcompiled="${MAUD_DIR}/maud_sphinx_cmake_adapter/maud/__init__.py.in2.cmake"
-      -Dtemplate="${_MAUD_SELF_DIR}/.maud_sphinx_cmake_adapter.py.in2"
-      -P "${MAUD_DIR}/eval.cmake"
-      --
-      [["_maud_render_in2()"]]
-    COMMENT "Extracting cmake state for sphinx access"
+  file(
+    WRITE "${MAUD_DIR}/maud_sphinx_adapter/maud/__init__.py"
+    "import sys\n"
+    "sys.path.append('${_MAUD_SELF_DIR}')\n"
+    "from _maud_sphinx_adapter import setup, read_cache\n"
+    "sys.path = sys.path[:-1]\n"
+    "cache = read_cache('${CMAKE_BINARY_DIR}')\n"
   )
 
-  add_custom_command(
-    OUTPUT "${doc}/venv/pip.report.json"
-    DEPENDS
-      "${_MAUD_SELF_DIR}/sphinx_requirements.txt"
-      "${MAUD_DIR}/maud_sphinx_cmake_adapter/maud/__init__.py"
-    COMMAND
-      Python3::Interpreter -m venv --clear "${doc}/venv"
+  message(STATUS "Building virtual env ${doc}/venv for Sphinx")
+  execute_process(COMMAND "${Python3_EXECUTABLE}" -m venv --clear "${doc}/venv")
+  execute_process(
     COMMAND
       "${doc}/venv/bin/pip" install
-      --editable "${MAUD_DIR}/maud_sphinx_cmake_adapter"
+      --editable "${MAUD_DIR}/maud_sphinx_adapter"
       --editable "${_MAUD_SELF_DIR}/trike"
       --requirement "${_MAUD_SELF_DIR}/sphinx_requirements.txt"
       --isolated
@@ -1158,7 +1148,7 @@ function(_maud_setup_doc)
       --quiet
       --log "${doc}/venv/pip.log"
       --report "${doc}/venv/pip.report.json"
-    COMMENT "Building virtual env ${doc}/venv for Sphinx"
+    COMMAND_ERROR_IS_FATAL ANY
   )
   set(SPHINX_BUILD "${doc}/venv/bin/sphinx-build")
 
@@ -1212,7 +1202,6 @@ function(_maud_setup_doc)
     add_custom_command(
       OUTPUT "${doc}/${builder}.log"
       DEPENDS
-        "${doc}/venv/pip.report.json"
         ${all_staged}
         # FIXME note all of these with Sphinx.env.note_dependency()
         # if they aren't already noted.
@@ -1237,13 +1226,6 @@ function(_maud_setup_doc)
       add_dependencies(documentation documentation.${builder})
     endif()
   endforeach()
-endfunction()
-
-
-function(_maud_line_count string out_var)
-  string(REGEX REPLACE "[^\n]*\n" "\n" count "${string}")
-  string(LENGTH "${count}" count)
-  set(${out_var} ${count} PARENT_SCOPE)
 endfunction()
 
 

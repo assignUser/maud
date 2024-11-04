@@ -24,26 +24,27 @@ which defaults to building just ``dirhtml``. To disable building
 documentation, set this to an empty string.
 
 Sphinx configuration (minimally, your ``conf.py``) should be put in a directory
-named ``sphinx_configuration/`` anywhere in your project. In a Maud project,
-``conf.py`` has access to all :ref:`options` defined in cmake. For example,
+named ``sphinx_configuration/`` anywhere in your project. In a Maud project
+``conf.py`` has access to the entire cmake ``CACHE``, including all
+:ref:`options` defined in cmake. For example,
 ``option(ENABLE_DIAGRAMS)`` might be used in ``conf.py``:
 
 .. code-block:: python
 
    import maud
-   if maud.ENABLE_DIAGRAMS:
-       # set up sphinx extension for diagrams
+   if maud.cache.ENABLE_DIAGRAMS:
+       extensions += ['awesome-diagrams-ext']
 
 ... or ``option(DOCUMENT_EXPERIMENTAL)`` might be used with
 :sphinx:`ifconfig <extensions/ifconfig.html>`:
 
 .. code-block:: rst
 
-  .. ifconfig:: maud.DOCUMENT_EXPERIMENTAL
+  .. ifconfig:: maud.cache.DOCUMENT_EXPERIMENTAL
 
     .. experimental features doc
 
-.. TODO talk about import maud, requirements.txt, venv, ...
+.. TODO talk about requirements.txt, venv, ...
 
 
 API doc

@@ -7,13 +7,16 @@ import sphinx.highlighting
 import pathlib
 import json
 
+from pathlib import Path
+
 # TODO instead of trying to provide defaults for config settings,
 # let the maud extension just assert that config doesn't have any errors
 # (like failure to exclude CMAKE_SOURCE_DIR).
-from maud import *
+import maud
 
 logger = sphinx.util.logging.getLogger(__name__)
 
+project = maud.cache.PROJECT_NAME
 extensions = ['maud', 'trike']
 templates_path = []
 exclude_patterns = ["CMAKE_SOURCE_DIR", "Thumbs.db", ".DS_Store"]
@@ -74,9 +77,9 @@ extlinks = {
 
 # TODO get trike files from cmake
 trike_files = [
-    *CMAKE_SOURCE_DIR.glob("*.cxx"),
-    *CMAKE_SOURCE_DIR.glob("cmake_modules/*.cxx"),
-    *CMAKE_SOURCE_DIR.glob("cmake_modules/*.hxx"),
+    *maud.cache.CMAKE_SOURCE_DIR.glob("*.cxx"),
+    *maud.cache.CMAKE_SOURCE_DIR.glob("cmake_modules/*.cxx"),
+    *maud.cache.CMAKE_SOURCE_DIR.glob("cmake_modules/*.hxx"),
 ]
 # FIXME with c++20 libclang parses exported decls to UNEXPOSED_DECL
 trike_default_clang_args = ["-std=gnu++20", "-Dexport="]
