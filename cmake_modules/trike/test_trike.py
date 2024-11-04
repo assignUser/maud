@@ -44,6 +44,8 @@ def test_basic(tmp_path):
           int foo;
           /// beyond available resources
           int bar;
+          /// summed up
+          int foobar() const { return foo + bar; }
         };
 
         /// rEVERSEpASCAL never caught on for some reason
@@ -105,11 +107,21 @@ def test_basic(tmp_path):
             ),
         ),
         (
+                trike.DeclarationContext(directive="cpp:function", namespace="baz::Quux"),
+            "int foobar() const",
+            trike.Comment(
+                path,
+                next_line=25,
+                text=["/// summed up"],
+                clang_cursor_kind="CXX_METHOD",
+            ),
+        ),
+        (
             trike.DeclarationContext(directive="cpp:type", namespace="baz"),
             "cHAR = char",
             trike.Comment(
                 path,
-                next_line=27,
+                next_line=29,
                 text=["/// rEVERSEpASCAL never caught on for some reason"],
                 clang_cursor_kind="TYPE_ALIAS_DECL",
             ),

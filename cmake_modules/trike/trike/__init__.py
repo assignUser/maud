@@ -211,7 +211,7 @@ def get_documentable_declaration(
         # CLASS_TEMPLATE for struct templates. We decide whether to use
         # cpp:struct or cpp:class based on the referencing directive.
         directive = "cpp:struct"
-    elif "FUNCTION" in clang_cursor_kind:
+    elif "FUNCTION" in clang_cursor_kind or clang_cursor_kind == "CXX_METHOD":
         directive = "cpp:function"
     elif "VAR" in clang_cursor_kind:
         directive = "cpp:var"
