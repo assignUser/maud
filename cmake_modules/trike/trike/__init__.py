@@ -324,34 +324,27 @@ class State:
     """A container for all /// content in a project plus tracking metadata"""
 
     files: dict[Path, FileContent]
-    directive_comments: dict[str, dict[str, dict[ModuleName, dict[str, Comment]]]]
+    directive_comments: defaultdict[tuple[str, str, ModuleName], dict[str, Comment]]
     references: dict[str, set[Path]]
-    members: dict[tuple[str, ModuleName], dict[tuple[str, str], Comment]]
+    members: defaultdict[tuple[str, ModuleName], dict[tuple[str, str], Comment]]
 
     @staticmethod
     def empty():
-        return State({}, {}, {}, {})
-
-    def __reduce__(self):
-        logger.info(f"reducing... {self.references}")
-        return State, (self.files, self.directive_comments, self.references)
+        return State({}, defaultdict(dict), {}, defaultdict(dict))
 
     def add(self, path: Path, file_content: FileContent):
         self.files[path] = file_content
 
+        module = file_content.module
         for directive, argument, namespace, comment in file_content.directive_comments:
             ns = "::".join(namespace)
-            stored = (
-                self.directive_comments.setdefault(directive, {})
-                .setdefault(ns, {})
-                .setdefault(file_content.module, {})
-                .setdefault(argument, comment)
-            )
+            comments = self.directive_comments[directive, ns, module]
+            stored = comments.setdefault(argument, comment)
             if stored is not comment:
                 raise RuntimeError(
                     f"Duplicate /// detected:\n{stored}\n\n  vs\n\n{comment}"
                 )
-            self.members.setdefault((ns, file_content.module), {})[directive, argument] = comment
+            self.members[ns, module][directive, argument] = comment
 
     def remove(self, path: Path, file_content: FileContent):
         invalidated = set()
@@ -364,11 +357,10 @@ class State:
         module = file_content.module
         for directive, argument, namespace, _ in file_content.directive_comments:
             ns = "::".join(namespace)
-            del self.directive_comments[directive][ns][module][argument]
+            del self.directive_comments[directive, ns, module][argument]
             del self.members[ns, module][directive, argument]
         del self.files[path]
         return invalidated
-
 
     def get_comment(
         self,
@@ -377,12 +369,13 @@ class State:
         namespace: str = "",
         module: ModuleName = "",
     ) -> tuple[Comment | None, dict[str, Comment]]:
-        comments = (
-            self.directive_comments.get(
-                directive if directive != "cpp:class" else "cpp:struct", {}
-            )
-            .get(namespace, {})
-            .get(module, {})
+        comments = self.directive_comments.get(
+            (
+                directive if directive != "cpp:class" else "cpp:struct",
+                namespace,
+                module,
+            ),
+            {},
         )
 
         if comment := comments.get(argument, None):

@@ -1,13 +1,11 @@
-import trike
 from pathlib import Path
-from clang.cindex import (
-    Cursor,
-    CursorKind,
-    Index,
-    SourceLocation,
-    Token,
-    TokenKind,
-    TranslationUnit,
+from clang.cindex import CursorKind, Index
+
+import trike
+from trike import (
+    Comment,
+    State,
+    Tokens,
 )
 
 
@@ -68,7 +66,7 @@ def test_basic(tmp_path):
             "cpp:function",
             "int main()",
             (),
-            trike.Comment(
+            Comment(
                 path,
                 next_line=6,
                 text=["/// The entry point", "/// something clang-format would mangle"],
@@ -79,7 +77,7 @@ def test_basic(tmp_path):
             "c:macro",
             "EXPECT_(condition...)",
             (),
-            trike.Comment(
+            Comment(
                 path,
                 next_line=14,
                 text=["/// expect doc"],
@@ -90,7 +88,7 @@ def test_basic(tmp_path):
             "cpp:struct",
             "Quux",
             ("baz",),
-            trike.Comment(
+            Comment(
                 path,
                 next_line=19,
                 text=["/// Metasyntactic value"],
@@ -101,7 +99,7 @@ def test_basic(tmp_path):
             "cpp:member",
             "int foo",
             ("baz", "Quux"),
-            trike.Comment(
+            Comment(
                 path,
                 next_line=21,
                 text=["/// four oopsies"],
@@ -112,7 +110,7 @@ def test_basic(tmp_path):
             "cpp:member",
             "int bar",
             ("baz", "Quux"),
-            trike.Comment(
+            Comment(
                 path,
                 next_line=23,
                 text=["/// beyond available resources"],
@@ -123,7 +121,7 @@ def test_basic(tmp_path):
             "cpp:function",
             "int foobar() const",
             ("baz", "Quux"),
-            trike.Comment(
+            Comment(
                 path,
                 next_line=25,
                 text=["/// summed up"],
@@ -134,7 +132,7 @@ def test_basic(tmp_path):
             "cpp:type",
             "cHAR = char",
             ("baz",),
-            trike.Comment(
+            Comment(
                 path,
                 next_line=29,
                 text=["/// rEVERSEpASCAL never caught on for some reason"],
@@ -143,14 +141,14 @@ def test_basic(tmp_path):
         ),
     ]
     assert file_content.floating_comments == [
-        trike.Comment(
+        Comment(
             path,
             next_line=11,
             text=["/// floating something"],
         ),
     ]
 
-    state = trike.State.empty()
+    state = State.empty()
     state.add(path, file_content)
 
     # We can look comments with a directive up in State
@@ -187,8 +185,8 @@ def test_comment_from_tokens(tmp_path):
         """,
     )
 
-    tokens = trike.Tokens(tu)
-    comment = trike.Comment.read_from_tokens(path, tokens)
+    tokens = Tokens(tu)
+    comment = Comment.read_from_tokens(path, tokens)
     assert comment is not None
     assert comment.next_line == 6
     assert comment.text == [
@@ -197,7 +195,7 @@ def test_comment_from_tokens(tmp_path):
     ]
     assert next(tokens).spelling == "int"
 
-    comment = trike.Comment.read_from_tokens(path, tokens)
+    comment = Comment.read_from_tokens(path, tokens)
     assert comment is not None
     assert comment.next_line == 10
     assert comment.text == [
@@ -205,7 +203,7 @@ def test_comment_from_tokens(tmp_path):
         "/// Bar",
     ]
 
-    comment = trike.Comment.read_from_tokens(path, tokens)
+    comment = Comment.read_from_tokens(path, tokens)
     assert comment is None
 
 
@@ -255,7 +253,7 @@ def test_documentable_declaration(tmp_path):
         """,
     )
 
-    tokens = trike.Tokens(tu)
+    tokens = Tokens(tu)
     assert trike.get_documentable_declaration(tokens) == (
         "cpp:var",
         "int foo = 3",
@@ -268,7 +266,7 @@ def test_documentable_declaration(tmp_path):
 
 def test_whitespace(tmp_path):
     tu, _ = make_tu(tmp_path, """  int   foo  =3   ;   """)
-    assert trike.join_tokens(trike.Tokens(tu)) == """int foo =3 ;"""
+    assert trike.join_tokens(Tokens(tu)) == """int foo =3 ;"""
 
 
 def test_modules(tmp_path):
@@ -282,7 +280,7 @@ def test_modules(tmp_path):
         clang_args=["-std=gnu++20"],
     )
 
-    tokens = trike.Tokens(tu)
+    tokens = Tokens(tu)
     for t in tokens:
         if t.spelling == "module":
             t = next(tokens)
