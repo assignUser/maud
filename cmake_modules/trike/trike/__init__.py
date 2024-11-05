@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from collections import defaultdict
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -19,7 +20,7 @@ from sphinx.util.typing import ExtensionMetadata
 from sphinx.util.docutils import SphinxDirective
 from docutils.nodes import Node
 from docutils.statemachine import StringList
-from typing import Self
+from typing import Self, Sequence
 
 logger = sphinx.util.logging.getLogger(__name__)
 
@@ -45,6 +46,10 @@ class Tokens:
 
     def unget(self, t):
         self._next = t
+
+
+type Namespace = tuple[str, ...]
+type ModuleName = str
 
 
 @dataclass
@@ -84,35 +89,31 @@ class Comment:
 
     def get_explicit_directive(self):
         if self.text[0].startswith("///.. "):
-            directive, declaration = (
-                self.text.pop(0).removeprefix("///.. ").split("::", 1)
-            )
-            return directive.strip(), declaration.strip()
+            directive, argument = self.text.pop(0).removeprefix("///.. ").split("::", 1)
+            return directive.strip(), argument.strip()
 
+    @dataclass
+    class Context:
+        directive: str
+        namespace: Namespace = ()
+        module: ModuleName = ""
 
-@dataclass
-class DeclarationContext:
-    directive: str
-    namespace: str = ""
-    #: For lookup purposes, DeclarationContext.module does not include a partition
-    module: str = ""
-
-    def __hash__(self):
-        return hash((self.directive, self.namespace, self.module))
+        def __hash__(self):
+            return hash((self.directive, self.namespace, self.module))
 
 
 @dataclass
 class FileContent:
     """A container for all /// content in a file"""
 
-    module: str
-    contexted_comments: list[tuple[DeclarationContext, str, Comment]]
+    module: ModuleName
+    directive_comments: list[tuple[str, str, Namespace, Comment]]
     floating_comments: list[Comment]
     clang_diagnostics: list[str]
     mtime_when_parsed: float
 
 
-def get_namespace(cursor: Cursor) -> str:
+def get_namespace(cursor: Cursor) -> tuple[str, ...]:
     # FIXME this will probably need to be much more sophisticated;
     # since we're including classes in the namespace we may need to
     # memoize the canonicalized spelling of the class (semantic_parent.spelling
@@ -123,7 +124,7 @@ def get_namespace(cursor: Cursor) -> str:
     while parent is not None and parent != tu:
         path = [parent.spelling, *path]
         parent = parent.semantic_parent
-    return "::".join(path)
+    return tuple(path)
 
 
 def is_documentable(kind: CursorKind):
@@ -150,11 +151,11 @@ def contiguous(first: Token | None, second: Token | None) -> bool:
     return first.extent.end == second.extent.start
 
 
-def join_tokens(tokens: Tokens) -> str:
-    tokens = iter(tokens)
-    previous = next(tokens)
+def join_tokens(tokens: Sequence[Token]) -> str:
+    tokens_it = iter(tokens)
+    previous = next(tokens_it)
     joined = previous.spelling
-    for t in tokens:
+    for t in tokens_it:
         if not contiguous(previous, t):
             joined += " "
         joined += t.spelling
@@ -164,7 +165,7 @@ def join_tokens(tokens: Tokens) -> str:
 
 def get_documentable_declaration(
     tokens: Tokens,
-) -> tuple[str, str, str, str] | None:
+) -> tuple[str, str, Namespace, str] | None:
     """
     Get a documentable declaration from a token stream, with
     whitespace canonicalized to a single " "
@@ -269,13 +270,13 @@ def get_documentable_declaration(
             tokens.unget(t)
             break
 
-    return join_tokens(declaration), clang_cursor_kind, directive, namespace
+    return directive, join_tokens(declaration), namespace, clang_cursor_kind
 
 
 def comment_scan(path: Path, clang_args: list[str]) -> FileContent:
     tu = Index.create().parse(str(path), args=clang_args, options=PARSE_FLAGS)
     module = ""  # TODO detect modules
-    contexted_comments = []
+    directive_comments = []
     floating_comments = []
     tokens = Tokens(tu)
 
@@ -288,20 +289,20 @@ def comment_scan(path: Path, clang_args: list[str]) -> FileContent:
         explicitly_floating = t is None or t.extent.start.line > comment.next_line
         tokens.unget(t)
 
-        declaration, clang_cursor_kind, directive, namespace = [""] * 4
+        directive, argument, clang_cursor_kind = "", "", ""
+        namespace = ()
 
         if not explicitly_floating:
             if d := get_documentable_declaration(tokens):
-                declaration, clang_cursor_kind, directive, namespace = d
+                directive, argument, namespace, clang_cursor_kind = d
 
         if d := comment.get_explicit_directive():
             # explicit directives override those inferred from decls
-            directive, declaration = d
+            directive, argument = d
 
         if directive:
             comment.clang_cursor_kind = clang_cursor_kind
-            context = DeclarationContext(directive, namespace, module)
-            contexted_comments.append((context, declaration, comment))
+            directive_comments.append((directive, argument, namespace, comment))
         elif explicitly_floating:
             floating_comments.append(comment)
         else:
@@ -311,7 +312,7 @@ def comment_scan(path: Path, clang_args: list[str]) -> FileContent:
 
     return FileContent(
         module,
-        contexted_comments,
+        directive_comments,
         floating_comments,
         clang_diagnostics=[str(d) for d in tu.diagnostics],
         mtime_when_parsed=path.stat().st_mtime,
@@ -323,57 +324,93 @@ class State:
     """A container for all /// content in a project plus tracking metadata"""
 
     files: dict[Path, FileContent]
-    contexted_comments: dict[DeclarationContext, dict[str, Comment]]
+    directive_comments: dict[str, dict[str, dict[ModuleName, dict[str, Comment]]]]
     references: dict[str, set[Path]]
+    members: dict[tuple[str, ModuleName], dict[tuple[str, str], Comment]]
 
     @staticmethod
     def empty():
-        return State({}, {}, {})
+        return State({}, {}, {}, {})
 
     def __reduce__(self):
         logger.info(f"reducing... {self.references}")
-        return State, (self.files, self.contexted_comments, self.references)
+        return State, (self.files, self.directive_comments, self.references)
 
-    def check_for_updates(self, app: Sphinx) -> set[str]:
+    def add(self, path: Path, file_content: FileContent):
+        self.files[path] = file_content
+
+        for directive, argument, namespace, comment in file_content.directive_comments:
+            ns = "::".join(namespace)
+            stored = (
+                self.directive_comments.setdefault(directive, {})
+                .setdefault(ns, {})
+                .setdefault(file_content.module, {})
+                .setdefault(argument, comment)
+            )
+            if stored is not comment:
+                raise RuntimeError(
+                    f"Duplicate /// detected:\n{stored}\n\n  vs\n\n{comment}"
+                )
+            self.members.setdefault((ns, file_content.module), {})[directive, argument] = comment
+
+    def remove(self, path: Path, file_content: FileContent):
+        invalidated = set()
+        # Every doc which references this /// source is invalidated
+        for docname, referenced_files in self.references.items():
+            if path in referenced_files:
+                invalidated.add(docname)
+
+        # purge this file's ///s
+        module = file_content.module
+        for directive, argument, namespace, _ in file_content.directive_comments:
+            ns = "::".join(namespace)
+            del self.directive_comments[directive][ns][module][argument]
+            del self.members[ns, module][directive, argument]
+        del self.files[path]
+        return invalidated
+
+
+    def get_comment(
+        self,
+        directive: str,
+        argument: str,
+        namespace: str = "",
+        module: ModuleName = "",
+    ) -> tuple[Comment | None, dict[str, Comment]]:
+        comments = (
+            self.directive_comments.get(
+                directive if directive != "cpp:class" else "cpp:struct", {}
+            )
+            .get(namespace, {})
+            .get(module, {})
+        )
+
+        if comment := comments.get(argument, None):
+            return comment, {}
+
+        return None, {
+            m: comments[m] for m in difflib.get_close_matches(argument, comments.keys())
+        }
+
+    def check_for_updates(
+        self, paths: list[Path], clang_args: defaultdict[Path, list[str]]
+    ) -> set[str]:
         logger.info("trike.State checking for updates")
         invalidated = set()
 
         for path, file_content in list(self.files.items()):
-            if path in app.config.trike_files:
+            if path in paths:
                 mtime = path.stat().st_mtime
                 if file_content.mtime_when_parsed == mtime:
                     continue
+            invalidated |= self.remove(path, file_content)
 
-            # Every doc which references this /// source must be re-parsed
-            for docname, referenced_files in self.references.items():
-                if path in referenced_files:
-                    invalidated.add(docname)
-
-            # purge this file's ///s
-            for context, declaration, _ in file_content.contexted_comments:
-                del self.contexted_comments[context][declaration]
-            del self.files[path]
-
-        for path in app.config.trike_files:
+        for path in paths:
             if path in self.files:
                 # Anything outdated has already been purged
                 assert self.files[path].mtime_when_parsed == path.stat().st_mtime
                 continue
-            clang_args = app.config.trike_clang_args.get(
-                path, app.config.trike_default_clang_args
-            )
-
-            file_content = self.files[path] = comment_scan(path, clang_args)
-
-            for context, declaration, comment in file_content.contexted_comments:
-                stored = self.contexted_comments.setdefault(context, {}).setdefault(
-                    declaration, comment
-                )
-                if stored is not comment:
-                    raise RuntimeError(
-                        f"Duplicate /// detected:\n{stored}\n\n  vs\n\n{comment}"
-                    )
-
+            self.add(path, comment_scan(path, clang_args[path]))
         return invalidated
 
 
@@ -399,12 +436,17 @@ def _env_get_outdated(
     # - foo.doctree is correctly re-rendered to foo.html
     # - ... now we rebuild for manpages
     # - foo.doctree is newer than foo.1 so... it *does* get re-rendered, right?
-    invalidated = env.trike_state.check_for_updates(app)
-    return invalidated
+    return env.trike_state.check_for_updates(
+        app.config.trike_files,
+        defaultdict(
+            lambda: app.config.trike_default_clang_args,
+            app.config.trike_clang_args.items(),
+        ),
+    )
 
 
 def _env_purge_doc(
-    _app: Sphinx,
+    _: Sphinx,
     env: BuildEnvironment,
     docname: str,
 ):
@@ -413,7 +455,7 @@ def _env_purge_doc(
 
 
 def _env_merge_info(
-    _app: Sphinx,
+    _: Sphinx,
     env: BuildEnvironment,
     subprocess_docnames: list[str],
     subprocess_env: BuildEnvironment,
@@ -427,6 +469,8 @@ class PutDirective(SphinxDirective):
     has_content = True
     required_arguments = 2
     optional_arguments = 1000
+
+    # TODO add :members: option
 
     @contextmanager
     def default_cpp(self):
@@ -446,26 +490,21 @@ class PutDirective(SphinxDirective):
 
     def run(self) -> list[Node]:
         directive = self.arguments[0]
+        argument = " ".join(filter(lambda arg: arg != "\\", self.arguments[1:]))
         namespace = self.env.temp_data.get("cpp:namespace_stack", [""])[-1]
-        # TODO get module
-        module = ""
+        module = ""  # TODO get module
 
-        context = DeclarationContext(
-            directive if directive != "cpp:class" else "cpp:struct",
-            namespace,
-            module,
+        comment, close_matches = self.env.trike_state.get_comment(
+            directive, argument, namespace, module
         )
-        declarations = self.env.trike_state.contexted_comments.get(context, {})
-
-        declaration = " ".join(filter(lambda arg: arg != "\\", self.arguments[1:]))
-        if comment := declarations.get(declaration, None):
+        if comment is not None:
             self.env.trike_state.references.setdefault(self.env.docname, set()).add(
                 comment.file
             )
-            logger.info(f"{comment.file} referenced by {self.env.docname}")
+            logger.debug(f"{comment.file} referenced by {self.env.docname}")
             text = StringList(
                 [
-                    f".. {directive}:: {declaration}",
+                    f".. {directive}:: {argument}",
                     # TODO add a link to the decl on GitHub
                     "",
                     *(f"  {line}" for line in self.content),
@@ -476,9 +515,12 @@ class PutDirective(SphinxDirective):
             with self.default_cpp():
                 return self.parse_text_to_nodes(text)
 
-        message = f"found no declaration matching `{declaration}`\n  {context=}"
-        for m in difflib.get_close_matches(declaration, declarations.keys()):
-            message += f"\n    close match: `{m}`"
+        message = f"found no declaration matching `{argument}`\n"
+        message += f"{directive=} {namespace=} {module=}"
+        for argument, comment in close_matches.items():
+            message += (
+                f"\n  close match: `{argument}` {str(comment.file)}:{comment.next_line}"
+            )
         logger.error(message)
         return []
 
@@ -507,7 +549,6 @@ def setup(app: Sphinx) -> ExtensionMetadata:
     app.connect("env-merge-info", _env_merge_info)
     app.connect("env-purge-doc", _env_purge_doc)
 
-    # XXX should trike be a Domain?
     app.add_directive("trike-put", PutDirective)
     # TODO trike-function etc as a shortcut for trike-put:: cpp:function
 

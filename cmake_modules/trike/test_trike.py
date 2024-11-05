@@ -63,10 +63,11 @@ def test_basic(tmp_path):
         """,
     )
     file_content = trike.comment_scan(path, clang_args=[])
-    assert file_content.contexted_comments == [
+    assert file_content.directive_comments == [
         (
-            trike.DeclarationContext(directive="cpp:function"),
+            "cpp:function",
             "int main()",
+            (),
             trike.Comment(
                 path,
                 next_line=6,
@@ -75,8 +76,9 @@ def test_basic(tmp_path):
             ),
         ),
         (
-            trike.DeclarationContext(directive="c:macro"),
+            "c:macro",
             "EXPECT_(condition...)",
+            (),
             trike.Comment(
                 path,
                 next_line=14,
@@ -85,8 +87,9 @@ def test_basic(tmp_path):
             ),
         ),
         (
-            trike.DeclarationContext(directive="cpp:struct", namespace="baz"),
+            "cpp:struct",
             "Quux",
+            ("baz",),
             trike.Comment(
                 path,
                 next_line=19,
@@ -95,8 +98,9 @@ def test_basic(tmp_path):
             ),
         ),
         (
-            trike.DeclarationContext(directive="cpp:member", namespace="baz::Quux"),
+            "cpp:member",
             "int foo",
+            ("baz", "Quux"),
             trike.Comment(
                 path,
                 next_line=21,
@@ -105,8 +109,9 @@ def test_basic(tmp_path):
             ),
         ),
         (
-            trike.DeclarationContext(directive="cpp:member", namespace="baz::Quux"),
+            "cpp:member",
             "int bar",
+            ("baz", "Quux"),
             trike.Comment(
                 path,
                 next_line=23,
@@ -115,8 +120,9 @@ def test_basic(tmp_path):
             ),
         ),
         (
-                trike.DeclarationContext(directive="cpp:function", namespace="baz::Quux"),
+            "cpp:function",
             "int foobar() const",
+            ("baz", "Quux"),
             trike.Comment(
                 path,
                 next_line=25,
@@ -125,8 +131,9 @@ def test_basic(tmp_path):
             ),
         ),
         (
-            trike.DeclarationContext(directive="cpp:type", namespace="baz"),
+            "cpp:type",
             "cHAR = char",
+            ("baz",),
             trike.Comment(
                 path,
                 next_line=29,
@@ -142,6 +149,27 @@ def test_basic(tmp_path):
             text=["/// floating something"],
         ),
     ]
+
+    state = trike.State.empty()
+    state.add(path, file_content)
+
+    # We can look comments with a directive up in State
+    comment, _ = state.get_comment("cpp:function", "int main()")
+    assert comment == file_content.directive_comments[0][-1]
+
+    # ... and get a report of close matches when we make a typo
+    comment, close_matches = state.get_comment("cpp:type", "CHAR=char", "baz")
+    assert comment is None and "cHAR = char" in close_matches
+
+    # ... and we can look up all members of a namespace
+    assert state.members["baz::Quux", ""] == dict(
+        [
+            ((directive, argument), comment)
+            for directive, argument, namespace, comment in file_content.directive_comments
+            if namespace == ("baz", "Quux")
+        ]
+    )
+    state.remove(path, file_content)
 
 
 def test_comment_from_tokens(tmp_path):
@@ -161,6 +189,7 @@ def test_comment_from_tokens(tmp_path):
 
     tokens = trike.Tokens(tu)
     comment = trike.Comment.read_from_tokens(path, tokens)
+    assert comment is not None
     assert comment.next_line == 6
     assert comment.text == [
         "/// The entry point",
@@ -169,6 +198,7 @@ def test_comment_from_tokens(tmp_path):
     assert next(tokens).spelling == "int"
 
     comment = trike.Comment.read_from_tokens(path, tokens)
+    assert comment is not None
     assert comment.next_line == 10
     assert comment.text == [
         "/// Foo",
@@ -227,10 +257,10 @@ def test_documentable_declaration(tmp_path):
 
     tokens = trike.Tokens(tu)
     assert trike.get_documentable_declaration(tokens) == (
-        "int foo = 3",
-        "VAR_DECL",
         "cpp:var",
-        "",
+        "int foo = 3",
+        (),
+        "VAR_DECL",
     )
     assert next(tokens).spelling == "/// Foo"
     assert trike.get_documentable_declaration(tokens) is None
@@ -264,5 +294,5 @@ def test_modules(tmp_path):
 def test_test_hxx():
     path = Path(__file__).parent.parent / "test_.hxx"
     file_content = trike.comment_scan(path, clang_args=[])
-    for ctx, _, _ in file_content.contexted_comments:
-        assert ctx.directive == "c:macro"
+    for directive, _, _, _ in file_content.directive_comments:
+        assert directive == "c:macro"
