@@ -4,6 +4,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import sphinx.util.logging
+import docutils.parsers.rst.directives
 import difflib
 
 from clang.cindex import (
@@ -20,7 +21,7 @@ from sphinx.util.typing import ExtensionMetadata
 from sphinx.util.docutils import SphinxDirective
 from docutils.nodes import Node
 from docutils.statemachine import StringList
-from typing import Self, Sequence
+from typing import Self, Sequence, Iterator
 
 logger = sphinx.util.logging.getLogger(__name__)
 
@@ -86,6 +87,16 @@ class Comment:
     @property
     def stripped_text(self) -> list[str]:
         return [line[len(Comment.PREFIX) + 1 :] for line in self.text]
+
+    def with_directive(
+        self, directive: str, argument: str, indent: str = ""
+    ) -> Iterator[str]:
+        yield ""
+        yield f"{indent}.. {directive}:: {argument}"
+        # TODO add a link to the decl on GitHub
+        yield ""
+        for line in self.stripped_text:
+            yield f"{indent}  {line}"
 
     def get_explicit_directive(self):
         if self.text[0].startswith("///.. "):
@@ -462,11 +473,12 @@ class PutDirective(SphinxDirective):
     has_content = True
     required_arguments = 2
     optional_arguments = 1000
-
-    # TODO add :members: option
+    option_spec = {
+        "members": docutils.parsers.rst.directives.flag,
+    }
 
     @contextmanager
-    def default_cpp(self):
+    def cpp(self):
         tmp = {}
         tmp["highlight_language"] = self.env.temp_data.get("highlight_language", None)
         self.env.temp_data["highlight_language"] = "cpp"
@@ -485,7 +497,9 @@ class PutDirective(SphinxDirective):
         directive = self.arguments[0]
         argument = " ".join(filter(lambda arg: arg != "\\", self.arguments[1:]))
         namespace = self.env.temp_data.get("cpp:namespace_stack", [""])[-1]
-        module = ""  # TODO get module
+        module = self.env.temp_data.get("cpp:module", "")
+        # TODO provide directive to set module
+        with_members = "members" in self.options
 
         comment, close_matches = self.env.trike_state.get_comment(
             directive, argument, namespace, module
@@ -495,18 +509,21 @@ class PutDirective(SphinxDirective):
                 comment.file
             )
             logger.debug(f"{comment.file} referenced by {self.env.docname}")
-            text = StringList(
-                [
-                    f".. {directive}:: {argument}",
-                    # TODO add a link to the decl on GitHub
-                    "",
-                    *(f"  {line}" for line in self.content),
-                    "",
-                    *(f"  {line}" for line in comment.stripped_text),
+
+            text = []
+            text.extend(comment.with_directive(directive, argument))
+            text.append("")
+            text.extend(f"  {line}" for line in self.content)
+
+            if with_members:
+                members = self.env.trike_state.members[
+                    namespace + "::" + argument, module
                 ]
-            )
-            with self.default_cpp():
-                return self.parse_text_to_nodes(text)
+                logger.info("{namespace=} {module=} {members}")
+                for (directive, argument), comment in members.items():
+                    text.extend(comment.with_directive(directive, argument, "  "))
+            with self.cpp():
+                return self.parse_text_to_nodes(StringList(text))
 
         message = f"found no declaration matching `{argument}`\n"
         message += f"{directive=} {namespace=} {module=}"
