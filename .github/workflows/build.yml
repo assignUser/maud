@@ -77,7 +77,7 @@ jobs:
         path: ${{ env.build_output_dir }}/documentation/dirhtml
 
   deploy:
-    if: ${{ success() && github.event_name == 'push' && github.ref == 'trunk' }}
+    #if: ${{ success() && github.event_name == 'push' && github.ref == 'trunk' }}
     permissions:
       contents: read
       pages: write

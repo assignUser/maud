@@ -204,7 +204,18 @@ frequently messy and error prone.
 :ref:`option() <option-function>` integrates a solution to this problem in
 the :ref:`REQUIRES <requirement-block-syntax>` argument. The requirements of
 each option can be specified in terms of assignments to other options on which
-it depends. The first time an option is accessed, its value and the values of
+it depends. 
+
+.. code-block:: cmake
+
+  option(
+    FOO_LEVEL ENUM LOW MED HI
+    REQUIRES            # requirements of FOO_LEVEL follow
+    IF HI               # if FOO_LEVEL is HI ...
+      FOO_EMULATED OFF  # ... FOO_EMULATED must be set to OFF
+  )
+
+The first time an option is accessed, its value and the values of
 its dependencies are resolved. This ensures all requirements are met (or reports
 an error if unsatisfiable requirements are encountered).
 

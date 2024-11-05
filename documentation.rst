@@ -50,7 +50,8 @@ named ``sphinx_configuration/`` anywhere in your project. In a Maud project
 API doc
 =======
 
-``Maud`` includes a Sphinx extension which scans C++ sources and headers
+``Maud`` includes a Sphinx extension called ``trike`` which scans
+C++ sources and headers
 for ``///`` comments. `libclang <https://libclang.readthedocs.io/>`_
 is used to associate these with declarations. These can then be
 referenced using the ``.. trike-put::`` directive.
