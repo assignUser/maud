@@ -1,5 +1,3 @@
-// clang-format off
-
 #define GTEST_STRINGIFY_HELPER_(name, ...) #name
 #define GTEST_STRINGIFY_(...) GTEST_STRINGIFY_HELPER_(__VA_ARGS__, )
 
@@ -117,7 +115,9 @@
 /// Defines a ``struct`` which will be constructed once before
 /// any cases in the suite are run and destroyed when no more
 /// cases from the suite will run. (Constructed/destroyed in
+// clang-format off
 /// :gtest:`SetUpTestSuite/TearDownTestSuite <advanced.html#sharing-resources-between-tests-in-the-same-test-suite>`
+// clang-format on
 /// respectively.)
 ///
 /// .. code-block::
@@ -151,5 +151,3 @@
   struct SuiteState;     \
   }                      \
   struct SUITE_NAME::SuiteState : DontTerminateIfDestructionThrows
-
-// clang-format on

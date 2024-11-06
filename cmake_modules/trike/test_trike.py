@@ -65,7 +65,7 @@ def test_basic(tmp_path):
         (
             "cpp:function",
             "int main()",
-            (),
+            "",
             Comment(
                 path,
                 next_line=6,
@@ -76,7 +76,7 @@ def test_basic(tmp_path):
         (
             "c:macro",
             "EXPECT_(condition...)",
-            (),
+            "",
             Comment(
                 path,
                 next_line=14,
@@ -87,7 +87,7 @@ def test_basic(tmp_path):
         (
             "cpp:struct",
             "Quux",
-            ("baz",),
+            "baz",
             Comment(
                 path,
                 next_line=19,
@@ -98,7 +98,7 @@ def test_basic(tmp_path):
         (
             "cpp:member",
             "int foo",
-            ("baz", "Quux"),
+            "baz::Quux",
             Comment(
                 path,
                 next_line=21,
@@ -109,7 +109,7 @@ def test_basic(tmp_path):
         (
             "cpp:member",
             "int bar",
-            ("baz", "Quux"),
+            "baz::Quux",
             Comment(
                 path,
                 next_line=23,
@@ -120,7 +120,7 @@ def test_basic(tmp_path):
         (
             "cpp:function",
             "int foobar() const",
-            ("baz", "Quux"),
+            "baz::Quux",
             Comment(
                 path,
                 next_line=25,
@@ -131,7 +131,7 @@ def test_basic(tmp_path):
         (
             "cpp:type",
             "cHAR = char",
-            ("baz",),
+            "baz",
             Comment(
                 path,
                 next_line=29,
@@ -164,7 +164,7 @@ def test_basic(tmp_path):
         [
             ((directive, argument), comment)
             for directive, argument, namespace, comment in file_content.directive_comments
-            if namespace == ("baz", "Quux")
+            if namespace == "baz::Quux"
         ]
     )
     state.remove(path)
@@ -255,12 +255,12 @@ def test_documentable_declaration(tmp_path):
     )
 
     tokens = Tokens(tu)
-    assert trike.get_documentable_declaration(tokens) == (
-        "cpp:var",
-        "int foo = 3",
-        (),
-        "VAR_DECL",
-    )
+    d = trike.get_documentable_declaration(tokens)
+    assert d is not None
+    directive, argument, cursor = d
+    assert (directive, argument) == ("cpp:var", "int foo = 3")
+    assert cursor.spelling == "foo"
+    assert cursor.kind == CursorKind.VAR_DECL
     assert next(tokens).spelling == "/// Foo"
     assert trike.get_documentable_declaration(tokens) is None
 

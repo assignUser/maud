@@ -49,8 +49,10 @@ class Tokens:
         self._next = t
 
 
-type Namespace = tuple[str, ...]
 type ModuleName = str
+type NamespaceName = str
+type DirectiveName = str
+type DirectiveArgument = str
 
 
 @dataclass
@@ -81,8 +83,16 @@ class Comment:
 
             if t.spelling.startswith(Comment.PREFIX):
                 comment.text.append(t.spelling)
+            elif t.spelling.startswith("/*"):
+                raise RuntimeError(
+                    "/// interspersed with C-style comments are not supported"
+                )
 
         return comment
+
+    @property
+    def first_line(self) -> int:
+        return self.next_line - len(self.text)
 
     @property
     def stripped_text(self) -> list[str]:
@@ -99,18 +109,10 @@ class Comment:
             yield f"{indent}  {line}"
 
     def get_explicit_directive(self):
+        # FIXME don't mutate here
         if self.text[0].startswith("///.. "):
             directive, argument = self.text.pop(0).removeprefix("///.. ").split("::", 1)
             return directive.strip(), argument.strip()
-
-    @dataclass
-    class Context:
-        directive: str
-        namespace: Namespace = ()
-        module: ModuleName = ""
-
-        def __hash__(self):
-            return hash((self.directive, self.namespace, self.module))
 
 
 @dataclass
@@ -118,24 +120,12 @@ class FileContent:
     """A container for all /// content in a file"""
 
     module: ModuleName
-    directive_comments: list[tuple[str, str, Namespace, Comment]]
     floating_comments: list[Comment]
+    directive_comments: list[
+        tuple[DirectiveName, DirectiveArgument, NamespaceName, Comment]
+    ]
     clang_diagnostics: list[str]
     mtime_when_parsed: float
-
-
-def get_namespace(cursor: Cursor) -> tuple[str, ...]:
-    # FIXME this will probably need to be much more sophisticated;
-    # since we're including classes in the namespace we may need to
-    # memoize the canonicalized spelling of the class (semantic_parent.spelling
-    # probably doesn't include template parameters, for example)
-    path = []
-    parent = cursor.semantic_parent
-    tu = cursor.translation_unit.cursor
-    while parent is not None and parent != tu:
-        path = [parent.spelling, *path]
-        parent = parent.semantic_parent
-    return tuple(path)
 
 
 def is_documentable(kind: CursorKind):
@@ -176,12 +166,10 @@ def join_tokens(tokens: Sequence[Token]) -> str:
 
 def get_documentable_declaration(
     tokens: Tokens,
-) -> tuple[str, str, Namespace, str] | None:
+) -> tuple[DirectiveName, DirectiveArgument, Cursor] | None:
     """
     Get a documentable declaration from a token stream, with
     whitespace canonicalized to a single " "
-
-    :return: declaration_string, clang_cursor_kind, directive_name, namespace
     """
     if t := next(tokens, None):
         min_offset = t.extent.start.offset
@@ -209,8 +197,6 @@ def get_documentable_declaration(
             break
     else:
         return None
-
-    namespace = get_namespace(cursor)
 
     clang_cursor_kind = str(cursor.kind).removeprefix("CursorKind.")
     if clang_cursor_kind == "MACRO_DEFINITION":
@@ -281,15 +267,24 @@ def get_documentable_declaration(
             tokens.unget(t)
             break
 
-    return directive, join_tokens(declaration), namespace, clang_cursor_kind
+    return directive, join_tokens(declaration), cursor
 
 
 def comment_scan(path: Path, clang_args: list[str]) -> FileContent:
     tu = Index.create().parse(str(path), args=clang_args, options=PARSE_FLAGS)
-    module = ""  # TODO detect modules
-    directive_comments = []
-    floating_comments = []
     tokens = Tokens(tu)
+
+    module = ""  # TODO detect modules
+
+    floating_comments = []
+
+    directives = []
+    arguments = []
+    namespaces = []
+    comments = []
+
+    sphinx_spelling = {}
+    semantic_parents = []
 
     while True:
         comment = Comment.read_from_tokens(path, tokens)
@@ -301,11 +296,13 @@ def comment_scan(path: Path, clang_args: list[str]) -> FileContent:
         tokens.unget(t)
 
         directive, argument, clang_cursor_kind = "", "", ""
-        namespace = ()
 
         if not explicitly_floating:
             if d := get_documentable_declaration(tokens):
-                directive, argument, namespace, clang_cursor_kind = d
+                directive, argument, cursor = d
+                sphinx_spelling[cursor.canonical.get_usr()] = argument
+                semantic_parents.append(cursor.semantic_parent)
+                clang_cursor_kind = str(cursor.kind).removeprefix("CursorKind.")
 
         if d := comment.get_explicit_directive():
             # explicit directives override those inferred from decls
@@ -313,7 +310,9 @@ def comment_scan(path: Path, clang_args: list[str]) -> FileContent:
 
         if directive:
             comment.clang_cursor_kind = clang_cursor_kind
-            directive_comments.append((directive, argument, namespace, comment))
+            directives.append(directive)
+            arguments.append(argument)
+            comments.append(comment)
         elif explicitly_floating:
             floating_comments.append(comment)
         else:
@@ -321,10 +320,18 @@ def comment_scan(path: Path, clang_args: list[str]) -> FileContent:
                 f"Could not infer directive from {str(path)}:{comment.next_line}"
             )
 
+    for p in semantic_parents:
+        namespace = ""
+        while p is not None and p != tu.cursor:
+            parent_spelling = sphinx_spelling.get(p.canonical.get_usr(), p.spelling)
+            p = p.semantic_parent
+            namespace = f"{parent_spelling}::{namespace}"
+        namespaces.append(namespace.removesuffix("::"))
+
     return FileContent(
         module,
-        directive_comments,
         floating_comments,
+        directive_comments=list(zip(directives, arguments, namespaces, comments)),
         clang_diagnostics=[str(d) for d in tu.diagnostics],
         mtime_when_parsed=path.stat().st_mtime,
     )
@@ -335,9 +342,15 @@ class State:
     """A container for all /// content in a project plus tracking metadata"""
 
     files: dict[Path, FileContent]
-    directive_comments: defaultdict[tuple[str, str, ModuleName], dict[str, Comment]]
+    directive_comments: defaultdict[
+        tuple[DirectiveName, NamespaceName, ModuleName],
+        dict[DirectiveArgument, Comment],
+    ]
     references: defaultdict[str, set[Path]]
-    members: defaultdict[tuple[str, ModuleName], dict[tuple[str, str], Comment]]
+    members: defaultdict[
+        tuple[NamespaceName, ModuleName],
+        dict[tuple[DirectiveName, DirectiveArgument], Comment],
+    ]
 
     @staticmethod
     def empty():
@@ -348,14 +361,13 @@ class State:
 
         module = file_content.module
         for directive, argument, namespace, comment in file_content.directive_comments:
-            ns = "::".join(namespace)
-            comments = self.directive_comments[directive, ns, module]
+            comments = self.directive_comments[directive, namespace, module]
             stored = comments.setdefault(argument, comment)
             if stored is not comment:
                 raise RuntimeError(
                     f"Duplicate /// detected:\n{stored}\n\n  vs\n\n{comment}"
                 )
-            self.members[ns, module][directive, argument] = comment
+            self.members[namespace, module][directive, argument] = comment
 
     def remove(self, path: Path):
         invalidated = set()
@@ -368,22 +380,21 @@ class State:
         file_content = self.files.pop(path)
         module = file_content.module
         for directive, argument, namespace, _ in file_content.directive_comments:
-            ns = "::".join(namespace)
-            del self.directive_comments[directive, ns, module][argument]
-            if not self.directive_comments[directive, ns, module]:
-                del self.directive_comments[directive, ns, module]
-            del self.members[ns, module][directive, argument]
-            if not self.members[ns, module]:
-                del self.members[ns, module]
+            del self.directive_comments[directive, namespace, module][argument]
+            if not self.directive_comments[directive, namespace, module]:
+                del self.directive_comments[directive, namespace, module]
+            del self.members[namespace, module][directive, argument]
+            if not self.members[namespace, module]:
+                del self.members[namespace, module]
         return invalidated
 
     def get_comment(
         self,
-        directive: str,
-        argument: str,
-        namespace: str = "",
+        directive: DirectiveName,
+        argument: DirectiveArgument,
+        namespace: NamespaceName = "",
         module: ModuleName = "",
-    ) -> tuple[Comment | None, dict[str, Comment]]:
+    ) -> tuple[Comment | None, dict[DirectiveArgument, Comment]]:
         comments = self.directive_comments.get(
             (
                 directive if directive != "cpp:class" else "cpp:struct",
@@ -500,14 +511,16 @@ class PutDirective(SphinxDirective):
             text.extend(f"  {line}" for line in self.content)
 
             if with_members:
-                members = self.env.trike_state.members[
-                    namespace + "::" + argument, module
-                ]
-                logger.info("{namespace=} {module=} {members}")
+                member_namespace = (namespace and namespace + "::") + argument
+                members = self.env.trike_state.members[member_namespace, module]
                 for (directive, argument), comment in members.items():
                     text.extend(comment.with_directive(directive, argument, "  "))
-            with self.cpp():
-                return self.parse_text_to_nodes(StringList(text))
+
+            # FIXME "test_.hxx:73:<trike>" should appear in the sphinx error log if
+            # a /// fails to parse; I'm not sure what's wrong with the below
+            text = StringList(text, f"{comment.file}:{comment.first_line}:<trike>")
+            with self.cpp(), sphinx.util.docutils.switch_source_input(self.state, text):
+                return self.parse_text_to_nodes(text)
 
         message = f"found no declaration matching `{argument}`\n"
         message += f"{directive=} {namespace=} {module=}"
