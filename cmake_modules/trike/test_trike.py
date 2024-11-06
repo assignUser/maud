@@ -167,7 +167,8 @@ def test_basic(tmp_path):
             if namespace == ("baz", "Quux")
         ]
     )
-    state.remove(path, file_content)
+    state.remove(path)
+    assert state == State.empty()
 
 
 def test_comment_from_tokens(tmp_path):

@@ -357,7 +357,7 @@ class State:
                 )
             self.members[ns, module][directive, argument] = comment
 
-    def remove(self, path: Path, file_content: FileContent):
+    def remove(self, path: Path):
         invalidated = set()
         # Every doc which references this /// source is invalidated
         for docname, referenced_files in self.references.items():
@@ -365,12 +365,16 @@ class State:
                 invalidated.add(docname)
 
         # purge this file's ///s
+        file_content = self.files.pop(path)
         module = file_content.module
         for directive, argument, namespace, _ in file_content.directive_comments:
             ns = "::".join(namespace)
             del self.directive_comments[directive, ns, module][argument]
+            if not self.directive_comments[directive, ns, module]:
+                del self.directive_comments[directive, ns, module]
             del self.members[ns, module][directive, argument]
-        del self.files[path]
+            if not self.members[ns, module]:
+                del self.members[ns, module]
         return invalidated
 
     def get_comment(
@@ -396,27 +400,6 @@ class State:
             m: comments[m] for m in difflib.get_close_matches(argument, comments.keys())
         }
 
-    def check_for_updates(
-        self, paths: list[Path], clang_args: defaultdict[Path, list[str]]
-    ) -> set[str]:
-        logger.info("trike.State checking for updates")
-        invalidated = set()
-
-        for path, file_content in list(self.files.items()):
-            if path in paths:
-                mtime = path.stat().st_mtime
-                if file_content.mtime_when_parsed == mtime:
-                    continue
-            invalidated |= self.remove(path, file_content)
-
-        for path in paths:
-            if path in self.files:
-                # Anything outdated has already been purged
-                assert self.files[path].mtime_when_parsed == path.stat().st_mtime
-                continue
-            self.add(path, comment_scan(path, clang_args[path]))
-        return invalidated
-
 
 def _env_get_outdated(
     app: Sphinx,
@@ -432,21 +415,25 @@ def _env_get_outdated(
 
     # Even if foo.rst itself has not changed, if it referenced foo.hxx
     # which *did* change then we must consider it outdated.
-    #
-    # XXX what if:
-    # - we update foo.hxx
-    # - we rebuild with html
-    # - foo.rst is correctly re-parsed to foo.doctree
-    # - foo.doctree is correctly re-rendered to foo.html
-    # - ... now we rebuild for manpages
-    # - foo.doctree is newer than foo.1 so... it *does* get re-rendered, right?
-    return env.trike_state.check_for_updates(
-        app.config.trike_files,
-        defaultdict(
-            lambda: app.config.trike_default_clang_args,
-            app.config.trike_clang_args.items(),
-        ),
-    )
+    invalidated = set()
+    for path in [
+        path
+        for path, file_content in env.trike_state.files.items()
+        if path in app.config.trike_files
+        and file_content.mtime_when_parsed == path.stat().st_mtime
+    ]:
+        invalidated |= env.trike_state.remove(path)
+
+    for path in app.config.trike_files:
+        if path in env.trike_state.files:
+            # Anything outdated has already been purged
+            assert env.trike_state.files[path].mtime_when_parsed == path.stat().st_mtime
+            continue
+        clang_args = app.config.trike_clang_args.get(
+            path, app.config.trike_default_clang_args
+        )
+        env.trike_state.add(path, comment_scan(path, clang_args))
+    return invalidated
 
 
 def _env_purge_doc(
