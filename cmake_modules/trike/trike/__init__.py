@@ -336,12 +336,12 @@ class State:
 
     files: dict[Path, FileContent]
     directive_comments: defaultdict[tuple[str, str, ModuleName], dict[str, Comment]]
-    references: dict[str, set[Path]]
+    references: defaultdict[str, set[Path]]
     members: defaultdict[tuple[str, ModuleName], dict[tuple[str, str], Comment]]
 
     @staticmethod
     def empty():
-        return State({}, defaultdict(dict), {}, defaultdict(dict))
+        return State({}, defaultdict(dict), defaultdict(set), defaultdict(dict))
 
     def add(self, path: Path, file_content: FileContent):
         self.files[path] = file_content
@@ -464,9 +464,8 @@ def _env_merge_info(
     subprocess_docnames: list[str],
     subprocess_env: BuildEnvironment,
 ):
-    for docname in subprocess_docnames:
-        referenced_files = env.trike_state.references.setdefault(docname, set())
-        referenced_files |= subprocess_env.trike_state.references.get(docname, set())
+    for n in subprocess_docnames:
+        env.trike_state.references[n] |= subprocess_env.trike_state.references[n]
 
 
 class PutDirective(SphinxDirective):
@@ -505,9 +504,7 @@ class PutDirective(SphinxDirective):
             directive, argument, namespace, module
         )
         if comment is not None:
-            self.env.trike_state.references.setdefault(self.env.docname, set()).add(
-                comment.file
-            )
+            self.env.trike_state.references[self.env.docname].add(comment.file)
             logger.debug(f"{comment.file} referenced by {self.env.docname}")
 
             text = []
